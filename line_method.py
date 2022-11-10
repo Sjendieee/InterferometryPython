@@ -5,6 +5,24 @@ import logging
 import os
 from general_functions import image_resize
 
+
+def normalize_wrappedspace(signal, threshold):
+    '''
+    Local normalization of the wrapped space. Since fringe pattern is never ideal (i.e. never runs between 0-1) due
+    to noise and averaging errors, the wrapped space doesn't run from -pi to pi, but somewhere inbetween. By setting
+    this value to True, the wrapped space is normalized from -pi to pi, if the stepsize is above a certain threshold.
+    :param signal: wrapped signal, i.e. stepped-wise signal between -pi and pi
+    :param threshold: if step is larger than this value, the neighboring peaks are pulled to -pi and pi. should be
+        0<Threshold<=2pi
+    :return: normalized signal
+    '''
+    # calculate differential. +0 since len(diff) = len(signal)-1
+    diff = np.append(np.diff(signal), 0)
+    # adjust peaks if outside of threshold
+    signal[diff > threshold] = np.pi
+    signal[np.where(diff > threshold)[0] - 1] = -np.pi
+    return signal
+
 def intersection_imageedge(a, b, limits):
     '''
     For a given image dimension (limits) and linear line (y=ax+b) it determines which borders of the image the line
@@ -214,8 +232,8 @@ def method_line(config, **kwargs):
     # get the points for the center linear slice
     if config.getboolean("LINE_METHOD", "SELECT_POINTS"):
         print('Select 2 point one-by-one for the slice (points are not shown in the image window).')
-        im_temp = image_resize(im_gray, height=800)
-        resize_factor = 800 / im_gray.shape[0]
+        im_temp = image_resize(im_gray, height=1200)
+        resize_factor = 1200 / im_gray.shape[0]
         cv2.imshow('image', im_temp)
         cv2.setWindowTitle("image", "Slice selection window. Select 2 points for the slice.")
         cv2.setMouseCallback('image', click_event)
@@ -262,21 +280,16 @@ def method_line(config, **kwargs):
     AlignmentPoint = (im_gray.shape[0] // 2, im_gray.shape[1] // 2)  # take center of image as alignment
     profiles_aligned = align_arrays(all_coordinates, profiles, AlignmentPoint)
 
-
     # TODO filtering here to disregard datapoints (make nan) that have little statistical significance
     def filter_profiles(profiles_aligned, profile):
         nanValues = np.sum(np.isnan(profiles_aligned), axis=0)
         profiles_aligned = profile[np.where(nanValues == 0)]
         return profiles_aligned
 
-
     profile = np.nanmean(profiles_aligned, axis=0)
 
     if config.getboolean("LINE_METHOD_ADVANCED", "FILTER_STARTEND"):
         profile = filter_profiles(profiles_aligned, profile)
-
-
-
 
     logging.info("Profiles are aligned and average profile is determined.")
 
@@ -295,11 +308,19 @@ def method_line(config, **kwargs):
         # mask = smooth_step(mask, highPassBlur)
     profile_fft = profile_fft * mask
 
+
     profile_filtered = np.fft.ifft(profile_fft)
     logging.info("Average profile is filtered in the Fourier space.")
 
-
+    # calculate the wrapped space
     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+
+    # local normalization of the wrapped space. Since fringe pattern is never ideal (i.e. never runs between 0-1) due
+    # to noise and averaging errors, the wrapped space doesn't run from -pi to pi, but somewhere inbetween. By setting
+    # this value to True, the wrapped space is normalized from -pi to pi, if the stepsize is above a certain threshold.
+    if config.getboolean("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE"):
+        wrapped = normalize_wrappedspace(wrapped, config.getfloat("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE_THRESHOLD"))
+
     unwrapped = np.unwrap(wrapped)
     logging.info("Average slice is wrapped and unwrapped")
 
@@ -309,8 +330,6 @@ def method_line(config, **kwargs):
 
     unwrapped_converted = unwrapped * conversionFactorZ
     logging.debug('Conversion factor for Z applied.')
-
-    # unwrapped = -unwrapped + np.max(unwrapped)
 
     from plotting import plot_lineprocess, plot_profiles, plot_sliceoverlay, plot_unwrappedslice
     fig1 = plot_profiles(config, profiles_aligned)
