@@ -49,16 +49,24 @@ def image_resize(image, width=None, height=None, inter=cv2.INTER_AREA):
     # return the resized image
     return resized
 
-def list_images(source):
+def list_images(source, config):
     if os.path.isdir(source):
-        images = os.listdir(source)
-        folder = source
+            images = os.listdir(source)
+            folder = source
     else:
         if not os.path.exists(source):
             logging.error(f"File {source} does not exist.")
             exit()
         images = [os.path.basename(source)]
         folder = os.path.dirname(source)
+        if config.get("GENERAL", "ANALYSIS_RANGE") != 'False':
+            source2 = config.get("GENERAL", "ANALYSIS_RANGE")
+            images2 = [os.path.basename(source2)]
+            imagestot = os.listdir(folder)
+            imagesrange = [images[0]]
+            for i in range(imagestot.index(images[0])+1, imagestot.index(images2[0])):
+                imagesrange.append(imagestot[i])
+            images = imagesrange
     images = [img for img in images if
               img.endswith(".tiff") or img.endswith(".png") or img.endswith(".jpg") or img.endswith(
                   ".jpeg") or img.endswith(".bmp")]

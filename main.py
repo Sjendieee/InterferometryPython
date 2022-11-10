@@ -36,7 +36,7 @@ def main():
     logging.info(f'Save folder created: {SaveFolder}. Process id: {Proc}.')
 
     # list all supported images (tiff, png, jpg, jpeg, bmp) if source is folder. If source is file, check if supported.
-    inputImages, inputFolder, inputImagesFullPath = list_images(config.get("GENERAL", "SOURCE"))
+    inputImages, inputFolder, inputImagesFullPath = list_images(config.get("GENERAL", "SOURCE"), config)
 
     # get timestamps of all frames and time difference between frames.
     timestamps, deltatime = get_timestamps(config, inputImages, inputImagesFullPath)
@@ -78,8 +78,9 @@ def main():
         logging.info(f"{idx + 1}/{len(inputImages)} - Analyzing started.")
         stats['analysis'][idx] = {}
 
-        if config.get("GENERAL", "ANALYSIS_RANGE") == 'False' or idx % config.getint("GENERAL", "ANALYSIS_RANGE") == 0:
-
+        if  config.get("GENERAL", "ANALYSIS_RANGE") == 0:
+            logging.info("Image skipped by user setting.")
+        else:
             imagePath = os.path.join(inputFolder, inputImage)
             im_gray, im_raw = image_preprocessing(config, imagePath)
             logging.info(f"{idx + 1}/{len(inputImages)} - Pre-processing done.")
@@ -114,8 +115,7 @@ def main():
             stats['analysis'][idx]['wrappedPath'] = wrappedPath
 
             plt.close('all')
-        else:
-            logging.info("Image skipped by user setting.")
+
 
         stats['analysis'][idx]['timeElapsed'] = time.time() - start
 
