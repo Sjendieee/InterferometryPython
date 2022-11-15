@@ -64,7 +64,7 @@ def list_images(source, config):
             images2 = [os.path.basename(source2)]
             imagestot = os.listdir(folder)
             imagesrange = [images[0]]
-            for i in range(imagestot.index(images[0])+1, imagestot.index(images2[0])):
+            for i in range(imagestot.index(images[0])+1, imagestot.index(images2[0])+1):
                 imagesrange.append(imagestot[i])
             images = imagesrange
     images = [img for img in images if

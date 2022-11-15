@@ -8,6 +8,7 @@ import csv
 from matplotlib.widgets import RectangleSelector
 from datetime import datetime
 
+
 '''
 IMPORTANT
 
@@ -44,12 +45,16 @@ class Highlighter(object):
         return mask
 
 
-procStatsJsonPath = r'C:\Users\HOEKHJ\Dev\InterferometryPython\export\PROC_20221108193012\PROC_20221108193012_statistics.json'
+
+
+procStatsJsonPath = r'C:\Users\ReuvekampSW\Documents\InterferometryPython\export\PROC_20221115143504\PROC_20221115143504_statistics.json'
 print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
 
 csvPathAppend = r''
 flipData = False
-analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
+#analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
+analyzeImages = np.arange(0,1,1)
+
 # analyzeImages = np.array([100, 110])
 
 # 1 slice: Contact angle = -1.6494950309356011 degrees.
@@ -161,9 +166,14 @@ try:
         ax.set_xlim([x[0], x[-1]])
         ax.set_ylim([y[0], y[-1]])
 
-
-
-        fig.savefig(os.path.join(os.path.dirname(originalPath), f"angleFitting_{os.path.splitext(os.path.basename(originalPath))[0]}.png"), dpi=300)
+        foldername = "CA_analysis"
+        newfolder = os.path.join(os.path.dirname(procStatsJsonPath), foldername)
+        if not os.path.exists(newfolder):
+            os.mkdir(newfolder)
+            print('created path: ', newfolder)
+        print(os.path.abspath(foldername))
+        #fig.savefig(os.path.join(os.path.dirname(originalPath),  f"angleFitting_{os.path.splitext(os.path.basename(originalPath))[0]}.png"), dpi=300)
+        fig.savefig(os.path.join(newfolder, f"angleFitting_{os.path.splitext(os.path.basename(originalPath))[0]}.png"), dpi=300)
 
         data['data'][idx] = {}
         data['data'][idx]['timeFromStart'] = timeFromStart[imageNumber]
@@ -185,7 +195,7 @@ try:
 except:
     print("Something went wrong, still saving data.")
 
-with open(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.json"), 'w') as f:
+with open(os.path.join(newfolder, f"angleFittingData.json"), 'w') as f:
     json.dump(data, f, indent=4)
 
 timeFromStart = np.array([data['data'][i]['timeFromStart'] for i in data['data']], dtype='float')
@@ -193,7 +203,7 @@ angleDeg = np.array([data['data'][i]['angleDeg'] for i in data['data']], dtype='
 print(timeFromStart)
 print(angleDeg)
 
-np.savetxt(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"), np.vstack((timeFromStart, angleDeg)),
+np.savetxt(os.path.join(newfolder, f"angleFittingData.csv"), np.vstack((timeFromStart, angleDeg)),
            delimiter=',', fmt='%f', header=f'Dataset: {os.path.basename(originalPath)}, row 1 = Time from start '
                                            f'(depositing drop) [s], row 2 = contact angle [deg] ')
 
@@ -203,8 +213,8 @@ ax.plot(timeFromStart, angleDeg, '.-')
 ax.set_xlabel(f'[Time from drop creation [s]')
 ax.set_ylabel(f'[Contact angle [deg]')
 fig.tight_layout()
-fig.savefig(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.png"), dpi=300)
-
+fig.savefig(os.path.join(newfolder, f"angleFittingData.png"), dpi=300)
+exit()
 
 
 
