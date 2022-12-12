@@ -67,13 +67,14 @@ def list_images(source, config):
             for i in range(imagestot.index(images[0])+1, imagestot.index(images2[0])+1):
                 imagesrange.append(imagestot[i])
             images = imagesrange
-    images = [img for img in images if
+    imagestrimmed = images[0::config.getint("GENERAL", "ANALYSIS_INTERVAL")]
+    imagestrimmed = [img for img in imagestrimmed if
               img.endswith(".tiff") or img.endswith(".png") or img.endswith(".jpg") or img.endswith(
                   ".jpeg") or img.endswith(".bmp")]
     if not images:
         raise Exception(
             f"{datetime.now().strftime('%H:%M:%S')} No images with extension '.tiff', '.png', '.jpg', '.jpeg' or '.bmp' found in selected folder.")
-    return natsorted(images), folder, [os.path.join(folder, i) for i in natsorted(images)]
+    return natsorted(imagestrimmed), folder, [os.path.join(folder, i) for i in natsorted(imagestrimmed)]
 
 def get_timestamps(config, filenames, filenames_fullpath):
     '''
