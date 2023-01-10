@@ -133,7 +133,8 @@ def get_timestamps(config, filenames, filenames_fullpath):
         logging.info("Timestamps read from filenames. Deltatime calculated based on creation time.")
     else:
         timestamps = None
-        deltatime = np.arange(0, len(filenames)) * config.getfloat("GENERAL", "INPUT_FPS")
+        # deltatime = np.arange(0, len(filenames)) * config.getfloat("GENERAL", "INPUT_FPS")
+        deltatime = np.ones(len(filenames)) * config.getfloat("GENERAL", "INPUT_FPS")
         logging.warning("Deltatime calculated based on fps.")
 
     return timestamps, deltatime
@@ -145,17 +146,53 @@ def timestamps_to_deltat(timestamps):
     return deltat
 
 def check_outputfolder(config):
-    foldername = config.get("SAVING", "SAVEFOLDER")
-    if not os.path.exists(foldername):
-        os.mkdir(foldername)
+    folders = {}
+
+    folders['save'] = config.get("SAVING", "SAVEFOLDER")
+    if not os.path.exists(folders['save']):
+        os.mkdir(folders['save'])
 
     proc = f"PROC_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
     if config.getboolean("SAVING", "SAVEFOLDER_CREATESUB"):
-        foldername = os.path.join(foldername, proc)
-        os.mkdir(foldername)
+        folders['save'] = os.path.join(folders['save'], proc)
+        os.mkdir(folders['save'])
 
-    return os.path.abspath(foldername), proc
+    if config.getboolean("SAVING", "SEPARATE_FOLDERS"):
+        folders['csv'] = os.path.join(folders['save'], 'csv')
+        folders['npy'] = os.path.join(folders['save'], 'npy')
+        os.mkdir(folders['csv'])
+        os.mkdir(folders['npy'])
+        if config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'surface':
+            folders['save_process'] = os.path.join(folders['save'], 'process')
+            folders['save_unwrapped3d'] = os.path.join(folders['save'], 'unwrapped3d')
+            folders['save_wrapped'] = os.path.join(folders['save'], 'wrapped')
+            folders['save_unwrapped'] = os.path.join(folders['save'], 'unwrapped')
+            os.mkdir(folders['save_process'])
+            os.mkdir(folders['save_unwrapped3d'])
+            os.mkdir(folders['save_wrapped'])
+            os.mkdir(folders['save_unwrapped'])
+        elif config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'line':
+            folders['save_rawslices'] = os.path.join(folders['save'], 'rawslices')
+            folders['save_process'] = os.path.join(folders['save'], 'process')
+            folders['save_rawslicesimage'] = os.path.join(folders['save'], 'rawslicesimage')
+            folders['save_unwrapped'] = os.path.join(folders['save'], 'unwrapped')
+            os.mkdir(folders['save_rawslices'])
+            os.mkdir(folders['save_process'])
+            os.mkdir(folders['save_rawslicesimage'])
+            os.mkdir(folders['save_unwrapped'])
+    else:
+        folders['csv'] = folders['npy'] = folders['save']
+        if config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'surface':
+            folders['save_process'] = folders['save_unwrapped3d'] = folders['save_rawslicesimage'] = folders[
+                'save_unwrapped'] = folders['save']
+        elif config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'line':
+            folders['save_rawslices'] = folders['save_process'] = folders['save_rawslicesimage'] = folders[
+                'save_unwrapped'] = folders['save']
+
+    folders['savepath'] = os.path.abspath(folders['save'])
+
+    return folders, proc
 
 def image_preprocessing(config, imagepath):
     im_raw = cv2.imread(imagepath)

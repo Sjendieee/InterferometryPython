@@ -32,11 +32,12 @@ def main():
     config.read("config.ini")
 
     # create unique id (proc) for this analysis and create the folder structure if it does not exist yet
-    SaveFolder, Proc = check_outputfolder(config)
-    logging.info(f'Save folder created: {SaveFolder}. Process id: {Proc}.')
+    Folders, Proc = check_outputfolder(config)
+    logging.info(f'Save folder created: {Folders["savepath"]}. Process id: {Proc}.')
 
     # list all supported images (tiff, png, jpg, jpeg, bmp) if source is folder. If source is file, check if supported.
-    inputImages, inputFolder, inputImagesFullPath = list_images(config.get("GENERAL", "SOURCE"), config)
+    inputImages, inputFolder, inputImagesFullPath = list_images(config.get("GENERAL", "SOURCE"))
+    Folders['input'] = inputFolder
 
     # get timestamps of all frames and time difference between frames.
     timestamps, deltatime = get_timestamps(config, inputImages, inputImagesFullPath)
@@ -54,9 +55,7 @@ def main():
     stats['About']['repo'] = str(git.Repo(search_parent_directories=True))
     stats['About']['sha'] = git.Repo(search_parent_directories=True).head.object.hexsha
     stats['startDateTime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f %z')
-    stats['SaveFolder'] = SaveFolder
     stats['Proc'] = Proc
-    stats['inputFolder'] = inputFolder
     stats['inputImages'] = inputImages
     stats['inputImagesFullPath'] = inputImagesFullPath
     stats['timestamps'] = None if timestamps is None else \
@@ -88,32 +87,34 @@ def main():
 
             savename = f'{os.path.splitext(os.path.basename(imagePath))[0]}_analyzed_'
             stats['analysis'][idx]['imagePath'] = imagePath
+            stats['analysis'][idx]['imageName'] = os.path.basename(imagePath)
             stats['analysis'][idx]['savename'] = savename
 
             if config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'surface':
                 unwrapped_object = method_surface(config, im_gray=im_gray, conversionFactorXY=conversionFactorXY,
                                                   conversionFactorZ=conversionFactorZ, unitXY=unitXY, unitZ=unitZ,
-                                                  SaveFolder=SaveFolder, savename=savename)
+                                                  Folders=Folders, savename=savename)
             elif config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'line':
                 unwrapped_object = method_line(config, im_gray=im_gray, im_raw=im_raw,
                                                conversionFactorXY=conversionFactorXY,
                                                conversionFactorZ=conversionFactorZ, unitXY=unitXY, unitZ=unitZ,
-                                               SaveFolder=SaveFolder, savename=savename)
+                                               Folders=Folders, savename=savename)
 
             # Save unwrapped image = main result
             wrappedPath = False
             if config.getboolean("SAVING", "SAVE_UNWRAPPED_RAW_NPY"):
-                wrappedPath = os.path.join(SaveFolder, f"{savename}_unwrapped.npy")
-                with open(os.path.join(SaveFolder, f"{savename}_unwrapped.npy"), 'wb') as f:
+                wrappedPath = os.path.join(Folders['npy'], f"{savename}_unwrapped.npy")
+                with open(os.path.join(Folders['npy'], f"{savename}_unwrapped.npy"), 'wb') as f:
                     np.save(f, unwrapped_object)
+                stats['analysis'][idx]['wrappedPath_npy'] = os.path.relpath(wrappedPath, (Folders['save']))  # only return the relative path to main save folder
                 logging.info(f'Saved unwrapped image to file with filename {wrappedPath}')
-            if config.getboolean("SAVING", "SAVE_UNWRAPPED_RAW_CSV"):
-                wrappedPath = os.path.join(SaveFolder, f"{savename}_unwrapped.csv")
+            if config.getboolean("SAVING", "SAVE_UNWRAPPED_RAW_CSV") and not config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'surface':
+                wrappedPath = os.path.join(Folders['csv'], f"{savename}_unwrapped.csv")
                 unwrapped_object.tofile(wrappedPath, sep=',')
+                stats['analysis'][idx]['wrappedPath_csv'] = os.path.relpath(wrappedPath, (Folders['save']))  # only return the relative path to main save folder
+
             if config.getboolean("PLOTTING", "SHOW_PLOTS"):
                 plt.show()
-
-            stats['analysis'][idx]['wrappedPath'] = wrappedPath
 
             plt.close('all')
 
@@ -127,16 +128,17 @@ def main():
 
         greyframes.append((im_gray))
 
-    makeMovie2(greyframes, SaveFolder, "greyimage_video.mp4", deltatime)
+    makeMovie2(greyframes, Folders['save'], "greyimage_video.mp4", deltatime)
+    stats['Folders'] = Folders
     stats['analysisTimeElapsed'] = time.time() - start_main
     # Save statistics
-    with open(os.path.join(SaveFolder, f"{Proc}_statistics.json"), 'w') as f:
+    with open(os.path.join(Folders['save'], f"{Proc}_statistics.json"), 'w') as f:
         json.dump(stats, f, indent=4)
 
     # copy config file and add to export folder.
     if config.getboolean("SAVING", "SAVE_SETTINGS_TXT"):
-        stats['configPath'] = os.path.join(SaveFolder, f'config_{Proc}.ini')
-        with open(os.path.join(SaveFolder, f'config_{Proc}.ini'), 'w') as configfile:
+        stats['configPath'] = os.path.join(Folders['save'], f'config_{Proc}.ini')
+        with open(os.path.join(Folders['save'], f'config_{Proc}.ini'), 'w') as configfile:
             config.write(configfile)
 
     logging.info(f"Code finished in {round(time.time() - start_main)} seconds.")
