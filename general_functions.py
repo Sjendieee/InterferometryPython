@@ -7,6 +7,13 @@ from natsort import natsorted
 import re
 import numpy as np
 
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFont
+
 def TimeRemaining(arraytimes, left):
     avgtime = statistics.mean(arraytimes)
     timeremaining = left * avgtime
@@ -117,6 +124,13 @@ def get_timestamps(config, filenames, filenames_fullpath):
             timestamps.append(datetime.fromtimestamp(os.path.getctime(f)))
         deltatime = timestamps_to_deltat(timestamps)
         logging.info("Timestamps read from filenames. Deltatime calculated based on creation time.")
+    elif config.getboolean("GENERAL", "TIMESTAMPS_FROMMODIFIEDDATE"):
+        # read from creation date file property
+        timestamps = []
+        for f in filenames_fullpath:
+            timestamps.append(datetime.fromtimestamp(os.path.getmtime(f)))
+        deltatime = timestamps_to_deltat(timestamps)
+        logging.info("Timestamps read from filenames. Deltatime calculated based on creation time.")
     else:
         timestamps = None
         deltatime = np.arange(0, len(filenames)) * config.getfloat("GENERAL", "INPUT_FPS")
@@ -211,3 +225,35 @@ def conversion_factors(config):
         conversionFactorZ = conversionFactorZ * conversionsZ[units.index(unitZ)]  # apply unit conversion
 
     return conversionFactorXY, conversionFactorZ, unitXY, unitZ
+
+
+
+def makeMovie(imgArr):
+    frames = []  # for storing the generated images
+    fig = plt.figure()
+    for i in range(len(imgArr)):
+        frames.append([plt.imshow(imgArr[i], animated=True)])
+
+    ani = animation.ArtistAnimation(fig, frames, interval=50, blit=True,
+                                    repeat_delay=1000)
+    ani.save('movie.mp4')
+    return True
+
+def makeMovie2(imgArr, SaveFolder, savename, deltatime):
+    video_name = os.path.join(SaveFolder, savename)
+    images = imgArr
+    frame = (imgArr[0])
+    height, width = frame.shape
+
+    video = cv2.VideoWriter(video_name, 0, 1, (width, height))
+    n = 0
+    for i in images:
+        I1 = ImageDraw.Draw(i)
+        # Add Text to an image
+        I1.text((10, 10), f"{round(deltatime[n])} seconds ", fill=(255, 0, 0))
+        video.write(I1)
+        n += 1
+
+    cv2.destroyAllWindows()
+    video.release()
+    return True

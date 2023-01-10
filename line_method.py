@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy import spatial
 import cv2
 import logging
@@ -190,9 +191,21 @@ def align_arrays(all_coordinates, data, alignment_coordinate):
     # return the aligned 2D array
     return data_aligned
 
+def mov_mean(arr, window_size):
+    # Convert array of integers to pandas series
+    numbers_series = pd.Series(arr)
+    # Get the window of series of observations of specified window size
+    windows = numbers_series.rolling(window_size)
+    # Create a series of moving averages of each window
+    moving_averages = windows.mean()
+    # Convert pandas series back to list
+    moving_averages_list = moving_averages.tolist()
+    # Remove null entries from the list
+    final_list = moving_averages_list[window_size - 1:]
+    return final_list
+
 def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'valid') / w
-
 right_clicks = list()
 def click_event(event, x, y, flags, params):
     '''
@@ -242,6 +255,7 @@ def method_line(config, **kwargs):
         P1 = np.array(right_clicks[0]) / resize_factor
         P2 = np.array(right_clicks[1]) / resize_factor
         logging.info(f"Selected coordinates: {P1=}, {P2=}.")
+        logging.info(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}], P2 = [{P2[0]:.0f}, {P2[1]:.0f}]")
     else:
         # get from config file if preferred
         P1 = [int(e.strip()) for e in config.get('LINE_METHOD', 'POINTA').split(',')]
@@ -292,6 +306,10 @@ def method_line(config, **kwargs):
         profile = filter_profiles(profiles_aligned, profile)
 
     logging.info("Profiles are aligned and average profile is determined.")
+
+    movmeanN = config.getint("LINE_METHOD_ADVANCED", "MOVMEAN")
+    profile = mov_mean(profile, movmeanN)
+    logging.info("Moving average of profile has been taken")
 
     profile_fft = np.fft.fft(profile)  # transform to fourier space
     highPass = config.getint("LINE_METHOD_ADVANCED", "HIGHPASS_CUTOFF")

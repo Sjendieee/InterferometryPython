@@ -12,7 +12,7 @@ from surface_method import method_surface, setfouriersettings
 from line_method import method_line
 from general_functions import TimeRemaining, image_resize_percentage, image_resize, list_images, \
     get_timestamps, timestamps_to_deltat, check_outputfolder, image_preprocessing, verify_settings, \
-    conversion_factors
+    conversion_factors, makeMovie, makeMovie2
 
 
 def main():
@@ -73,6 +73,7 @@ def main():
         exit()
 
     timetracker = []
+    greyframes = []
     for idx, inputImage in enumerate(inputImages):
         start = time.time()  # start timer to calculate iteration time
         logging.info(f"{idx + 1}/{len(inputImages)} - Analyzing started.")
@@ -124,6 +125,9 @@ def main():
                       len(inputImages) - idx)  # estimate remaining time based on average time per iteration and iterations left
         logging.info(f"{idx + 1}/{len(inputImages)} - Finished analyzing image.")
 
+        greyframes.append((im_gray))
+
+    makeMovie2(greyframes, SaveFolder, "greyimage_video.mp4", deltatime)
     stats['analysisTimeElapsed'] = time.time() - start_main
     # Save statistics
     with open(os.path.join(SaveFolder, f"{Proc}_statistics.json"), 'w') as f:

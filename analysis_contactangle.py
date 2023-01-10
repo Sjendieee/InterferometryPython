@@ -47,15 +47,15 @@ class Highlighter(object):
 
 
 
-procStatsJsonPath = r'C:\Users\ReuvekampSW\Documents\InterferometryPython\export\PROC_20221212165033\PROC_20221212165033_statistics.json'
+procStatsJsonPath = r'C:\Users\ReuvekampSW\Documents\InterferometryPython\export\PROC_20221214110328\PROC_20221214110328_statistics.json'
 print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
 
 csvPathAppend = r''
 flipData = False
-#analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
-analyzeImages = np.arange(0, 15, 1)
+#analyzeImages = np.concatenate((np.arange(0, 3, 1), np.arange(4, 26, 2)))
+analyzeImages = np.arange(0, 12, 1)
 
-# analyzeImages = np.array([100, 110])
+#analyzeImages = np.array([5])
 
 # 1 slice: Contact angle = -1.6494950309356011 degrees.
 # 11 slices: -1.650786783947852 degrees.
