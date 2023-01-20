@@ -241,6 +241,7 @@ def method_line(config, **kwargs):
     unitZ = kwargs['unitZ']
     Folders = kwargs['Folders']
     savename = kwargs['savename']
+    timeelapsed = kwargs['timeelapsed']
 
     # get the points for the center linear slice
     if config.getboolean("LINE_METHOD", "SELECT_POINTS"):
@@ -331,8 +332,14 @@ def method_line(config, **kwargs):
     profile_filtered = np.fft.ifft(profile_fft)
     logging.info("Average profile is filtered in the Fourier space.")
 
+    #TODO testing to save real part of profile to csv file. First value is the elapsed time from moment 0 in given series of images.
+    wrappedPath = os.path.join(Folders['save_process'], f"{savename}_real.csv")
+    realProfile = profile_filtered.real
+    (np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+
     # calculate the wrapped space
     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+
 
     # local normalization of the wrapped space. Since fringe pattern is never ideal (i.e. never runs between 0-1) due
     # to noise and averaging errors, the wrapped space doesn't run from -pi to pi, but somewhere inbetween. By setting
@@ -340,7 +347,8 @@ def method_line(config, **kwargs):
     if config.getboolean("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE"):
         wrapped = normalize_wrappedspace(wrapped, config.getfloat("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE_THRESHOLD"))
 
-    np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\wrapped.csv", wrapped, delimiter=',', fmt='%f')
+    #TODO This needed fixing: was a static path. But seems not even necessary for the line method?
+    #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\wrapped.csv", wrapped, delimiter=',', fmt='%f')
 
     unwrapped = np.unwrap(wrapped)
     logging.info("Average slice is wrapped and unwrapped")
@@ -352,8 +360,11 @@ def method_line(config, **kwargs):
     unwrapped_converted = unwrapped * conversionFactorZ
     logging.debug('Conversion factor for Z applied.')
 
-    np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\unwrapped.csv", unwrapped, delimiter=',', fmt='%f')
-    exit()
+    #TODO was a static path, now variable to the savepath
+    #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\unwrapped.csv", unwrapped, delimiter=',', fmt='%f')
+    np.savetxt(os.path.join(Folders["savepath"], f"unwrapped\\unwrapped.csv"), unwrapped, delimiter=',', fmt='%f')
+    #TODO why an exit here?
+    #exit()
 
     from plotting import plot_lineprocess, plot_profiles, plot_sliceoverlay, plot_unwrappedslice
     fig1 = plot_profiles(config, profiles_aligned)

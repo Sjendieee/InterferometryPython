@@ -264,7 +264,7 @@ def conversion_factors(config):
     return conversionFactorXY, conversionFactorZ, unitXY, unitZ
 
 
-
+#TODO vgm niet functional
 def makeMovie(imgArr):
     frames = []  # for storing the generated images
     fig = plt.figure()
@@ -276,6 +276,7 @@ def makeMovie(imgArr):
     ani.save('movie.mp4')
     return True
 
+#TODO vgm niet functional
 def makeMovie2(imgArr, SaveFolder, savename, deltatime):
     video_name = os.path.join(SaveFolder, savename)
     images = imgArr

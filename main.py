@@ -36,7 +36,7 @@ def main():
     logging.info(f'Save folder created: {Folders["savepath"]}. Process id: {Proc}.')
 
     # list all supported images (tiff, png, jpg, jpeg, bmp) if source is folder. If source is file, check if supported.
-    inputImages, inputFolder, inputImagesFullPath = list_images(config.get("GENERAL", "SOURCE"))
+    inputImages, inputFolder, inputImagesFullPath = list_images(config.get("GENERAL", "SOURCE"), config)
     Folders['input'] = inputFolder
 
     # get timestamps of all frames and time difference between frames.
@@ -73,11 +73,14 @@ def main():
 
     timetracker = []
     greyframes = []
+    count = 0
+    timeelapsed = 0
     for idx, inputImage in enumerate(inputImages):
         start = time.time()  # start timer to calculate iteration time
         logging.info(f"{idx + 1}/{len(inputImages)} - Analyzing started.")
         stats['analysis'][idx] = {}
-
+        timeelapsed = timeelapsed + deltatime[count]
+        count = count + 1
         if  config.get("GENERAL", "ANALYSIS_RANGE") == 0:
             logging.info("Image skipped by user setting.")
         else:
@@ -98,7 +101,7 @@ def main():
                 unwrapped_object = method_line(config, im_gray=im_gray, im_raw=im_raw,
                                                conversionFactorXY=conversionFactorXY,
                                                conversionFactorZ=conversionFactorZ, unitXY=unitXY, unitZ=unitZ,
-                                               Folders=Folders, savename=savename)
+                                               Folders=Folders, savename=savename, timeelapsed=timeelapsed)
 
             # Save unwrapped image = main result
             wrappedPath = False
@@ -110,7 +113,9 @@ def main():
                 logging.info(f'Saved unwrapped image to file with filename {wrappedPath}')
             if config.getboolean("SAVING", "SAVE_UNWRAPPED_RAW_CSV") and not config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'surface':
                 wrappedPath = os.path.join(Folders['csv'], f"{savename}_unwrapped.csv")
-                unwrapped_object.tofile(wrappedPath, sep=',')
+                #unwrapped_object.tofile(wrappedPath, sep=',')
+                #TODO changed way of saving to vertical in excel instead of horizontal (which splitted the data in a weird way)
+                unwrapped_object.tofile(wrappedPath, sep = '\n', format = '%f')
                 stats['analysis'][idx]['wrappedPath_csv'] = os.path.relpath(wrappedPath, (Folders['save']))  # only return the relative path to main save folder
 
             if config.getboolean("PLOTTING", "SHOW_PLOTS"):
@@ -126,9 +131,9 @@ def main():
                       len(inputImages) - idx)  # estimate remaining time based on average time per iteration and iterations left
         logging.info(f"{idx + 1}/{len(inputImages)} - Finished analyzing image.")
 
-        greyframes.append((im_gray))
+        #greyframes.append((im_gray))
+    #makeMovie2(greyframes, Folders['save'], "greyimage_video.mp4", deltatime)
 
-    makeMovie2(greyframes, Folders['save'], "greyimage_video.mp4", deltatime)
     stats['Folders'] = Folders
     stats['analysisTimeElapsed'] = time.time() - start_main
     # Save statistics
