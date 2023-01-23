@@ -6,6 +6,7 @@ import matplotlib.image as mpimg
 import glob
 import cv2
 from general_functions import image_resize
+from line_method import coordinates_on_line
 import numpy as np
 import logging
 
@@ -23,13 +24,13 @@ def click_eventSingle(event, x, y, flags, params):
 
 def main():
     #Required changeables
-    pixelLoc1 = 1650
-    pixelLoc2 = 1651
+    pixelLoc1 = 3200
+    pixelLoc2 = 3201
     pixelIV = 100
     cvsFilenr1 = 236
     cvsFilenr2 = 244
     cvsFileIV = 4
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230120094823"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230123120524"
     csvName = "*"
     csvList = [f for f in glob.glob(os.path.join(source, f"process\\*.csv"))]
     #Probably fine
@@ -47,8 +48,35 @@ def main():
     global right_clicks
 
     P1 = np.array(right_clicks[0]) / resize_factor
-    logging.info(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}]")
+    print(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}]")
 
+    #Read in from config file (selected points on which the line was drawn)
+    pointa = 5272, 1701
+    pointb = 430, 1843
+    x_coords, y_coords = zip(*[pointa, pointb])  # unzip coordinates to x and y
+    a = (y_coords[1] - y_coords[0]) / (x_coords[1] - x_coords[0])
+    b = y_coords[0] - a * x_coords[0]
+
+    bn = b
+
+
+    #Obtain scaling factor to correspond chosen pixellocation to new position in raw image
+    #Scaling factor = factor by which raw image was made smaller in new image
+    P1arr = np.array(pointa)
+    P2arr = np.array(pointb)
+    BLarr = np.array([im_raw.shape[1], im_raw.shape[0]])
+
+    adjP1 = np.subtract(P1arr, P2arr)
+    scaling = np.divide(adjP1, BLarr)
+    print(f"Scaling fators are: {scaling}")
+
+
+
+    coordinates = coordinates_on_line(a, bn, [0, im_raw.shape[1], 0, im_raw.shape[0]])
+
+
+
+    print(f"The coordinates are: {coordinates}")
 
 
     #With this loop, different pixel locations can be chosen to plot for
@@ -76,7 +104,7 @@ def main():
             total = 0
 
             for idx in range(range1, range2):
-                total = total + float(rows[idx])
+                total = total + float(rows[idx]) + 100
             meanIntensity.append(total / (range2 - range1))
         plt.plot(elapsedtime, meanIntensity)
         plt.xlabel('Time (s)')
