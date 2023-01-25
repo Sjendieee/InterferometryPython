@@ -149,7 +149,7 @@ def main():
             for row in csvreader:
                 rows.append(row[0])
             file.close()
-            elapsedtime.append(float(rows[0]))
+            elapsedtime.append(float(rows[0])/3600)
 
             pixelLocation = i
             range1 = pixelLocation - rangeLength
@@ -163,7 +163,7 @@ def main():
                 total = total + float(rows[idx]) + 100
             meanIntensity.append(total / (range2 - range1))
         plt.plot(elapsedtime, meanIntensity)
-        plt.xlabel('Time (s)')
+        plt.xlabel('Time (h)')
         plt.ylabel('Mean intensity')
         plt.title(f'pixellocation = {pixelLocation}')
         #plt.show()
