@@ -83,35 +83,62 @@ def showPixellocation(pointa, pointb, source):
     coordinates = coordinates_on_line(a, bn, [0, im_raw.shape[1], 0, im_raw.shape[0]])
     print(f"The coordinates are: {coordinates}")
 
-def makeImages(profile, timeFromStart):
-    HIGHPASS_CUTOFF = 1
-    LOWPASS_CUTOFF = 1000
-    NORMALIZE_WRAPPEDSPACE = False
-    NORMALIZE_WRAPPEDSPACE_THRESHOLD = 3.14159265359
-    conversionZ = 0.02885654477258912
-    FLIP = True
+def makeImages(profile, timeFromStart, source, pixelLocation):
+    fig0, ax = plt.subplots()
+    ax.plot(timeFromStart, profile)
+    plt.xlabel('Time (h)')
+    plt.ylabel('Mean intensity')
+    plt.title(f'pixellocation = {pixelLocation}')
+    # plt.show()
+    plt.draw()
+    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile.png"),
+                 dpi=300)
+    for i in range(1,10,2):
+        for j in range(1,10,2):
+            HIGHPASS_CUTOFF = i
 
-    profile_fft = np.fft.fft(profile)  # transform to fourier space
-    highPass = HIGHPASS_CUTOFF
-    lowPass = LOWPASS_CUTOFF
-    mask = np.ones_like(profile).astype(float)
-    #mask[0:lowPass] = 0
-    #mask[-highPass:] = 0
-    profile_fft = profile_fft * mask
-    profile_filtered = np.fft.ifft(profile_fft)
-    wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-    if NORMALIZE_WRAPPEDSPACE:
-        wrapped = normalize_wrappedspace(wrapped, NORMALIZE_WRAPPEDSPACE_THRESHOLD)
-    unwrapped = np.unwrap(wrapped)
-    if FLIP:
-        unwrapped = -unwrapped + np.max(unwrapped)
+            LOWPASS_CUTOFF = j
+            NORMALIZE_WRAPPEDSPACE = False
+            NORMALIZE_WRAPPEDSPACE_THRESHOLD = 3.14159265359
+            conversionZ = 0.02885654477258912
+            FLIP = True
 
-    fig, ax = plt.subplots()
-    # ax.plot(timeFromStart, wrapped)
-    ax.plot(wrapped)
-    fig, ax = plt.subplots()
-    ax.plot(timeFromStart, unwrapped * conversionZ)
-    plt.show()
+            profile_fft = np.fft.fft(profile)  # transform to fourier space
+            highPass = HIGHPASS_CUTOFF
+            lowPass = LOWPASS_CUTOFF
+            mask = np.ones_like(profile).astype(float)
+            mask[0:lowPass] = 0
+            mask[-highPass:] = 0
+            profile_fft = profile_fft * mask
+
+            profile_filtered = np.fft.ifft(profile_fft)
+            wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+            if NORMALIZE_WRAPPEDSPACE:
+                wrapped = normalize_wrappedspace(wrapped, NORMALIZE_WRAPPEDSPACE_THRESHOLD)
+            unwrapped = np.unwrap(wrapped)
+            if FLIP:
+                unwrapped = -unwrapped + np.max(unwrapped)
+
+            fig1, ax = plt.subplots()
+            # ax.plot(timeFromStart, wrapped)
+            ax.plot(wrapped)
+            plt.title(f'wrapped plot: {highPass}, {lowPass}')
+            fig2, ax = plt.subplots()
+            ax.plot(timeFromStart, unwrapped * conversionZ)
+            plt.xlabel('Time')
+            plt.ylabel('height')
+            plt.title(f'Height plot: {highPass}, {lowPass}')
+            #plt.show()
+
+            if not os.path.exists(os.path.join(source, f"Swellingimages")):
+                os.mkdir(os.path.join(source, f"Swellingimages"))
+            fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_high{i},lo{j}.png"),
+                         dpi=300)
+            fig2.savefig(os.path.join(source, f"Swellingimages\\height_high{i},lo{j}.png"),
+                         dpi=300)
+            plt.close(fig0)
+            plt.close(fig1)
+            plt.close(fig2)
 
     # now get datapoints we need.
     #unwrapped_um = unwrapped * conversionZ
@@ -162,15 +189,8 @@ def main():
             for idx in range(range1, range2):
                 total = total + float(rows[idx]) + 100
             meanIntensity.append(total / (range2 - range1))
-        plt.plot(elapsedtime, meanIntensity)
-        plt.xlabel('Time (h)')
-        plt.ylabel('Mean intensity')
-        plt.title(f'pixellocation = {pixelLocation}')
-        #plt.show()
-        plt.draw()
 
-    plt.show()
-    makeImages(meanIntensity, elapsedtime)
+        makeImages(meanIntensity, elapsedtime, source, pixelLocation)
 
 if __name__ == "__main__":
     main()
