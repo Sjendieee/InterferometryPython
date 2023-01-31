@@ -9,6 +9,7 @@ from general_functions import image_resize
 from line_method import coordinates_on_line, normalize_wrappedspace
 import numpy as np
 import logging
+from PIL import Image
 
 
 right_clicks = list()
@@ -47,6 +48,16 @@ def positiontest(source):
 
     print(f"finished")
 
+#Input: a raw slice image, the chosen pixellocation
+#Output: a figure with a dot on the chosen pixellocation
+def showPixellocationv2(pointa, pointb, source):
+    imgblack = Image.open("C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\black square.png")
+    imgblack.resize((40,40))
+    imgblack.show()
+    rawImg = Image.open(os.path.join(source, f"rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230120_162715883_0010_analyzed_.png"))
+    rawImg.paste(imgblack,(100,500))
+    rawImg.show()
+    print(f"this is fine")
 
 #Get images to see where you chose your pixel
 def showPixellocation(pointa, pointb, source):
@@ -54,11 +65,11 @@ def showPixellocation(pointa, pointb, source):
     im_raw = cv2.imread(rawImgList[0])
     im_temp = image_resize(im_raw, height=1200)
     resize_factor = 1200 / im_raw.shape[0]
-    cv2.imshow('image', im_temp)
-    cv2.setWindowTitle("image", "Point selection window. Select 1 point.")
-    cv2.setMouseCallback('image', click_eventSingle)
-    cv2.waitKey(0)
-    global right_clicks
+    #cv2.imshow('image', im_temp)
+    #cv2.setWindowTitle("image", "Point selection window. Select 1 point.")
+    #cv2.setMouseCallback('image', click_eventSingle)
+    #cv2.waitKey(0)
+    #global right_clicks
     P1 = np.array(right_clicks[0]) / resize_factor
     print(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}]")
     #Obtain scaling factor to correspond chosen pixellocation to new position in raw image
@@ -95,8 +106,8 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     plt.draw()
     fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile.png"),
                  dpi=300)
-    for i in range(1,10,2):
-        for j in range(1,10,2):
+    for i in range(1,1,2):
+        for j in range(1,1,2):
             HIGHPASS_CUTOFF = i
 
             LOWPASS_CUTOFF = j
@@ -157,6 +168,7 @@ def main():
 
     # TODO show where your chosen pixel is actually located
     #positiontest(source)
+    showPixellocationv2(1,2, source)
 
     csvList = [f for f in glob.glob(os.path.join(source, f"process\\*.csv"))]
     #Length*2 = range over which the intensity will be taken
