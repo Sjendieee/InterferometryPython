@@ -84,6 +84,8 @@ def showPixellocation(pointa, pointb, source):
     print(f"The coordinates are: {coordinates}")
 
 def makeImages(profile, timeFromStart, source, pixelLocation):
+    if not os.path.exists(os.path.join(source, f"Swellingimages")):
+        os.mkdir(os.path.join(source, f"Swellingimages"))
     fig0, ax = plt.subplots()
     ax.plot(timeFromStart, profile)
     plt.xlabel('Time (h)')
@@ -130,8 +132,6 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             plt.title(f'Height plot: {highPass}, {lowPass}')
             #plt.show()
 
-            if not os.path.exists(os.path.join(source, f"Swellingimages")):
-                os.mkdir(os.path.join(source, f"Swellingimages"))
             fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_high{i},lo{j}.png"),
                          dpi=300)
             fig2.savefig(os.path.join(source, f"Swellingimages\\height_high{i},lo{j}.png"),
@@ -150,10 +150,10 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
 def main():
 
     #Required changeables
-    pixelLoc1 = 3200
-    pixelLoc2 = 3201
+    pixelLoc1 = 1800
+    pixelLoc2 = pixelLoc1 + 1
     pixelIV = 100
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230123120524"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230126140041"
 
     # TODO show where your chosen pixel is actually located
     #positiontest(source)
