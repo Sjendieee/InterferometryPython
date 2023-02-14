@@ -47,13 +47,13 @@ class Highlighter(object):
 
 
 
-procStatsJsonPath = r'C:\Users\ReuvekampSW\Documents\InterferometryPython\export\PROC_20221115143504\PROC_20221115143504_statistics.json'
+procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20221212150731\PROC_20221212150731_statistics.json'
 print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
 
 csvPathAppend = r''
 flipData = False
 #analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
-analyzeImages = np.arange(0,1,1)
+analyzeImages = np.arange(0, 1, 1)
 
 # analyzeImages = np.array([100, 110])
 
@@ -110,12 +110,12 @@ try:
         print(dataPath)
 
         conversionZ = procStats["conversionFactorZ"]
-        y = np.loadtxt(dataPath, delimiter=",") * conversionZ  # y is in um
+        y = np.loadtxt(dataPath, delimiter=",") * conversionZ   # y is in um
         if flipData:
             y = -y + max(y)
 
         conversionXY = procStats["conversionFactorXY"]
-        x = np.arange(0, len(y)) * conversionXY  # x is now in um
+        x = np.arange(0, len(y)) * conversionXY * 1000  # x is now in um
 
         fig, ax = plt.subplots()
         ax.scatter(x, y)
