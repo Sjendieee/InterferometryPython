@@ -7,6 +7,13 @@ from natsort import natsorted
 import re
 import numpy as np
 
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFont
+
 def TimeRemaining(arraytimes, left):
     avgtime = statistics.mean(arraytimes)
     timeremaining = left * avgtime
@@ -67,13 +74,14 @@ def list_images(source, config):
             for i in range(imagestot.index(images[0])+1, imagestot.index(images2[0])+1):
                 imagesrange.append(imagestot[i])
             images = imagesrange
-    images = [img for img in images if
+    imagestrimmed = images[0::config.getint("GENERAL", "ANALYSIS_INTERVAL")]
+    imagestrimmed = [img for img in imagestrimmed if
               img.endswith(".tiff") or img.endswith(".png") or img.endswith(".jpg") or img.endswith(
                   ".jpeg") or img.endswith(".bmp")]
     if not images:
         raise Exception(
             f"{datetime.now().strftime('%H:%M:%S')} No images with extension '.tiff', '.png', '.jpg', '.jpeg' or '.bmp' found in selected folder.")
-    return natsorted(images), folder, [os.path.join(folder, i) for i in natsorted(images)]
+    return natsorted(imagestrimmed), folder, [os.path.join(folder, i) for i in natsorted(imagestrimmed)]
 
 def get_timestamps(config, filenames, filenames_fullpath):
     '''
@@ -116,9 +124,17 @@ def get_timestamps(config, filenames, filenames_fullpath):
             timestamps.append(datetime.fromtimestamp(os.path.getctime(f)))
         deltatime = timestamps_to_deltat(timestamps)
         logging.info("Timestamps read from filenames. Deltatime calculated based on creation time.")
+    elif config.getboolean("GENERAL", "TIMESTAMPS_FROMMODIFIEDDATE"):
+        # read from creation date file property
+        timestamps = []
+        for f in filenames_fullpath:
+            timestamps.append(datetime.fromtimestamp(os.path.getmtime(f)))
+        deltatime = timestamps_to_deltat(timestamps)
+        logging.info("Timestamps read from filenames. Deltatime calculated based on creation time.")
     else:
         timestamps = None
-        deltatime = np.arange(0, len(filenames)) * config.getfloat("GENERAL", "INPUT_FPS")
+        # deltatime = np.arange(0, len(filenames)) * config.getfloat("GENERAL", "INPUT_FPS")
+        deltatime = np.ones(len(filenames)) * config.getfloat("GENERAL", "INPUT_FPS")
         logging.warning("Deltatime calculated based on fps.")
 
     return timestamps, deltatime
@@ -130,17 +146,53 @@ def timestamps_to_deltat(timestamps):
     return deltat
 
 def check_outputfolder(config):
-    foldername = config.get("SAVING", "SAVEFOLDER")
-    if not os.path.exists(foldername):
-        os.mkdir(foldername)
+    folders = {}
+
+    folders['save'] = config.get("SAVING", "SAVEFOLDER")
+    if not os.path.exists(folders['save']):
+        os.mkdir(folders['save'])
 
     proc = f"PROC_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
     if config.getboolean("SAVING", "SAVEFOLDER_CREATESUB"):
-        foldername = os.path.join(foldername, proc)
-        os.mkdir(foldername)
+        folders['save'] = os.path.join(folders['save'], proc)
+        os.mkdir(folders['save'])
 
-    return os.path.abspath(foldername), proc
+    if config.getboolean("SAVING", "SEPARATE_FOLDERS"):
+        folders['csv'] = os.path.join(folders['save'], 'csv')
+        folders['npy'] = os.path.join(folders['save'], 'npy')
+        os.mkdir(folders['csv'])
+        os.mkdir(folders['npy'])
+        if config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'surface':
+            folders['save_process'] = os.path.join(folders['save'], 'process')
+            folders['save_unwrapped3d'] = os.path.join(folders['save'], 'unwrapped3d')
+            folders['save_wrapped'] = os.path.join(folders['save'], 'wrapped')
+            folders['save_unwrapped'] = os.path.join(folders['save'], 'unwrapped')
+            os.mkdir(folders['save_process'])
+            os.mkdir(folders['save_unwrapped3d'])
+            os.mkdir(folders['save_wrapped'])
+            os.mkdir(folders['save_unwrapped'])
+        elif config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'line':
+            folders['save_rawslices'] = os.path.join(folders['save'], 'rawslices')
+            folders['save_process'] = os.path.join(folders['save'], 'process')
+            folders['save_rawslicesimage'] = os.path.join(folders['save'], 'rawslicesimage')
+            folders['save_unwrapped'] = os.path.join(folders['save'], 'unwrapped')
+            os.mkdir(folders['save_rawslices'])
+            os.mkdir(folders['save_process'])
+            os.mkdir(folders['save_rawslicesimage'])
+            os.mkdir(folders['save_unwrapped'])
+    else:
+        folders['csv'] = folders['npy'] = folders['save']
+        if config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'surface':
+            folders['save_process'] = folders['save_unwrapped3d'] = folders['save_rawslicesimage'] = folders[
+                'save_unwrapped'] = folders['save']
+        elif config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'line':
+            folders['save_rawslices'] = folders['save_process'] = folders['save_rawslicesimage'] = folders[
+                'save_unwrapped'] = folders['save']
+
+    folders['savepath'] = os.path.abspath(folders['save'])
+
+    return folders, proc
 
 def image_preprocessing(config, imagepath):
     im_raw = cv2.imread(imagepath)
@@ -210,3 +262,36 @@ def conversion_factors(config):
         conversionFactorZ = conversionFactorZ * conversionsZ[units.index(unitZ)]  # apply unit conversion
 
     return conversionFactorXY, conversionFactorZ, unitXY, unitZ
+
+
+#TODO vgm niet functional
+def makeMovie(imgArr):
+    frames = []  # for storing the generated images
+    fig = plt.figure()
+    for i in range(len(imgArr)):
+        frames.append([plt.imshow(imgArr[i], animated=True)])
+
+    ani = animation.ArtistAnimation(fig, frames, interval=50, blit=True,
+                                    repeat_delay=1000)
+    ani.save('movie.mp4')
+    return True
+
+#TODO vgm niet functional
+def makeMovie2(imgArr, SaveFolder, savename, deltatime):
+    video_name = os.path.join(SaveFolder, savename)
+    images = imgArr
+    frame = (imgArr[0])
+    height, width = frame.shape
+
+    video = cv2.VideoWriter(video_name, 0, 1, (width, height))
+    n = 0
+    for i in images:
+        I1 = ImageDraw.Draw(i)
+        # Add Text to an image
+        I1.text((10, 10), f"{round(deltatime[n])} seconds ", fill=(255, 0, 0))
+        video.write(I1)
+        n += 1
+
+    cv2.destroyAllWindows()
+    video.release()
+    return True

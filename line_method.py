@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy import spatial
 import cv2
 import logging
@@ -190,9 +191,21 @@ def align_arrays(all_coordinates, data, alignment_coordinate):
     # return the aligned 2D array
     return data_aligned
 
+def mov_mean(arr, window_size):
+    # Convert array of integers to pandas series
+    numbers_series = pd.Series(arr)
+    # Get the window of series of observations of specified window size
+    windows = numbers_series.rolling(window_size)
+    # Create a series of moving averages of each window
+    moving_averages = windows.mean()
+    # Convert pandas series back to list
+    moving_averages_list = moving_averages.tolist()
+    # Remove null entries from the list
+    final_list = moving_averages_list[window_size - 1:]
+    return final_list
+
 def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'valid') / w
-
 right_clicks = list()
 def click_event(event, x, y, flags, params):
     '''
@@ -226,8 +239,9 @@ def method_line(config, **kwargs):
     conversionFactorZ = kwargs['conversionFactorZ']
     unitXY = kwargs['unitXY']
     unitZ = kwargs['unitZ']
-    SaveFolder = kwargs['SaveFolder']
+    Folders = kwargs['Folders']
     savename = kwargs['savename']
+    timeelapsed = kwargs['timeelapsed']
 
     # get the points for the center linear slice
     if config.getboolean("LINE_METHOD", "SELECT_POINTS"):
@@ -242,6 +256,7 @@ def method_line(config, **kwargs):
         P1 = np.array(right_clicks[0]) / resize_factor
         P2 = np.array(right_clicks[1]) / resize_factor
         logging.info(f"Selected coordinates: {P1=}, {P2=}.")
+        logging.info(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}], P2 = [{P2[0]:.0f}, {P2[1]:.0f}]")
     else:
         # get from config file if preferred
         P1 = [int(e.strip()) for e in config.get('LINE_METHOD', 'POINTA').split(',')]
@@ -288,10 +303,15 @@ def method_line(config, **kwargs):
 
     profile = np.nanmean(profiles_aligned, axis=0)
 
+
     if config.getboolean("LINE_METHOD_ADVANCED", "FILTER_STARTEND"):
         profile = filter_profiles(profiles_aligned, profile)
 
     logging.info("Profiles are aligned and average profile is determined.")
+
+    movmeanN = config.getint("LINE_METHOD_ADVANCED", "MOVMEAN")
+    profile = mov_mean(profile, movmeanN)
+    logging.info("Moving average of profile has been taken")
 
     profile_fft = np.fft.fft(profile)  # transform to fourier space
     highPass = config.getint("LINE_METHOD_ADVANCED", "HIGHPASS_CUTOFF")
@@ -312,14 +332,23 @@ def method_line(config, **kwargs):
     profile_filtered = np.fft.ifft(profile_fft)
     logging.info("Average profile is filtered in the Fourier space.")
 
+    #TODO testing to save real part of profile to csv file. First value is the elapsed time from moment 0 in given series of images.
+    wrappedPath = os.path.join(Folders['save_process'], f"{savename}_real.csv")
+    realProfile = profile_filtered.real
+    (np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+
     # calculate the wrapped space
     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+
 
     # local normalization of the wrapped space. Since fringe pattern is never ideal (i.e. never runs between 0-1) due
     # to noise and averaging errors, the wrapped space doesn't run from -pi to pi, but somewhere inbetween. By setting
     # this value to True, the wrapped space is normalized from -pi to pi, if the stepsize is above a certain threshold.
     if config.getboolean("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE"):
         wrapped = normalize_wrappedspace(wrapped, config.getfloat("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE_THRESHOLD"))
+
+    #TODO This needed fixing: was a static path. But seems not even necessary for the line method?
+    #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\wrapped.csv", wrapped, delimiter=',', fmt='%f')
 
     unwrapped = np.unwrap(wrapped)
     logging.info("Average slice is wrapped and unwrapped")
@@ -331,6 +360,12 @@ def method_line(config, **kwargs):
     unwrapped_converted = unwrapped * conversionFactorZ
     logging.debug('Conversion factor for Z applied.')
 
+    #TODO was a static path, now variable to the savepath
+    #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\unwrapped.csv", unwrapped, delimiter=',', fmt='%f')
+    np.savetxt(os.path.join(Folders["savepath"], f"unwrapped\\unwrapped.csv"), unwrapped, delimiter=',', fmt='%f')
+    #TODO why an exit here?
+    #exit()
+
     from plotting import plot_lineprocess, plot_profiles, plot_sliceoverlay, plot_unwrappedslice
     fig1 = plot_profiles(config, profiles_aligned)
     fig2 = plot_lineprocess(config, profile, profile_filtered, wrapped, unwrapped)
@@ -340,23 +375,23 @@ def method_line(config, **kwargs):
 
     # Saving
     if config.getboolean("SAVING", "SAVE_PNG"):
-        fig1.savefig(os.path.join(SaveFolder, f"rawslices_{savename}.png"),
+        fig1.savefig(os.path.join(Folders['save_rawslices'], f"rawslices_{savename}.png"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
-        fig2.savefig(os.path.join(SaveFolder, f"process_{savename}.png"),
+        fig2.savefig(os.path.join(Folders['save_process'], f"process_{savename}.png"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
-        fig3.savefig(os.path.join(SaveFolder, f"rawslicesimage_{savename}.png"),
+        fig3.savefig(os.path.join(Folders['save_rawslicesimage'], f"rawslicesimage_{savename}.png"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
-        fig4.savefig(os.path.join(SaveFolder, f"unwrapped_{savename}.png"),
+        fig4.savefig(os.path.join(Folders['save_unwrapped'], f"unwrapped_{savename}.png"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
         logging.debug('PNG saving done.')
     if config.getboolean("SAVING", "SAVE_PDF"):
-        fig1.savefig(os.path.join(SaveFolder, f"rawslices_{savename}.pdf"),
+        fig1.savefig(os.path.join(Folders['save_rawslices'], f"rawslices_{savename}.pdf"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
-        fig2.savefig(os.path.join(SaveFolder, f"process_{savename}.pdf"),
+        fig2.savefig(os.path.join(Folders['save_process'], f"process_{savename}.pdf"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
-        fig3.savefig(os.path.join(SaveFolder, f"rawslicesimage_{savename}.pdf"),
+        fig3.savefig(os.path.join(Folders['save_rawslicesimage'], f"rawslicesimage_{savename}.pdf"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
-        fig4.savefig(os.path.join(SaveFolder, f"unwrapped_{savename}.pdf"),
+        fig4.savefig(os.path.join(Folders['save_unwrapped'], f"unwrapped_{savename}.pdf"),
                      dpi=config.getint("SAVING", "SAVE_SETDPI"))
         logging.debug('PDF saving done.')
     logging.info(f"Saving done.")

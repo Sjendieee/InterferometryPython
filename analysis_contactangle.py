@@ -55,7 +55,8 @@ flipData = False
 #analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
 analyzeImages = np.arange(0, 1, 1)
 
-# analyzeImages = np.array([100, 110])
+
+#analyzeImages = np.array([5])
 
 # 1 slice: Contact angle = -1.6494950309356011 degrees.
 # 11 slices: -1.650786783947852 degrees.
