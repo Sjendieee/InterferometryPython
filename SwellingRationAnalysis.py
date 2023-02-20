@@ -51,7 +51,7 @@ def positiontest(source):
 #Input: a raw slice image, the chosen pixellocation
 #Output: a figure with a dot on the chosen pixellocation
 def showPixellocationv2(pointa, pointb, source):
-    imgblack = Image.open("C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\black square.png")
+    imgblack = Image.open("C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\black square.png")
     imgblack.resize((40,40))
     imgblack.show()
     rawImg = Image.open(os.path.join(source, f"rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230120_162715883_0010_analyzed_.png"))
@@ -104,10 +104,10 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     plt.title(f'pixellocation = {pixelLocation}')
     # plt.show()
     plt.draw()
-    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile.png"),
+    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"),
                  dpi=300)
-    for i in range(1,1,2):
-        for j in range(1,1,2):
+    for i in range(1, 4, 2):
+        for j in range(7, 12, 2):
             HIGHPASS_CUTOFF = i
 
             LOWPASS_CUTOFF = j
@@ -138,14 +138,14 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             plt.title(f'wrapped plot: {highPass}, {lowPass}')
             fig2, ax = plt.subplots()
             ax.plot(timeFromStart, unwrapped * conversionZ)
-            plt.xlabel('Time')
-            plt.ylabel('height')
+            plt.xlabel('Time (h)')
+            plt.ylabel('Swelling height (micro m)')
             plt.title(f'Height plot: {highPass}, {lowPass}')
             #plt.show()
 
-            fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_high{i},lo{j}.png"),
+            fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_pixel{pixelLocation}high{i},lo{j}.png"),
                          dpi=300)
-            fig2.savefig(os.path.join(source, f"Swellingimages\\height_high{i},lo{j}.png"),
+            fig2.savefig(os.path.join(source, f"Swellingimages\\height_pixel{pixelLocation}high{i},lo{j}.png"),
                          dpi=300)
             plt.close(fig0)
             plt.close(fig1)
@@ -161,14 +161,14 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
 def main():
 
     #Required changeables
-    pixelLoc1 = 1800
+    pixelLoc1 = 2900
     pixelLoc2 = pixelLoc1 + 1
-    pixelIV = 100
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230126140041"
+    pixelIV = 100   #interval between the two pixellocations to be taken.
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230217114600"
 
     # TODO show where your chosen pixel is actually located
     #positiontest(source)
-    showPixellocationv2(1,2, source)
+    #showPixellocationv2(1,2, source)
 
     csvList = [f for f in glob.glob(os.path.join(source, f"process\\*.csv"))]
     #Length*2 = range over which the intensity will be taken

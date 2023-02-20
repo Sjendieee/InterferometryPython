@@ -14,6 +14,9 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
+from skimage import data, img_as_float, color, exposure
+from skimage.restoration import unwrap_phase
+
 def TimeRemaining(arraytimes, left):
     avgtime = statistics.mean(arraytimes)
     timeremaining = left * avgtime
@@ -216,6 +219,28 @@ def image_preprocessing(config, imagepath):
     if config.getboolean("IMAGE_PROCESSING", "IMAGE_DENOISE"):
         cv2.fastNlMeansDenoising(im_gray)
         logging.debug('Image denoised.')
+
+    # # TODO temporarily testing to save greyscaled images
+    # image = exposure.rescale_intensity(im_gray, out_range=(0, 4 * np.pi))
+    # cv2.imwrite(os.path.join("C:\\TEMP_data_for_conversion", "greyimg_scaled.png"), image)
+    # image_wrapped = np.angle(np.exp(1j * image))
+    # cv2.imwrite(os.path.join("C:\\TEMP_data_for_conversion", "img_wrapped.png"), image)
+    # image_unwrapped = unwrap_phase(image_wrapped)
+    # cv2.imwrite(os.path.join("C:\\TEMP_data_for_conversion", "img_unwrappedwrapped.png"), image_unwrapped)
+    #
+    # fig, ax = plt.subplots(2, 2, sharex=True, sharey=True)
+    # ax1, ax2, ax3, ax4 = ax.ravel()
+    #
+    # fig.colorbar(ax1.imshow(image, cmap='gray', vmin=0, vmax=4 * np.pi), ax=ax1)
+    # ax1.set_title('Original')
+    # fig.colorbar(ax2.imshow(image_wrapped, cmap='gray', vmin=-np.pi, vmax=np.pi),
+    #              ax=ax2)
+    # ax2.set_title('Wrapped phase')
+    # fig.colorbar(ax3.imshow(image_unwrapped, cmap='gray'), ax=ax3)
+    # ax3.set_title('After phase unwrapping')
+    # fig.colorbar(ax4.imshow(image_unwrapped - image, cmap='gray'), ax=ax4)
+    # ax4.set_title('Unwrapped minus original')
+    # plt.show()
     return im_gray, im_raw
 
 
