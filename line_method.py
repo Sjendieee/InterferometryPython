@@ -193,6 +193,12 @@ def align_arrays(all_coordinates, data, alignment_coordinate):
     return data_aligned
 
 def mov_mean(arr, window_size):
+    '''
+    :param arr: array of values, to which the moving average will be applied
+    :param window_size: nr. of values to average over
+    :return: array of values
+    '''
+
     # Convert array of integers to pandas series
     numbers_series = pd.Series(arr)
     # Get the window of series of observations of specified window size

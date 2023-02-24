@@ -6,7 +6,7 @@ import matplotlib.image as mpimg
 import glob
 import cv2
 from general_functions import image_resize
-from line_method import coordinates_on_line, normalize_wrappedspace
+from line_method import coordinates_on_line, normalize_wrappedspace, mov_mean
 import numpy as np
 import logging
 from PIL import Image
@@ -106,8 +106,8 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     plt.draw()
     fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"),
                  dpi=300)
-    for i in range(1, 4, 2):
-        for j in range(7, 12, 2):
+    for i in range(1, 6, 1):
+        for j in range(9, 16, 1):
             HIGHPASS_CUTOFF = i
 
             LOWPASS_CUTOFF = j
@@ -123,8 +123,16 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             mask[0:lowPass] = 0
             mask[-highPass:] = 0
             profile_fft = profile_fft * mask
+            # TODO remove. Only to save figure to view data
+            plt.plot(profile_fft)
+            plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", f"1fft{i}_P{j}.png"))
+            plt.close()
 
             profile_filtered = np.fft.ifft(profile_fft)
+            # TODO remove. Only to save figure to view data
+            plt.plot(profile_filtered)
+            plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", f"2fft_filtered{i}_P{j}.png"))
+            plt.close()
             wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
             if NORMALIZE_WRAPPEDSPACE:
                 wrapped = normalize_wrappedspace(wrapped, NORMALIZE_WRAPPEDSPACE_THRESHOLD)
@@ -202,7 +210,11 @@ def main():
                 total = total + float(rows[idx]) + 100
             meanIntensity.append(total / (range2 - range1))
 
-        makeImages(meanIntensity, elapsedtime, source, pixelLocation)
+        #TODO testing to also mean over time for i.e. 3 values, to smoothen curves.
+        averagingWindowSize = 3
+        meanIntensity = mov_mean(meanIntensity, averagingWindowSize)
+        elapsedtime = mov_mean(elapsedtime, averagingWindowSize)
+        makeImages(meanIntensity, elapsedtime , source, pixelLocation)
 
 if __name__ == "__main__":
     main()
