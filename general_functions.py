@@ -259,9 +259,10 @@ def verify_settings(config, stats):
 
 
 def conversion_factors(config):
-    units = ['nm', 'um', 'mm', 'm']
-    conversionsXY = [1e6, 1e3, 1, 1e-3]  # standard unit is um
-    conversionsZ = [1, 1e-3, 1e-6, 1e-9]  # standard unit is nm
+    units = ['nm', 'um', 'mm', 'm', 'pixels']
+    conversionsXY = [1e6, 1e3, 1, 1e-3, 1]  # standard unit is um
+    conversionsZ = [1, 1e-3, 1e-6, 1e-9, 1]  # standard unit is nm
+
 
     # Determine XY conversion factor and unit
     try:
@@ -274,6 +275,8 @@ def conversion_factors(config):
     unitXY = config.get('GENERAL', 'UNIT_XY')
     if unitXY not in units:
         raise ValueError(f"Desired unit {unitXY} is not valid. Choose, nm, um, mm or m.")
+    if unitXY == 'pixels':
+         conversionFactorXY = 1
     conversionFactorXY = 1 / conversionFactorXY * conversionsXY[units.index(unitXY)]  # apply unit conversion
 
     # Determine Z conversion factor and unit

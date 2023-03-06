@@ -10,7 +10,7 @@ from line_method import coordinates_on_line, normalize_wrappedspace
 import numpy as np
 import logging
 from PIL import Image
-
+from itertools import chain
 
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
@@ -97,24 +97,27 @@ def showPixellocation(pointa, pointb, source):
 def makeImages(profile, timeFromStart, source, pixelLocation):
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
-    fig0, ax = plt.subplots()
-    ax.plot(timeFromStart, profile)
+    fig0, ax0 = plt.subplots()
+    ax0.plot(timeFromStart, profile, label = f'unadjusted')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
-    plt.title(f'pixellocation = {pixelLocation}')
+    plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
     # plt.show()
-    plt.draw()
-    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"),
-                 dpi=300)
-    for i in range(1, 4, 2):
-        for j in range(7, 12, 2):
-            HIGHPASS_CUTOFF = i
+    #plt.draw()
+    #fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"), dpi=300)
 
+    print(f"length of profile = {len(profile)}")
+    nrOfDatapoints = len(profile)
+    print(f"{nrOfDatapoints}")
+    hiR = nrOfDatapoints - round(nrOfDatapoints/3)
+    for i in range(hiR,hiR+1,50):
+        for j in range(1, 2, 1):
+            HIGHPASS_CUTOFF = i
             LOWPASS_CUTOFF = j
             NORMALIZE_WRAPPEDSPACE = False
             NORMALIZE_WRAPPEDSPACE_THRESHOLD = 3.14159265359
             conversionZ = 0.02885654477258912
-            FLIP = True
+            FLIP = False
 
             profile_fft = np.fft.fft(profile)  # transform to fourier space
             highPass = HIGHPASS_CUTOFF
@@ -123,8 +126,14 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             mask[0:lowPass] = 0
             mask[-highPass:] = 0
             profile_fft = profile_fft * mask
+            #print(f"Size of dataarray: {len(profile_fft)}")
 
             profile_filtered = np.fft.ifft(profile_fft)
+            ax0.plot(timeFromStart, profile_filtered, label = f'hi:{highPass}, lo:{lowPass}')
+            ax0.legend()
+            fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
+                         dpi=300)
+
             wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
             if NORMALIZE_WRAPPEDSPACE:
                 wrapped = normalize_wrappedspace(wrapped, NORMALIZE_WRAPPEDSPACE_THRESHOLD)
@@ -132,15 +141,15 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             if FLIP:
                 unwrapped = -unwrapped + np.max(unwrapped)
 
-            fig1, ax = plt.subplots()
+            fig1, ax1 = plt.subplots()
             # ax.plot(timeFromStart, wrapped)
-            ax.plot(wrapped)
-            plt.title(f'wrapped plot: {highPass}, {lowPass}')
-            fig2, ax = plt.subplots()
-            ax.plot(timeFromStart, unwrapped * conversionZ)
+            ax1.plot(wrapped)
+            plt.title(f'Wrapped plot: {highPass}, {lowPass}, pixelLoc: {pixelLocation}')
+            fig2, ax2 = plt.subplots()
+            ax2.plot(timeFromStart, unwrapped * conversionZ)
             plt.xlabel('Time (h)')
-            plt.ylabel('Swelling height (micro m)')
-            plt.title(f'Height plot: {highPass}, {lowPass}')
+            plt.ylabel(u"Height (\u03bcm)")
+            plt.title(f'Swelling profile: {highPass}, {lowPass}, pixelLoc: {pixelLocation}')
             #plt.show()
 
             fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_pixel{pixelLocation}high{i},lo{j}.png"),
@@ -151,6 +160,10 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             plt.close(fig1)
             plt.close(fig2)
 
+            #Saves data in time vs height profile plot so a csv file.
+            wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}high{i},lo{j}.csv")
+            #(np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+            np.savetxt(wrappedPath, [p for p in zip(timeFromStart, unwrapped * conversionZ)], delimiter=',', fmt='%s')
     # now get datapoints we need.
     #unwrapped_um = unwrapped * conversionZ
     #analyzeTimes = np.linspace(0, 57604, 12)
@@ -160,17 +173,17 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
 
 def main():
 
-    #Required changeables
-    pixelLoc1 = 2900
-    pixelLoc2 = pixelLoc1 + 1
-    pixelIV = 100   #interval between the two pixellocations to be taken.
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230217114600"
-
+    #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
+    pixelLoc1 = 2200
+    pixelLoc2 = 4101#pixelLoc1 + 1
+    pixelIV = 200   #interval between the two pixellocations to be taken.
+    source = "I:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis\\PROC_20230217114600"
+    #source = "C:\\Users\\Sander PC\\PycharmProjects\\InterferometryPython\\export\\PROC_20230306180748"
     # TODO show where your chosen pixel is actually located
     #positiontest(source)
     #showPixellocationv2(1,2, source)
 
-    csvList = [f for f in glob.glob(os.path.join(source, f"process\\*.csv"))]
+    csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
     #Length*2 = range over which the intensity will be taken
     rangeLength = 20
 
@@ -194,16 +207,16 @@ def main():
             range1 = pixelLocation - rangeLength
             range2 = pixelLocation + rangeLength
             if (range1 < 1) or (range2>len(rows)):
-                raise Exception(f"There were not enough values to average over. Either lower mean-range, or choose different pixel location")
+                raise Exception(f"There were not enough values to average over. Either lower mean-range, or choose different pixel location. range1 = {range1}, range2 = {range2}, Rows={len(rows)}")
 
             total = 0
 
             for idx in range(range1, range2):
-                total = total + float(rows[idx]) + 100
+                total = total + float(rows[idx])
             meanIntensity.append(total / (range2 - range1))
 
         makeImages(meanIntensity, elapsedtime, source, pixelLocation)
-
+    print(f"Read-in lenght of rows from csv file = {len(rows)}")
 if __name__ == "__main__":
     main()
     exit()
