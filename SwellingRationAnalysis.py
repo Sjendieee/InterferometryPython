@@ -6,7 +6,7 @@ import matplotlib.image as mpimg
 import glob
 import cv2
 from general_functions import image_resize
-from line_method import coordinates_on_line, normalize_wrappedspace
+from line_method import coordinates_on_line, normalize_wrappedspace, mov_mean
 import numpy as np
 import logging
 from PIL import Image
@@ -126,6 +126,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             mask[0:lowPass] = 0
             mask[-highPass:] = 0
             profile_fft = profile_fft * mask
+
             #print(f"Size of dataarray: {len(profile_fft)}")
 
             profile_filtered = np.fft.ifft(profile_fft)
@@ -215,8 +216,14 @@ def main():
                 total = total + float(rows[idx])
             meanIntensity.append(total / (range2 - range1))
 
-        makeImages(meanIntensity, elapsedtime, source, pixelLocation)
+
+        #TODO testing to also mean over time for i.e. 3 values, to smoothen curves.
+        averagingWindowSize = 3
+        meanIntensity = mov_mean(meanIntensity, averagingWindowSize)
+        elapsedtime = mov_mean(elapsedtime, averagingWindowSize)
+        makeImages(meanIntensity, elapsedtime , source, pixelLocation)
     print(f"Read-in lenght of rows from csv file = {len(rows)}")
+
 if __name__ == "__main__":
     main()
     exit()
