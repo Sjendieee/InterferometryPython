@@ -161,14 +161,14 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
 def main():
 
     #Required changeables
-    pixelLoc1 = 1800
+    pixelLoc1 = 2400
     pixelLoc2 = pixelLoc1 + 1
     pixelIV = 100
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230126140041"
+    source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230220113243"
 
     # TODO show where your chosen pixel is actually located
     #positiontest(source)
-    showPixellocationv2(1,2, source)
+    #showPixellocationv2(1,2, source)
 
     csvList = [f for f in glob.glob(os.path.join(source, f"process\\*.csv"))]
     #Length*2 = range over which the intensity will be taken
