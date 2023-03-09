@@ -86,6 +86,7 @@ def main():
         else:
             imagePath = os.path.join(inputFolder, inputImage)
             im_gray, im_raw = image_preprocessing(config, imagePath)
+
             logging.info(f"{idx + 1}/{len(inputImages)} - Pre-processing done.")
 
             savename = f'{os.path.splitext(os.path.basename(imagePath))[0]}_analyzed_'
