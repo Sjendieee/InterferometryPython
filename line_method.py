@@ -367,12 +367,14 @@ def method_line(config, **kwargs):
     logging.info("Average profile is filtered in the Fourier space.")
 
     #TODO testing to save real part of profile to csv file. First value is the elapsed time from moment 0 in given series of images.
-    wrappedPath = os.path.join(Folders['save_process'], f"{savename}_real.csv")
-    realProfile = profile_filtered.real
-    (np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-    wrappedPath = os.path.join(Folders['save_process'], f"{savename}_imag.csv")
-    imagProfile = profile_filtered.imag
-    (np.insert(imagProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+    if config.getboolean("LINE_METHOD_ADVANCED", "CSV_REAL"):
+        wrappedPath = os.path.join(Folders['save_process'], f"{savename}_real.csv")
+        realProfile = profile_filtered.real
+        (np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+    if config.getboolean("LINE_METHOD_ADVANCED", "CSV_IMAG"):
+        wrappedPath = os.path.join(Folders['save_process'], f"{savename}_imag.csv")
+        imagProfile = profile_filtered.imag
+        (np.insert(imagProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
 
     # # TODO remove
     # plt.plot(profile_filtered.real)
@@ -429,7 +431,7 @@ def method_line(config, **kwargs):
     from plotting import plot_lineprocess, plot_profiles, plot_sliceoverlay, plot_unwrappedslice
     fig1 = plot_profiles(config, profiles_aligned)
     fig2 = plot_lineprocess(config, profile, profile_filtered, wrapped, unwrapped)
-    fig3 = plot_sliceoverlay(config, all_coordinates, im_raw)
+    fig3 = plot_sliceoverlay(config, all_coordinates, im_raw, timeFormat(timeelapsed))
     fig4 = plot_unwrappedslice(config, unwrapped_converted, profiles_aligned, conversionFactorXY, unitXY, unitZ)
     logging.info(f"Plotting done.")
 

@@ -94,11 +94,14 @@ def showPixellocation(pointa, pointb, source):
     coordinates = coordinates_on_line(a, bn, [0, im_raw.shape[1], 0, im_raw.shape[0]])
     print(f"The coordinates are: {coordinates}")
 
+def normalizeData(data):
+    return (data - np.min(data)) / (np.max(data) - np.min(data))
+
 def makeImages(profile, timeFromStart, source, pixelLocation):
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     fig0, ax0 = plt.subplots()
-    ax0.plot(timeFromStart, profile, label = f'unadjusted')
+    ax0.plot(timeFromStart, normalizeData(profile), label = f'unadjusted')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
@@ -109,8 +112,9 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     print(f"length of profile = {len(profile)}")
     nrOfDatapoints = len(profile)
     print(f"{nrOfDatapoints}")
-    hiR = nrOfDatapoints - round(nrOfDatapoints/3)
-    for i in range(hiR,hiR+1,50):
+    hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
+    hiR = 1
+    for i in range(hiR,hiR+30,2):
         for j in range(1, 2, 1):
             HIGHPASS_CUTOFF = i
             LOWPASS_CUTOFF = j
@@ -130,7 +134,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             #print(f"Size of dataarray: {len(profile_fft)}")
 
             profile_filtered = np.fft.ifft(profile_fft)
-            ax0.plot(timeFromStart, profile_filtered, label = f'hi:{highPass}, lo:{lowPass}')
+            ax0.plot(timeFromStart, normalizeData(profile_filtered), label = f'hi:{highPass}, lo:{lowPass}')
             ax0.legend()
             fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
                          dpi=300)
@@ -175,11 +179,11 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
 def main():
 
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2200
-    pixelLoc2 = 4101#pixelLoc1 + 1
+    pixelLoc1 = 2400
+    pixelLoc2 = 2401#pixelLoc1 + 1
     pixelIV = 200   #interval between the two pixellocations to be taken.
-    source = "I:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis\\PROC_20230217114600"
-    #source = "C:\\Users\\Sander PC\\PycharmProjects\\InterferometryPython\\export\\PROC_20230306180748"
+    source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
+    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230307102954"
     # TODO show where your chosen pixel is actually located
     #positiontest(source)
     #showPixellocationv2(1,2, source)
@@ -216,11 +220,7 @@ def main():
                 total = total + float(rows[idx])
             meanIntensity.append(total / (range2 - range1))
 
-
-        #TODO testing to also mean over time for i.e. 3 values, to smoothen curves.
-        averagingWindowSize = 3
-        meanIntensity = mov_mean(meanIntensity, averagingWindowSize)
-        elapsedtime = mov_mean(elapsedtime, averagingWindowSize)
+        elapsedtime = np.arange(0,len(meanIntensity))
         makeImages(meanIntensity, elapsedtime , source, pixelLocation)
     print(f"Read-in lenght of rows from csv file = {len(rows)}")
 

@@ -131,14 +131,14 @@ def plot_lineprocess(config, profile, profile_filtered, wrapped, unwrapped):
     fig.tight_layout()
     return fig
 
-def plot_sliceoverlay(config, coordinates, image):
+def plot_sliceoverlay(config, coordinates, image, timeelapsed):
     fig = plt.figure(figsize=(8, 5))
     plt.imshow(image)
     colors = plt.cm.viridis(np.linspace(0, 1, len(coordinates)))
     for idx, coordinates in coordinates.items():
         x, y = zip(*coordinates)
         plt.plot([x[0], x[-1]], [y[0], y[-1]], color=colors[idx])
-    plt.title(f'All {idx+1} profile slices')
+    plt.title(f'All {idx+1} profile slices. Time: {timeelapsed}')
     fig.tight_layout()
     return fig
 
