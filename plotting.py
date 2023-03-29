@@ -160,3 +160,8 @@ def plot_unwrappedslice(config, unwrapped_object, profiles, conversionFactorXY, 
 
     fig.tight_layout()
     return fig
+
+def saveTempPlot(data, path):
+    plt.plot(data)
+    plt.savefig(path)
+    plt.close()

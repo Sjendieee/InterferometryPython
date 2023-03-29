@@ -101,7 +101,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     fig0, ax0 = plt.subplots()
-    ax0.plot(timeFromStart, normalizeData(profile), label = f'unadjusted')
+    ax0.plot(timeFromStart, normalizeData(profile), label = f'normalized, unfiltered')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
@@ -113,9 +113,10 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     nrOfDatapoints = len(profile)
     print(f"{nrOfDatapoints}")
     hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
-    hiR = 1
-    for i in range(hiR,hiR+30,2):
-        for j in range(1, 2, 1):
+    hiR = 0
+    loR = 50
+    for i in range(hiR,hiR+150,20):       #removing n highest frequencies
+        for j in range(loR, loR+1, 20):        #removing n lowest frequencies
             HIGHPASS_CUTOFF = i
             LOWPASS_CUTOFF = j
             NORMALIZE_WRAPPEDSPACE = False
@@ -128,8 +129,15 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             lowPass = LOWPASS_CUTOFF
             mask = np.ones_like(profile).astype(float)
             mask[0:lowPass] = 0
-            mask[-highPass:] = 0
+            if highPass > 0:
+                mask[-highPass:] = 0
             profile_fft = profile_fft * mask
+            fig3, ax3 = plt.subplots()
+            ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
+            ax3.legend()
+            fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}.png"),
+                         dpi=300)
+
 
             #print(f"Size of dataarray: {len(profile_fft)}")
 
@@ -149,12 +157,14 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
             fig1, ax1 = plt.subplots()
             # ax.plot(timeFromStart, wrapped)
             ax1.plot(wrapped)
-            plt.title(f'Wrapped plot: {highPass}, {lowPass}, pixelLoc: {pixelLocation}')
+            plt.title(f'Wrapped plot: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
             fig2, ax2 = plt.subplots()
-            ax2.plot(timeFromStart, unwrapped * conversionZ)
+            #TODO for even spreading of data (NOT true time!)
+            spacedTimeFromStart = np.linspace(timeFromStart[0], timeFromStart[-1:], len(unwrapped))
+            ax2.plot(spacedTimeFromStart, unwrapped * conversionZ)
             plt.xlabel('Time (h)')
             plt.ylabel(u"Height (\u03bcm)")
-            plt.title(f'Swelling profile: {highPass}, {lowPass}, pixelLoc: {pixelLocation}')
+            plt.title(f'Swelling profile: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
             #plt.show()
 
             fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_pixel{pixelLocation}high{i},lo{j}.png"),
@@ -179,11 +189,11 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
 def main():
 
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2400
-    pixelLoc2 = 2401#pixelLoc1 + 1
+    pixelLoc1 = 2300
+    pixelLoc2 = 2301#pixelLoc1 + 1
     pixelIV = 200   #interval between the two pixellocations to be taken.
-    source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
-    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230307102954"
+    #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
     # TODO show where your chosen pixel is actually located
     #positiontest(source)
     #showPixellocationv2(1,2, source)
@@ -220,8 +230,12 @@ def main():
                 total = total + float(rows[idx])
             meanIntensity.append(total / (range2 - range1))
 
-        elapsedtime = np.arange(0,len(meanIntensity))
-        makeImages(meanIntensity, elapsedtime , source, pixelLocation)
+        #TODO for even spreading of data (NOT true time!)
+        #elapsedtime = np.arange(0,len(meanIntensity))
+
+        for nn in [0]:
+            makeImages(meanIntensity[nn:], elapsedtime[nn:], source, pixelLocation)
+
     print(f"Read-in lenght of rows from csv file = {len(rows)}")
 
 if __name__ == "__main__":

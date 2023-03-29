@@ -99,12 +99,14 @@ def main():
                                                   conversionFactorZ=conversionFactorZ, unitXY=unitXY, unitZ=unitZ,
                                                   Folders=Folders, savename=savename)
             elif config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'line':
-                unwrapped_object = method_line(config, im_gray=im_gray, im_raw=im_raw,
+                unwrapped_object, pA, pB = method_line(config, im_gray=im_gray, im_raw=im_raw,
                                                conversionFactorXY=conversionFactorXY,
                                                conversionFactorZ=conversionFactorZ, unitXY=unitXY, unitZ=unitZ,
                                                Folders=Folders, savename=savename, timeelapsed=timeelapsed)
+                stats['pointsA'] = pA
+                stats['pointsB'] = pB
 
-            # Save unwrapped image = main result
+                # Save unwrapped image = main result
             wrappedPath = False
             if config.getboolean("SAVING", "SAVE_UNWRAPPED_RAW_NPY"):
                 wrappedPath = os.path.join(Folders['npy'], f"{savename}_unwrapped.npy")
@@ -116,8 +118,11 @@ def main():
                 wrappedPath = os.path.join(Folders['csv'], f"{savename}_unwrapped.csv")
                 #unwrapped_object.tofile(wrappedPath, sep=',')
                 #TODO changed way of saving to vertical in excel instead of horizontal (which splitted the data in a weird way)
-                unwrapped_object.tofile(wrappedPath, sep = '\n', format = '%f')
+                #unwrapped_object.tofile(wrappedPath, sep = '\n', format = '%f')
+                np.savetxt(wrappedPath, unwrapped_object, fmt='%f', delimiter=';')
                 stats['analysis'][idx]['wrappedPath_csv'] = os.path.relpath(wrappedPath, (Folders['save']))  # only return the relative path to main save folder
+                #TODO remove: tested writing data to txt file for good decimal seperation
+                np.savetxt(os.path.join(Folders['csv'], f"{savename}_unwrapped.txt"), unwrapped_object, fmt='%f')
 
             if config.getboolean("PLOTTING", "SHOW_PLOTS"):
                 plt.show()

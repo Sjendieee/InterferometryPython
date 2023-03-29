@@ -6,6 +6,7 @@ import cv2
 import logging
 import os
 from general_functions import image_resize
+from plotting import saveTempPlot
 
 
 def normalize_wrappedspace(signal, threshold):
@@ -246,6 +247,8 @@ def method_line(config, **kwargs):
     :param config: ConfigParser() config object with setting for the LINE_METHOD.
     :param image: an image to select the points for the slice on.
     :return: unwrapped line
+    :return: points A
+    :return: points B
     '''
 
     im_gray = kwargs['im_gray']
@@ -318,30 +321,29 @@ def method_line(config, **kwargs):
 
     profile = np.nanmean(profiles_aligned, axis=0)
 
-# #TODO remove
-#     plt.plot(profile)
-#     plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "1profile.png"))
-#     plt.close()
+    SavingTemp = config.getboolean("SAVING", "SAVE_INTERMEDIATE_PLOTS")
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "1profile.png")))
+
     if config.getboolean("LINE_METHOD_ADVANCED", "FILTER_STARTEND"):
         profile = filter_profiles(profiles_aligned, profile)
-# # TODO remove
-#     plt.plot(profile)
-#     plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "2profiles_startEnd.png"))
-#     plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "2profiles_startEnd.png")))
     logging.info("Profiles are aligned and average profile is determined.")
 
     movmeanN = config.getint("LINE_METHOD_ADVANCED", "MOVMEAN")
     profile = mov_mean(profile, movmeanN)
     logging.info("Moving average of profile has been taken")
-    # # TODO remove
-    # plt.plot(profile)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "3profileMovmeaned.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "3profileMovmeaned.png")))
     profile_fft = np.fft.fft(profile)  # transform to fourier space
-    # # TODO remove
-    # plt.plot(profile_fft)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "4profilefft.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_fft, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "4profilefft.png")))
+
     highPass = config.getint("LINE_METHOD_ADVANCED", "HIGHPASS_CUTOFF")
     lowPass = config.getint("LINE_METHOD_ADVANCED", "LOWPASS_CUTOFF")
     # highPassBlur = config.getint("LINE_METHOD_ADVANCED", "HIGHPASS_CUTOFF")
@@ -355,15 +357,15 @@ def method_line(config, **kwargs):
         mask[-highPass:] = 0
         # mask = smooth_step(mask, highPassBlur)
     profile_fft = profile_fft * mask
-    # # TODO remove
-    # plt.plot(profile_fft)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "5profilefftmask.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_fft, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "5profilefftmask.png")))
+
     profile_filtered = np.fft.ifft(profile_fft)
-    # # TODO remove
-    # plt.plot(profile_filtered)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "6profilefiltered.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_filtered, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "6.1profilefiltered.png")))
+
     logging.info("Average profile is filtered in the Fourier space.")
 
     #TODO testing to save real part of profile to csv file. First value is the elapsed time from moment 0 in given series of images.
@@ -375,58 +377,48 @@ def method_line(config, **kwargs):
         wrappedPath = os.path.join(Folders['save_process'], f"{savename}_imag.csv")
         imagProfile = profile_filtered.imag
         (np.insert(imagProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-
-    # # TODO remove
-    # plt.plot(profile_filtered.real)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "6.1profilefiltered_real.png"))
-    # plt.close()
-    # # TODO remove
-    # plt.plot(profile_filtered.imag)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "6.2profilefiltered_imag.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_filtered.real, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "6.2profilefiltered_real.png")))
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_filtered.imag, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "6.3profilefiltered_imag.png")))
 
     # calculate the wrapped space
     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-    # # TODO remove
-    # plt.plot(wrapped)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "7wrapped.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(wrapped, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "7wrapped.png")))
 
     # local normalization of the wrapped space. Since fringe pattern is never ideal (i.e. never runs between 0-1) due
     # to noise and averaging errors, the wrapped space doesn't run from -pi to pi, but somewhere inbetween. By setting
     # this value to True, the wrapped space is normalized from -pi to pi, if the stepsize is above a certain threshold.
     if config.getboolean("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE"):
         wrapped = normalize_wrappedspace(wrapped, config.getfloat("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE_THRESHOLD"))
-
-    # # TODO remove
-    # plt.plot(wrapped)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "8wrapped_norm.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(wrapped, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "8wrapped_norm.png")))
 
     #TODO This needed fixing: was a static path. But seems not even necessary for the line method?
     #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\wrapped.csv", wrapped, delimiter=',', fmt='%f')
 
     unwrapped = np.unwrap(wrapped)
-    # # TODO remove
-    # plt.plot(unwrapped)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "9unwrapped.png"))
-    # plt.close()
-    # logging.info("Average slice is wrapped and unwrapped")
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(unwrapped, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "9unwrapped.png")))
+
+    logging.info("Average slice is wrapped and unwrapped")
 
     if config.getboolean("PLOTTING", "FLIP_UNWRAPPED"):
         unwrapped = -unwrapped + np.max(unwrapped)
         logging.debug('Image surface flipped.')
 
     unwrapped_converted = unwrapped * conversionFactorZ
-    # # TODO remove
-    # plt.plot(unwrapped_converted)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "10unwrappedConverted.png"))
-    # plt.close()
-    logging.debug('Conversion factor for Z applied.')
+    #Saving temp
+    if SavingTemp:
+        saveTempPlot(unwrapped_converted, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "10unwrappedConverted.png")))
 
-    #TODO was a static path, now variable to the savepath
-    #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\unwrapped.csv", unwrapped, delimiter=',', fmt='%f')
-    np.savetxt(os.path.join(Folders["savepath"], f"unwrapped\\unwrapped.csv"), unwrapped, delimiter=',', fmt='%f')
+    logging.debug('Conversion factor for Z applied.')
 
     from plotting import plot_lineprocess, plot_profiles, plot_sliceoverlay, plot_unwrappedslice
     fig1 = plot_profiles(config, profiles_aligned)
@@ -458,4 +450,4 @@ def method_line(config, **kwargs):
         logging.debug('PDF saving done.')
     logging.info(f"Saving done.")
 
-    return unwrapped
+    return unwrapped, P1 , P2
