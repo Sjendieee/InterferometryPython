@@ -246,7 +246,7 @@ def method_line(config, **kwargs):
 
     :param config: ConfigParser() config object with setting for the LINE_METHOD.
     :param image: an image to select the points for the slice on.
-    :return: unwrapped line
+    :return: unwrapped line (non-converted)
     :return: points A
     :return: points B
     '''
@@ -450,4 +450,4 @@ def method_line(config, **kwargs):
         logging.debug('PDF saving done.')
     logging.info(f"Saving done.")
 
-    return unwrapped, P1 , P2
+    return unwrapped, P1, P2

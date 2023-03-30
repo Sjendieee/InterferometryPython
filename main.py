@@ -119,10 +119,12 @@ def main():
                 #unwrapped_object.tofile(wrappedPath, sep=',')
                 #TODO changed way of saving to vertical in excel instead of horizontal (which splitted the data in a weird way)
                 #unwrapped_object.tofile(wrappedPath, sep = '\n', format = '%f')
-                np.savetxt(wrappedPath, unwrapped_object, fmt='%f', delimiter=';')
+                #np.savetxt(wrappedPath, unwrapped_object, fmt='%f', delimiter=';')
                 stats['analysis'][idx]['wrappedPath_csv'] = os.path.relpath(wrappedPath, (Folders['save']))  # only return the relative path to main save folder
                 #TODO remove: tested writing data to txt file for good decimal seperation
-                np.savetxt(os.path.join(Folders['csv'], f"{savename}_unwrapped.txt"), unwrapped_object, fmt='%f')
+                #np.savetxt(os.path.join(Folders['csv'], f"{savename}_unwrapped.txt"), unwrapped_object, fmt='%f')
+                #TODO added time on first line, different way of writing to csv file.
+                (np.insert(unwrapped_object, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
 
             if config.getboolean("PLOTTING", "SHOW_PLOTS"):
                 plt.show()
