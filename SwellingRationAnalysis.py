@@ -1,3 +1,8 @@
+"""
+This swellingratio analysis allows for investigation of Intensity vs. Time, at a constant chosen location.
+Iterating over multiple locations results in a swelling profile at every timestep.
+"""
+
 import pandas as pd
 import csv
 import os
@@ -99,12 +104,16 @@ def showPixellocation(pointa, pointb, source):
 def normalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
 
+def normalizeDataV2(data):
+    return preprocessing.normalize([data])[0]
+
+
 def makeImages(profile, timeFromStart, source, pixelLocation, config):
     conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     fig0, ax0 = plt.subplots()
-    ax0.plot(timeFromStart, preprocessing.normalize([profile])[0], label = f'normalized, unfiltered')
+    ax0.plot(timeFromStart, profile, label = f'normalized, unfiltered')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
@@ -136,7 +145,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
                 mask[-highPass:] = 0
             profile_fft = profile_fft * mask
             fig3, ax3 = plt.subplots()
-            ax3.plot(preprocessing.normalize([profile_fft.real])[0], label=f'hi:{highPass}, lo:{lowPass}')
+            ax3.plot(profile_fft.real, label=f'hi:{highPass}, lo:{lowPass}')
             #ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
             ax3.legend()
             fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}, lofil{j}.png"),
@@ -146,7 +155,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
             #print(f"Size of dataarray: {len(profile_fft)}")
 
             profile_filtered = np.fft.ifft(profile_fft)
-            ax0.plot(timeFromStart, preprocessing.normalize([profile_filtered.real])[0], label = f'hi:{highPass}, lo:{lowPass}')
+            ax0.plot(timeFromStart, profile_filtered.real, label = f'hi:{highPass}, lo:{lowPass}')
             ax0.legend()
             fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
                          dpi=300)
@@ -207,11 +216,11 @@ def main():
         Highpass & lowpass filters
     """
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2800
-    pixelLoc2 = 2801#pixelLoc1 + 1
-    pixelIV = 200   #interval between the two pixellocations to be taken.
+    pixelLoc1 = 2600
+    pixelLoc2 = 2800#pixelLoc1 + 1
+    pixelIV = 50   #interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230331093127_nofilter_ALL"
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))

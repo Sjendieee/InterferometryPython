@@ -1,3 +1,8 @@
+"""
+This swellingratio analysis allows for investigation of Intensity vs. Distance, at a single timestep.
+This results in a swelling profile for every timestep.
+"""
+
 import csv
 import os
 import matplotlib.pyplot as plt
@@ -190,7 +195,7 @@ def flipData(data):
 
 def main():
     SAVEFIG = True
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230330120948"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230331103208"
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
@@ -212,8 +217,8 @@ def main():
         swellingProfile = rows[1:]
         if idx == 1:
             print("hi")
-        range1 = 2250
-        range2 = 2875   #len(swellingProfile)
+        range1 = 0
+        range2 = len(swellingProfile)
         swellingProfileZoom = swellingProfile[range1:range2]
         swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
         x = np.linspace(range1, range2, range2-range1) * conversionFactorXY
