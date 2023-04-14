@@ -193,6 +193,65 @@ def align_arrays(all_coordinates, data, alignment_coordinate):
     # return the aligned 2D array
     return data_aligned
 
+def allign_arrays_v2(all_coordinates, data, alignment_coordinate):
+    '''
+    This function aligns arrays of different lengths to a certain (variable) alignment coordinate.
+    The vacant spots are filled up with np.nan.
+
+    :param all_coordinates: dict with all the coordinates of all the lines in list (of unequal lengths)
+    :param data: correponding values to all_coordinates
+    :param alignment_coordinate: the spatial coordinate to which the slices align (closest point)
+    :return: 2d list with aligned lists as rows
+
+    Example input:
+    data: {
+        [3, 4, 5, 3, 1, 3, 5, 6]
+        [4, 5, 6, 3, 5]
+        [3, 5, 6, 3, 2, 3, 4]
+    }
+    all_coordinates: {
+        [(1,2), (2,2), (3,4), ...]
+        [(2,2), (2,3), (2,4), ...]
+        [...]
+    }
+    align_coordinate: (5,5)
+
+    For each item in all_coordinates it will find the closest datapoint to align_coordinate. The location of
+    this coordinate in all_coordinates may vary for each item. The corresponding data values for these
+    locations are aligned in a 2D array. The holes (before or after or none at all) are filled up with nans.
+
+    Example result: [
+        [3, 4, 5, 3, 1, 3, 5, 6]
+        [nan, 4, 5, 6, 3, 5, nan, nan]
+        [3, 5, 6, 3, 2, 3, 4, nan]
+    ]
+    '''
+    # get length of each data item list
+    lengths = np.array([len(v) for _, v in data.items()])
+    # for each item, calculate the index that corresponds to the smallest distance with alignment_coordinate
+    alignments = np.array([spatial.KDTree(coordinates).query(alignment_coordinate)[1] for
+                           _, coordinates in all_coordinates.items()])
+
+    maxAlignment = max(alignments)  # number of nans for the array with the most nans in front
+    maxPostfill = max(lengths - alignments)  # numer of nans for the array with the most nans in end
+    # maxAlignment + maxPostfill = new item list length
+
+    # create an empty 2D array for the aligned slices (dict like input is no longer needed)
+    data_aligned = np.empty((len(all_coordinates), maxAlignment + maxPostfill))
+
+    # one by one fill the new 2D array
+    for kdx in np.arange(len(data)):
+        profile = np.array(data[kdx])  # a data item
+        part1 = np.full(maxAlignment - alignments[kdx], np.nan)  # number of nans needed before
+        part3 = np.full(maxPostfill - (lengths[kdx] - alignments[kdx]), np.nan)  # number of nans needed after
+        data_aligned[kdx, :] = np.hstack((part1, profile, part3)).ravel()  # new slice: nans + data item + nans
+
+    for idx, arr in enumerate(data_aligned):
+        data_aligned[idx] - data_aligned[idx+1]
+
+    # return the aligned 2D array
+    return data_aligned
+
 def mov_mean(arr, window_size):
     '''
     :param arr: array of values, to which the moving average will be applied

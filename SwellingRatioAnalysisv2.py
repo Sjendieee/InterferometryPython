@@ -1,6 +1,7 @@
 """
 This swellingratio analysis allows for investigation of Intensity vs. Distance, at a single timestep.
 This results in a swelling profile for every timestep.
+The "old" swelling analysis
 """
 
 import csv
@@ -195,7 +196,7 @@ def flipData(data):
 
 def main():
     SAVEFIG = True
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230331103208"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
@@ -207,31 +208,32 @@ def main():
         os.mkdir(os.path.join(source, f"Swellingimages"))
 
     for idx, n in enumerate(csvList):
-        file = open(n)
-        csvreader = csv.reader(file)
-        rows = []
-        for row in csvreader:
-            rows.append(float(row[0]))
-        file.close()
-        elapsedtime = rows[0]
-        swellingProfile = rows[1:]
-        if idx == 1:
-            print("hi")
-        range1 = 0
-        range2 = len(swellingProfile)
-        swellingProfileZoom = swellingProfile[range1:range2]
-        swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
-        x = np.linspace(range1, range2, range2-range1) * conversionFactorXY
-        xshifted = [q - min(x) for q in x]
-        plt.plot(xshifted, swellingProfileZoomConverted, 'k.', label=f'time={timeFormat(elapsedtime)}')
-        plt.xlabel(f"Distance ({unitXY})")
-        plt.ylabel(f"Height ({unitZ})")
-        plt.title(f"Swelling profile at time {timeFormat(elapsedtime)}")
-        plt.legend()
+        if idx == 50:
+            file = open(n)
+            csvreader = csv.reader(file)
+            rows = []
+            for row in csvreader:
+                rows.append(float(row[0]))
+            file.close()
+            elapsedtime = rows[0]
+            swellingProfile = rows[1:]
+            if idx == 1:
+                print("hi")
+            range1 = 2200
+            range2 = 3500#len(swellingProfile)
+            swellingProfileZoom = swellingProfile[range1:range2]
+            swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
+            x = np.linspace(range1, range2, range2-range1)# * conversionFactorXY
+            xshifted = [q - min(x) for q in x]
+            plt.plot(xshifted, swellingProfileZoomConverted, 'k.', label=f'time={timeFormat(elapsedtime)}')
+            plt.xlabel(f"Distance ({unitXY})")
+            plt.ylabel(f"Height ({unitZ})")
+            plt.title(f"Swelling profile at time {timeFormat(elapsedtime)}")
+            plt.legend()
 
-        if SAVEFIG:
-            plt.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
-        plt.close()
+            if SAVEFIG:
+                plt.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
+            plt.close()
 
 
 if __name__ == "__main__":

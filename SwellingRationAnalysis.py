@@ -1,6 +1,7 @@
 """
 This swellingratio analysis allows for investigation of Intensity vs. Time, at a constant chosen location.
 Iterating over multiple locations results in a swelling profile at every timestep.
+The "new" swelling analysis
 """
 
 import pandas as pd
@@ -125,7 +126,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     nrOfDatapoints = len(profile)
     print(f"{nrOfDatapoints}")
     hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
-    hiR = 40
+    hiR = 60
     loR = 1
     for i in range(hiR,hiR+1,20):       #removing n highest frequencies
         for j in range(loR, loR+1, 20):        #removing n lowest frequencies
@@ -176,7 +177,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
             spacedTimeFromStart = np.linspace(timeFromStart[0], timeFromStart[-1:], len(unwrapped))
             ax2.plot(spacedTimeFromStart, unwrapped * conversionFactorZ)
             plt.xlabel('Time (h)')
-            plt.ylabel(u"Height (\u03bcm)")
+            plt.ylabel(f"Height ({unitZ})")
             plt.title(f'Swelling profile: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
             #plt.show()
 
@@ -216,11 +217,11 @@ def main():
         Highpass & lowpass filters
     """
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2600
-    pixelLoc2 = 2800#pixelLoc1 + 1
+    pixelLoc1 = 2500
+    pixelLoc2 = 3501#pixelLoc1 + 1
     pixelIV = 50   #interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230331093127_nofilter_ALL"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
@@ -231,7 +232,7 @@ def main():
 
     csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
     #Length*2 = range over which the intensity will be taken
-    rangeLength = 20
+    rangeLength = 5
 
     #With this loop, different pixel locations can be chosen to plot for
     for i in range(pixelLoc1, pixelLoc2, pixelIV):
