@@ -150,8 +150,8 @@ from scipy.optimize import curve_fit
 def custom_fit(x,a,b,c,d,e,f,g,h):
     return a + b*x + c*x**2 + d*x**3 + e*x**4 + f*x**0.67 + g * np.sin(h*x)
 
-def custom_fit2(x,a,b,c):
-    return a + b*x + c*x**2
+def custom_fit2(x,a,b,c,d,e,f,g,h):
+    return a * np.sin(b*x + c) + c * np.sin(d*x + e) + f * np.sin(g*x + h)
 
 
 
@@ -168,14 +168,14 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     #order = 10
     #fit, error = poly_lsq(timeFromStart, ([profile])[0], order)
 
-    popt, pcov = curve_fit(custom_fit, timeFromStart, ([profile])[0])
+    popt, pcov = curve_fit(custom_fit2, timeFromStart, ([profile])[0])
     print(popt)
     print(np.linalg.cond(pcov))
     xnew = np.linspace(timeFromStart[0], timeFromStart[len(timeFromStart)-1], 1000)
-    ynew = custom_fit(xnew, *popt)
+    ynew = custom_fit2(xnew, *popt)
     #ynew = np.polyval(fit, xnew)
     #ax0.plot(xnew, ynew, label=f'fit {order}, unfiltered')
-
+    ax0.plot(xnew, ynew, label=f'fit, unfiltered')
 
     # plt.show()
     #plt.draw()
@@ -251,7 +251,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
             #Saves data in time vs height profile plot so a csv file.
             wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}high{i},lo{j}.csv")
             #(np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-            np.savetxt(wrappedPath, [p for p in zip(timeFromStart, unwrapped * conversionFactorZ)], delimiter=',', fmt='%s')
+            np.savetxt(wrappedPath, [p for p in zip(timeFromStart, ([profile])[0], unwrapped * conversionFactorZ)], delimiter=',', fmt='%s')
     # now get datapoints we need.
     #unwrapped_um = unwrapped * conversionZ
     #analyzeTimes = np.linspace(0, 57604, 12)
