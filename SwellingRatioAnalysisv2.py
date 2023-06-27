@@ -19,7 +19,7 @@ from general_functions import conversion_factors
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
     '''
-    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordiantes.
+    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordinates.
     '''
     if event == cv2.EVENT_LBUTTONDOWN:
         global right_clicks
@@ -223,7 +223,7 @@ def main():
             range2 = 3500#len(swellingProfile)
             swellingProfileZoom = swellingProfile[range1:range2]
             swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
-            x = np.linspace(range1, range2, range2-range1)# * conversionFactorXY
+            x = np.linspace(range1, range2, range2-range1) * conversionFactorXY
             xshifted = [q - min(x) for q in x]
             plt.plot(xshifted, swellingProfileZoomConverted, 'k.', label=f'time={timeFormat(elapsedtime)}')
             plt.xlabel(f"Distance ({unitXY})")
