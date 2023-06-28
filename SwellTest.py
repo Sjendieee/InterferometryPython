@@ -154,7 +154,10 @@ def custom_fit2(x,a,b,c,d,e,f,g,h):
     return a * np.sin(b*x + c) + c * np.sin(d*x + e) + f * np.sin(g*x + h)
 
 
-
+""""
+making an attempt at fitting the intensity vs time curve, in order to then extract data at an equally spaced timeinterval
+Doesn't work properly though. 12th order polynomial didnt even fit well
+"""
 def makeImages(profile, timeFromStart, source, pixelLocation, config):
     conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
@@ -259,6 +262,109 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     #print(analyzeImages)
 
 
+""""
+Do the same as in normal maeImages, but make no attempt at fitting. Just make the data-acquisition timeinterval regular by hand
+So e.g. first 40 images every 20 sec, then every 4 minutes -> take image 1 & 13 & 25 & 37
+"""
+def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, config):
+    conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
+    if not os.path.exists(os.path.join(source, f"Swellingimages")):
+        os.mkdir(os.path.join(source, f"Swellingimages"))
+    fig0, ax0 = plt.subplots()
+    ax0.plot(timeFromStart, profile, label = f'normalized, unfiltered')
+    plt.xlabel('Time (h)')
+    plt.ylabel('Mean intensity')
+    plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
+
+    #define which values to use for regular timeinterval
+    whichValuesToUse1 = [0, 12, 24, 36]
+    whichValuesToUse2 = np.arange(38, len(profile),1)
+    whichValuesToUseTot = np.append(whichValuesToUse1, whichValuesToUse2)
+
+    equallySpacedTimeFromStart = []
+    equallySpacedProfile = []
+
+    for i in whichValuesToUseTot:
+        equallySpacedTimeFromStart = np.append(equallySpacedTimeFromStart, timeFromStart[i])
+        equallySpacedProfile = np.append(equallySpacedProfile, profile[i])
+
+
+    print(f"length of equally spaced profile = {len(equallySpacedProfile)}")
+    nrOfDatapoints = len(equallySpacedProfile)
+    print(f"{nrOfDatapoints}")
+    hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
+    hiR = 60
+    loR = 1
+    for i in range(hiR,hiR+1,20):       #removing n highest frequencies
+        for j in range(loR, loR+1, 20):        #removing n lowest frequencies
+            HIGHPASS_CUTOFF = i
+            LOWPASS_CUTOFF = j
+            NORMALIZE_WRAPPEDSPACE = False
+            NORMALIZE_WRAPPEDSPACE_THRESHOLD = 3.14159265359
+            #conversionZ = 0.02885654477258912
+            FLIP = False
+
+            profile_fft = np.fft.fft(equallySpacedProfile)  # transform to fourier space
+            highPass = HIGHPASS_CUTOFF
+            lowPass = LOWPASS_CUTOFF
+            mask = np.ones_like(equallySpacedProfile).astype(float)
+            mask[0:lowPass] = 0
+            if highPass > 0:
+                mask[-highPass:] = 0
+            profile_fft = profile_fft * mask
+            fig3, ax3 = plt.subplots()
+            ax3.plot(preprocessing.normalize([profile_fft.real])[0], label=f'hi:{highPass}, lo:{lowPass}')
+            #ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
+            ax3.legend()
+            fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}, lofil{j}.png"),
+                         dpi=300)
+
+
+            #print(f"Size of dataarray: {len(profile_fft)}")
+
+            profile_filtered = np.fft.ifft(profile_fft)
+            #ax0.plot(equallySpacedTimeFromStart, ([profile_filtered.real])[0], label = f'hi:{highPass}, lo:{lowPass}')
+            ax0.legend()
+            fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
+                         dpi=300)
+
+            wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+            if NORMALIZE_WRAPPEDSPACE:
+                wrapped = normalize_wrappedspace(wrapped, NORMALIZE_WRAPPEDSPACE_THRESHOLD)
+            unwrapped = np.unwrap(wrapped)
+            if FLIP:
+                unwrapped = -unwrapped + np.max(unwrapped)
+
+            fig1, ax1 = plt.subplots()
+            # ax.plot(timeFromStart, wrapped)
+            ax1.plot(wrapped)
+            plt.title(f'Wrapped plot: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
+            fig2, ax2 = plt.subplots()
+            #TODO for even spreading of data (NOT true time!)
+            #spacedTimeFromStart = np.linspace(timeFromStart[0], timeFromStart[-1:], len(unwrapped))
+            ax2.plot(equallySpacedTimeFromStart, unwrapped * conversionFactorZ)
+            plt.xlabel('Time (h)')
+            plt.ylabel(u"Height (\u03bcm)")
+            plt.title(f'Swelling profile: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
+            #plt.show()
+
+            fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_pixel{pixelLocation}high{i},lo{j}.png"),
+                         dpi=300)
+            fig2.savefig(os.path.join(source, f"Swellingimages\\height_pixel{pixelLocation}high{i},lo{j}.png"),
+                         dpi=300)
+            plt.close(fig0)
+            plt.close(fig1)
+            plt.close(fig2)
+
+            #Saves data in time vs height profile plot so a csv file.
+            wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}high{i},lo{j}.csv")
+            #(np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+            np.savetxt(wrappedPath, [p for p in zip(equallySpacedTimeFromStart, equallySpacedProfile, unwrapped * conversionFactorZ)], delimiter=',', fmt='%s')
+    # now get datapoints we need.
+    #unwrapped_um = unwrapped * conversionZ
+    #analyzeTimes = np.linspace(0, 57604, 12)
+    #analyzeImages = np.array([find_nearest(timeFromStart, t)[1] for t in analyzeTimes])
+    #print(analyzeImages)
 def main():
     """
     Analyzes an input 'pixellocation' on a previously analyzed line (with the main.py file methods), as a function of time
@@ -281,7 +387,8 @@ def main():
     pixelIV = 200   #interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230612121104"
+    source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
@@ -327,7 +434,7 @@ def main():
 
         # for nn in [1]:
         #     makeImages(meanIntensity[0:-nn:], elapsedtime[0:-nn:], source, pixelLocation)
-        makeImages(meanIntensity, elapsedtime, source, pixelLocation, config)
+        makeImagesManualTimeadjust(meanIntensity, elapsedtime, source, pixelLocation, config)
     print(f"Read-in lenght of rows from csv file = {len(rows)}")
 
 if __name__ == "__main__":

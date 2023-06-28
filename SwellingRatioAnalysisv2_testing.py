@@ -1,29 +1,25 @@
 """
-This swellingratio analysis allows for investigation of Intensity vs. Time, at a constant chosen location.
-Iterating over multiple locations results in a swelling profile at every timestep.
-The "new" swelling analysis
+This swellingratio analysis allows for investigation of Intensity vs. Distance, at a single timestep.
+This results in a swelling profile for every timestep.
+The "old" swelling analysis
 """
 
-import pandas as pd
 import csv
 import os
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import glob
 import cv2
-from general_functions import image_resize, conversion_factors
-from line_method import coordinates_on_line, normalize_wrappedspace, mov_mean
+from general_functions import image_resize
+from line_method import coordinates_on_line, normalize_wrappedspace, mov_mean, timeFormat
 import numpy as np
-import logging
 from PIL import Image
-from itertools import chain
-from sklearn import preprocessing
 from configparser import ConfigParser
+from general_functions import conversion_factors
 
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
     '''
-    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordiantes.
+    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordinates.
     '''
     if event == cv2.EVENT_LBUTTONDOWN:
         global right_clicks
@@ -105,20 +101,15 @@ def showPixellocation(pointa, pointb, source):
 def normalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
 
-def normalizeDataV2(data):
-    return preprocessing.normalize([data])[0]
-
-
-def makeImages(profile, timeFromStart, source, pixelLocation, config):
-    conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
+def makeImages(profile, timeFromStart, source, pixelLocation):
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     fig0, ax0 = plt.subplots()
-    ax0.plot(timeFromStart, profile, label = f'normalized, unfiltered')
+    ax0.plot(timeFromStart, normalizeData(profile), label = f'normalized, unfiltered')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
-    #plt.show()
+    # plt.show()
     #plt.draw()
     #fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"), dpi=300)
 
@@ -126,15 +117,15 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     nrOfDatapoints = len(profile)
     print(f"{nrOfDatapoints}")
     hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
-    hiR = 60
-    loR = 1
+    hiR = 0
+    loR = 0
     for i in range(hiR,hiR+1,20):       #removing n highest frequencies
         for j in range(loR, loR+1, 20):        #removing n lowest frequencies
             HIGHPASS_CUTOFF = i
             LOWPASS_CUTOFF = j
             NORMALIZE_WRAPPEDSPACE = False
             NORMALIZE_WRAPPEDSPACE_THRESHOLD = 3.14159265359
-            #conversionZ = 0.02885654477258912
+            conversionZ = 0.02885654477258912
             FLIP = False
 
             profile_fft = np.fft.fft(profile)  # transform to fourier space
@@ -146,17 +137,16 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
                 mask[-highPass:] = 0
             profile_fft = profile_fft * mask
             fig3, ax3 = plt.subplots()
-            ax3.plot(profile_fft.real, label=f'hi:{highPass}, lo:{lowPass}')
-            #ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
+            ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
             ax3.legend()
-            fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}, lofil{j}.png"),
+            fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}.png"),
                          dpi=300)
 
 
             #print(f"Size of dataarray: {len(profile_fft)}")
 
             profile_filtered = np.fft.ifft(profile_fft)
-            ax0.plot(timeFromStart, profile_filtered.real, label = f'hi:{highPass}, lo:{lowPass}')
+            ax0.plot(timeFromStart, normalizeData(profile_filtered), label = f'hi:{highPass}, lo:{lowPass}')
             ax0.legend()
             fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
                          dpi=300)
@@ -175,9 +165,9 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
             fig2, ax2 = plt.subplots()
             #TODO for even spreading of data (NOT true time!)
             spacedTimeFromStart = np.linspace(timeFromStart[0], timeFromStart[-1:], len(unwrapped))
-            ax2.plot(spacedTimeFromStart, unwrapped * conversionFactorZ)
+            ax2.plot(spacedTimeFromStart, unwrapped * conversionZ)
             plt.xlabel('Time (h)')
-            plt.ylabel(f"Height ({unitZ})")
+            plt.ylabel(u"Height (\u03bcm)")
             plt.title(f'Swelling profile: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
             #plt.show()
 
@@ -192,7 +182,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
             #Saves data in time vs height profile plot so a csv file.
             wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}high{i},lo{j}.csv")
             #(np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-            np.savetxt(wrappedPath, [p for p in zip(timeFromStart, unwrapped * conversionFactorZ)], delimiter=',', fmt='%s')
+            np.savetxt(wrappedPath, [p for p in zip(timeFromStart, unwrapped * conversionZ)], delimiter=',', fmt='%s')
     # now get datapoints we need.
     #unwrapped_um = unwrapped * conversionZ
     #analyzeTimes = np.linspace(0, 57604, 12)
@@ -200,79 +190,75 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     #print(analyzeImages)
 
 
+def flipData(data):
+    datamax = max(data)
+    return [(-x + datamax) for x in data]
+
 def main():
-    """
-    Analyzes an input 'pixellocation' on a previously analyzed line (with the main.py file methods), as a function of time
-    A CSV file of the intensity along the drawn line at time t is read in, the mean intensity extracted at the pixellocation.
-    Then, the same is done at t+1, etc.. In the end, Intensity vs time is obtained.
-    This data can then be filtered in the frequency domain (removing high and/or low frequencies after a Fourier Transform),
-    after which it is returned to time domain. Due to the filtering, it should contain both a real and an imaginary part.
-    The phase difference between the two is determined by an atan2 method, resulting in a 'wrapped' plot, which should resemble a sawtooth profile.
-    Unwrapping the wrapped profile results in a swelling profile, after a conversion in Z is performed.
-
-    Main changeables:
-        pixeLoc1 & 2.
-        source
-        rangeLength
-        Highpass & lowpass filters
-    """
-    #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2550
-    pixelLoc2 = 2551#pixelLoc1 + 1
-    pixelIV = 50   #interval between the two pixellocations to be taken.
-    #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
+    SAVEFIG = True
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
-    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230612121104"
     source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
-
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
+    conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
 
-    # TODO show where your chosen pixel is actually located
-    #positiontest(source)
-    #showPixellocationv2(1,2, source)
+    outputFormatXY = 'mm'       #'pix' or 'mm'
 
-    csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
-    """Length*2 = range over which the intensity will be taken"""
-    rangeLength = 5
+    csvList = [f for f in glob.glob(os.path.join(source, f"csv\\*unwrapped.csv"))]
 
-    #With this loop, different pixel locations can be chosen to plot for
-    for i in range(pixelLoc1, pixelLoc2, pixelIV):
-        meanIntensity = []
-        elapsedtime = []
-        #This loop takes data van intensity csv files at different moments in time (n), and calculates a mean value for a given rangeLength at the chosen pixelLocation
-        for n in csvList: #range(cvsFilenr1, cvsFilenr2, cvsFileIV):
-            #file = open(os.path.join(source, f"process\\{csvName}{str(n).zfill(4)}_analyzed__real.csv"))
+    if not os.path.exists(os.path.join(source, f"Swellingimages")):
+        os.mkdir(os.path.join(source, f"Swellingimages"))
+
+    print(f"With this conversionXY, 1000 pixels = {conversionFactorXY*1000} mm, \n"
+          f"and 1 mm = {1/conversionFactorXY} pixels")
+
+    for idx, n in enumerate(csvList):
+        if idx == 206:
             file = open(n)
             csvreader = csv.reader(file)
-            header = ['Real intensity value']
             rows = []
             for row in csvreader:
-                rows.append(row[0])
+                rows.append(float(row[0]))
             file.close()
-            elapsedtime.append(float(rows[0])/3600)
+            elapsedtime = rows[0]
+            swellingProfile = rows[1:]
+            if idx == 1:
+                print("hi")
+            range1 = 2250
+            range2 = 2950#len(swellingProfile)
+            swellingProfileZoom = swellingProfile[range1:range2]
+            swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
 
-            pixelLocation = i
-            range1 = pixelLocation - rangeLength
-            range2 = pixelLocation + rangeLength
-            if (range1 < 1) or (range2>len(rows)):
-                raise Exception(f"There were not enough values to average over. Either lower mean-range, or choose different pixel location. range1 = {range1}, range2 = {range2}, Rows={len(rows)}")
+            knownPixelPosition = 300 - 1
+            knownHeight = 216       #in nm
+            swellingProfileZoomConverted = np.subtract(swellingProfileZoomConverted, (swellingProfileZoomConverted[knownPixelPosition] - knownHeight))
 
-            total = 0
+            if outputFormatXY == 'pix':
+                x = np.linspace(range1, range2, range2 - range1)
+                xshifted = [q - min(x) for q in x]
+                plt.plot(xshifted, swellingProfileZoomConverted, 'k.', label=f'time={timeFormat(elapsedtime)}')
+                plt.plot(xshifted, np.zeros(len(xshifted)), '-')
+                plt.xlabel(f"Distance (pixels)")
+                plt.ylabel(f"Height ({unitZ})")
+                plt.title(f"Swelling profile at time {timeFormat(elapsedtime)} \n shifted to {range1} pixels")
+                plt.legend()
+            elif outputFormatXY == 'mm':
+                x = np.linspace(range1, range2, range2 - range1) * conversionFactorXY
+                xshifted = [q - min(x) for q in x]
+                plt.plot(xshifted, swellingProfileZoomConverted, 'k.', label=f'time={timeFormat(elapsedtime)}')
+                plt.plot(xshifted, np.zeros(len(xshifted)), '-')
+                plt.xlabel(f"Distance ({unitXY})")
+                plt.ylabel(f"Height ({unitZ})")
+                plt.title(f"Swelling profile at time {timeFormat(elapsedtime)}")
+                plt.legend()
+            else:
+                print("wrong format input")
 
-            for idx in range(range1, range2):
-                total = total + float(rows[idx])
-            meanIntensity.append(total / (range2 - range1))
+            if SAVEFIG:
+                plt.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
+            plt.close()
 
-        #TODO for even spreading of data (NOT true time!)
-        #elapsedtime = np.arange(0,len(meanIntensity))
-
-        # for nn in [1]:
-        #     makeImages(meanIntensity[0:-nn:], elapsedtime[0:-nn:], source, pixelLocation)
-
-        makeImages(meanIntensity, elapsedtime, source, pixelLocation, config)
-    print(f"Read-in lenght of rows from csv file = {len(rows)}")
 
 if __name__ == "__main__":
     main()
