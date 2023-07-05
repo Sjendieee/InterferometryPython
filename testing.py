@@ -9,13 +9,14 @@ imgblack = cv2.imread('C:\\Users\ReuvekampSW\\Documents\\InterferometryPython\\b
 dimensions = img.shape
 print(dimensions)
 
-resizedimg = cv2.resize(img, [1920, 1080], interpolation = cv2.INTER_AREA)
+#resizedimg = cv2.resize(img, [1920, 1080], interpolation = cv2.INTER_AREA)
+resizedimg = cv2.resize(img, [2400, 1500], interpolation = cv2.INTER_AREA)
 print(resizedimg.shape)
 print(imgblack.shape)
 resizedImagBlack = cv2.resize(imgblack, [10, 10], interpolation = cv2.INTER_AREA)
 
-x_offset = 100
-y_offset = 300
+x_offset = 468
+y_offset = 114
 
 resizedimg[y_offset:y_offset+resizedImagBlack.shape[0], x_offset:x_offset+resizedImagBlack.shape[1]] = resizedImagBlack
 cv2.imshow('image', resizedimg)
