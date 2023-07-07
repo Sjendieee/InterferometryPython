@@ -26,6 +26,8 @@ def normalize_wrappedspace(signal, threshold):
     signal[np.where(diff > threshold)[0] - 1] = -np.pi
     return signal
 
+#I'm pretty sure this does not work as it's completely supposed to:
+#The limits (right now) should be from [0 - some value], and does not work for e.g. [200 - 500]
 def intersection_imageedge(a, b, limits):
     '''
     For a given image dimension (limits) and linear line (y=ax+b) it determines which borders of the image the line
@@ -134,7 +136,7 @@ def coordinates_on_line(a, b, limits):
     y = (a * x + b)
 
     # return a zipped list of coordinates, thus integers
-    return list(zip(x.astype(int), y.astype(int)))
+    return list(zip(x.astype(int), y.astype(int))), l
 
 
 def align_arrays(all_coordinates, data, alignment_coordinate):
@@ -357,7 +359,7 @@ def method_line(config, **kwargs):
     all_coordinates = {}
     for jdx, n in enumerate(range(-SliceWidth, SliceWidth + 1)):
         bn = b + n * np.sqrt(a ** 2 + 1)
-        coordinates = coordinates_on_line(a, bn, [0, im_gray.shape[1], 0, im_gray.shape[0]])
+        coordinates, l = coordinates_on_line(a, bn, [0, im_gray.shape[1], 0, im_gray.shape[0]])
         all_coordinates[jdx] = coordinates
 
         # transpose to account for coordinate system in plotting (reversed y)
