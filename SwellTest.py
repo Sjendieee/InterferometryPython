@@ -277,10 +277,11 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
 
     #define which values to use for regular timeinterval
-    whichValuesToUse1 = [0, 12, 24, 36]
-    whichValuesToUse2 = np.arange(38, len(profile),1)
+    whichValuesToUse1 = [0, 11, 13, 15, 17]
+    whichValuesToUse2 = np.arange(20, len(profile),1)
     whichValuesToUseTot = np.append(whichValuesToUse1, whichValuesToUse2)
 
+    #whichValuesToUseTot = np.arange(0, len(profile),1)      #when all values are to be used
     equallySpacedTimeFromStart = []
     equallySpacedProfile = []
 
@@ -381,13 +382,15 @@ def main():
         rangeLength
         Highpass & lowpass filters
     """
+    #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2550
-    pixelLoc2 = 2551#pixelLoc1 + 1
-    pixelIV = 200   #interval between the two pixellocations to be taken.
+    pixelLoc1 = 2170
+    pixelLoc2 = 2175  # pixelLoc1 + 1
+    pixelIV = 5  # interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
-    source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    #source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    source = "C:\\Users\\Sander PC\\PycharmProjects\\InterferometryPython\\export\\PROC_20230710212856"                 #The dodecane sample
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]

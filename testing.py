@@ -3,8 +3,9 @@ import numpy as np
 from line_method import click_event, coordinates_on_line
 ##linmethod: pointa = 1766, 1782; pointb = 1928, 1916
 # Read RGB image
-img = cv2.imread('F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\PROC_20230612121104\\rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230406_131652896_0009_analyzed_.png')
-imgblack = cv2.imread('C:\\Users\ReuvekampSW\\Documents\\InterferometryPython\\black square.png')
+img = cv2.imread('I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104\\rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230406_131652896_0009_analyzed_.png')
+imgblack = cv2.imread('C:\\Users\\Sander PC\\PycharmProjects\\InterferometryPython\\black square.png')
+print(f"square size {img.shape}")
 resizedimg = cv2.resize(img, [2400, 1500], interpolation = cv2.INTER_AREA)
 squareSize = 10
 resizedImagBlack = cv2.resize(imgblack, [squareSize, squareSize], interpolation = cv2.INTER_AREA)

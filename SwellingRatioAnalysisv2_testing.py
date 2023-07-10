@@ -197,7 +197,7 @@ def flipData(data):
 def main():
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     """"Changeables: """
-    source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     range1 = 2320       #start x left for plotting
     range2 = 3300  # len(swellingProfile)
     knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
@@ -224,7 +224,7 @@ def main():
 
     idxx = 0
     for idx, n in enumerate(csvList):
-        if idx in [50, 95, 206, 395]:
+        if idx in [50, 95, 206, 395]:               #
             file = open(n)
             csvreader = csv.reader(file)
             rows = []

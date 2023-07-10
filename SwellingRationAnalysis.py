@@ -217,14 +217,14 @@ def main():
         Highpass & lowpass filters
     """
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2550
-    pixelLoc2 = 2551#pixelLoc1 + 1
-    pixelIV = 50   #interval between the two pixellocations to be taken.
+    pixelLoc1 = 2165
+    pixelLoc2 = 2190#pixelLoc1 + 1
+    pixelIV = 5   #interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230612121104"
-    source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
-
+    #source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"        #the hexadecane sample
+    source = "C:\\Users\\Sander PC\\PycharmProjects\\InterferometryPython\\export\\PROC_20230710212856"                 #The dodecane sample
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
