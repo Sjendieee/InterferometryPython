@@ -289,12 +289,16 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
         equallySpacedTimeFromStart = np.append(equallySpacedTimeFromStart, timeFromStart[i])
         equallySpacedProfile = np.append(equallySpacedProfile, profile[i])
 
+    equallySpacedProfile[6] = 5.5
+    equallySpacedProfile[7] = 6.5
+
+    ax0.plot(equallySpacedTimeFromStart, equallySpacedProfile, '.', label=f'equally spaced profile')
 
     print(f"length of equally spaced profile = {len(equallySpacedProfile)}")
     nrOfDatapoints = len(equallySpacedProfile)
     print(f"{nrOfDatapoints}")
     hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
-    hiR = 60
+    hiR = 10
     loR = 1
     for i in range(hiR,hiR+1,20):       #removing n highest frequencies
         for j in range(loR, loR+1, 20):        #removing n lowest frequencies
@@ -390,7 +394,7 @@ def main():
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
     #source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
-    source = "C:\\Users\\Sander PC\\PycharmProjects\\InterferometryPython\\export\\PROC_20230710212856"                 #The dodecane sample
+    source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
