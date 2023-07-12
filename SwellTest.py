@@ -289,8 +289,8 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
         equallySpacedTimeFromStart = np.append(equallySpacedTimeFromStart, timeFromStart[i])
         equallySpacedProfile = np.append(equallySpacedProfile, profile[i])
 
-    equallySpacedProfile[6] = 5.5
-    equallySpacedProfile[7] = 6.5
+    #equallySpacedProfile[6] = 5.5
+    #equallySpacedProfile[7] = 6.5
 
     ax0.plot(equallySpacedTimeFromStart, equallySpacedProfile, '.', label=f'equally spaced profile')
 
@@ -300,8 +300,8 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
     hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
     hiR = 10
     loR = 1
-    for i in range(hiR,hiR+1,20):       #removing n highest frequencies
-        for j in range(loR, loR+1, 20):        #removing n lowest frequencies
+    for i in range(hiR,hiR+71,20):       #removing n highest frequencies
+        for j in range(loR, loR+1, 2):        #removing n lowest frequencies
             HIGHPASS_CUTOFF = i
             LOWPASS_CUTOFF = j
             NORMALIZE_WRAPPEDSPACE = False
@@ -349,7 +349,8 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
             #spacedTimeFromStart = np.linspace(timeFromStart[0], timeFromStart[-1:], len(unwrapped))
             ax2.plot(equallySpacedTimeFromStart, unwrapped * conversionFactorZ)
             plt.xlabel('Time (h)')
-            plt.ylabel(u"Height (\u03bcm)")
+            #plt.ylabel(u"Height (\u03bcm)")
+            plt.ylabel(f"Height ({config.get('GENERAL', 'UNIT_Z')})")
             plt.title(f'Swelling profile: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
             #plt.show()
 
@@ -388,8 +389,8 @@ def main():
     """
     #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2170
-    pixelLoc2 = 2175  # pixelLoc1 + 1
+    pixelLoc1 = 2190
+    pixelLoc2 = 2216  # pixelLoc1 + 1
     pixelIV = 5  # interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
