@@ -6,6 +6,7 @@ import cv2
 import logging
 import os
 from general_functions import image_resize
+from plotting import saveTempPlot
 
 
 def normalize_wrappedspace(signal, threshold):
@@ -25,6 +26,8 @@ def normalize_wrappedspace(signal, threshold):
     signal[np.where(diff > threshold)[0] - 1] = -np.pi
     return signal
 
+#I'm pretty sure this does not work as it's completely supposed to:
+#The limits (right now) should be from [0 - some value], and does not work for e.g. [200 - 500]
 def intersection_imageedge(a, b, limits):
     '''
     For a given image dimension (limits) and linear line (y=ax+b) it determines which borders of the image the line
@@ -133,7 +136,7 @@ def coordinates_on_line(a, b, limits):
     y = (a * x + b)
 
     # return a zipped list of coordinates, thus integers
-    return list(zip(x.astype(int), y.astype(int)))
+    return list(zip(x.astype(int), y.astype(int))), l
 
 
 def align_arrays(all_coordinates, data, alignment_coordinate):
@@ -192,6 +195,65 @@ def align_arrays(all_coordinates, data, alignment_coordinate):
     # return the aligned 2D array
     return data_aligned
 
+def allign_arrays_v2(all_coordinates, data, alignment_coordinate):
+    '''
+    This function aligns arrays of different lengths to a certain (variable) alignment coordinate.
+    The vacant spots are filled up with np.nan.
+
+    :param all_coordinates: dict with all the coordinates of all the lines in list (of unequal lengths)
+    :param data: correponding values to all_coordinates
+    :param alignment_coordinate: the spatial coordinate to which the slices align (closest point)
+    :return: 2d list with aligned lists as rows
+
+    Example input:
+    data: {
+        [3, 4, 5, 3, 1, 3, 5, 6]
+        [4, 5, 6, 3, 5]
+        [3, 5, 6, 3, 2, 3, 4]
+    }
+    all_coordinates: {
+        [(1,2), (2,2), (3,4), ...]
+        [(2,2), (2,3), (2,4), ...]
+        [...]
+    }
+    align_coordinate: (5,5)
+
+    For each item in all_coordinates it will find the closest datapoint to align_coordinate. The location of
+    this coordinate in all_coordinates may vary for each item. The corresponding data values for these
+    locations are aligned in a 2D array. The holes (before or after or none at all) are filled up with nans.
+
+    Example result: [
+        [3, 4, 5, 3, 1, 3, 5, 6]
+        [nan, 4, 5, 6, 3, 5, nan, nan]
+        [3, 5, 6, 3, 2, 3, 4, nan]
+    ]
+    '''
+    # get length of each data item list
+    lengths = np.array([len(v) for _, v in data.items()])
+    # for each item, calculate the index that corresponds to the smallest distance with alignment_coordinate
+    alignments = np.array([spatial.KDTree(coordinates).query(alignment_coordinate)[1] for
+                           _, coordinates in all_coordinates.items()])
+
+    maxAlignment = max(alignments)  # number of nans for the array with the most nans in front
+    maxPostfill = max(lengths - alignments)  # numer of nans for the array with the most nans in end
+    # maxAlignment + maxPostfill = new item list length
+
+    # create an empty 2D array for the aligned slices (dict like input is no longer needed)
+    data_aligned = np.empty((len(all_coordinates), maxAlignment + maxPostfill))
+
+    # one by one fill the new 2D array
+    for kdx in np.arange(len(data)):
+        profile = np.array(data[kdx])  # a data item
+        part1 = np.full(maxAlignment - alignments[kdx], np.nan)  # number of nans needed before
+        part3 = np.full(maxPostfill - (lengths[kdx] - alignments[kdx]), np.nan)  # number of nans needed after
+        data_aligned[kdx, :] = np.hstack((part1, profile, part3)).ravel()  # new slice: nans + data item + nans
+
+    for idx, arr in enumerate(data_aligned):
+        data_aligned[idx] - data_aligned[idx+1]
+
+    # return the aligned 2D array
+    return data_aligned
+
 def mov_mean(arr, window_size):
     '''
     :param arr: array of values, to which the moving average will be applied
@@ -245,7 +307,9 @@ def method_line(config, **kwargs):
 
     :param config: ConfigParser() config object with setting for the LINE_METHOD.
     :param image: an image to select the points for the slice on.
-    :return: unwrapped line
+    :return: unwrapped line (non-converted)
+    :return: points A
+    :return: points B
     '''
 
     im_gray = kwargs['im_gray']
@@ -295,7 +359,7 @@ def method_line(config, **kwargs):
     all_coordinates = {}
     for jdx, n in enumerate(range(-SliceWidth, SliceWidth + 1)):
         bn = b + n * np.sqrt(a ** 2 + 1)
-        coordinates = coordinates_on_line(a, bn, [0, im_gray.shape[1], 0, im_gray.shape[0]])
+        coordinates, l = coordinates_on_line(a, bn, [0, im_gray.shape[1], 0, im_gray.shape[0]])
         all_coordinates[jdx] = coordinates
 
         # transpose to account for coordinate system in plotting (reversed y)
@@ -318,30 +382,29 @@ def method_line(config, **kwargs):
 
     profile = np.nanmean(profiles_aligned, axis=0)
 
-# #TODO remove
-#     plt.plot(profile)
-#     plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "1profile.png"))
-#     plt.close()
+    SavingTemp = config.getboolean("SAVING", "SAVE_INTERMEDIATE_PLOTS")
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "1profile.png")))
+
     if config.getboolean("LINE_METHOD_ADVANCED", "FILTER_STARTEND"):
         profile = filter_profiles(profiles_aligned, profile)
-# # TODO remove
-#     plt.plot(profile)
-#     plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "2profiles_startEnd.png"))
-#     plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "2profiles_startEnd.png")))
     logging.info("Profiles are aligned and average profile is determined.")
 
     movmeanN = config.getint("LINE_METHOD_ADVANCED", "MOVMEAN")
     profile = mov_mean(profile, movmeanN)
     logging.info("Moving average of profile has been taken")
-    # # TODO remove
-    # plt.plot(profile)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "3profileMovmeaned.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "3profileMovmeaned.png")))
     profile_fft = np.fft.fft(profile)  # transform to fourier space
-    # # TODO remove
-    # plt.plot(profile_fft)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "4profilefft.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_fft, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "4profilefft.png")))
+
     highPass = config.getint("LINE_METHOD_ADVANCED", "HIGHPASS_CUTOFF")
     lowPass = config.getint("LINE_METHOD_ADVANCED", "LOWPASS_CUTOFF")
     # highPassBlur = config.getint("LINE_METHOD_ADVANCED", "HIGHPASS_CUTOFF")
@@ -355,81 +418,73 @@ def method_line(config, **kwargs):
         mask[-highPass:] = 0
         # mask = smooth_step(mask, highPassBlur)
     profile_fft = profile_fft * mask
-    # # TODO remove
-    # plt.plot(profile_fft)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "5profilefftmask.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_fft, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "5profilefftmask.png")))
+
     profile_filtered = np.fft.ifft(profile_fft)
-    # # TODO remove
-    # plt.plot(profile_filtered)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "6profilefiltered.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_filtered, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "6.1profilefiltered.png")))
+
     logging.info("Average profile is filtered in the Fourier space.")
 
     #TODO testing to save real part of profile to csv file. First value is the elapsed time from moment 0 in given series of images.
-    wrappedPath = os.path.join(Folders['save_process'], f"{savename}_real.csv")
-    realProfile = profile_filtered.real
-    (np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-    wrappedPath = os.path.join(Folders['save_process'], f"{savename}_imag.csv")
-    imagProfile = profile_filtered.imag
-    (np.insert(imagProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-
-    # # TODO remove
-    # plt.plot(profile_filtered.real)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "6.1profilefiltered_real.png"))
-    # plt.close()
-    # # TODO remove
-    # plt.plot(profile_filtered.imag)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "6.2profilefiltered_imag.png"))
-    # plt.close()
+    if config.getboolean("LINE_METHOD_ADVANCED", "CSV_REAL"):
+        wrappedPath = os.path.join(Folders['save_process'], f"{savename}_real.csv")
+        realProfile = profile_filtered.real
+        (np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+    if config.getboolean("LINE_METHOD_ADVANCED", "CSV_IMAG"):
+        wrappedPath = os.path.join(Folders['save_process'], f"{savename}_imag.csv")
+        imagProfile = profile_filtered.imag
+        (np.insert(imagProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_filtered.real, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "6.2profilefiltered_real.png")))
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(profile_filtered.imag, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "6.3profilefiltered_imag.png")))
 
     # calculate the wrapped space
     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-    # # TODO remove
-    # plt.plot(wrapped)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "7wrapped.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(wrapped, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "7wrapped.png")))
 
     # local normalization of the wrapped space. Since fringe pattern is never ideal (i.e. never runs between 0-1) due
     # to noise and averaging errors, the wrapped space doesn't run from -pi to pi, but somewhere inbetween. By setting
     # this value to True, the wrapped space is normalized from -pi to pi, if the stepsize is above a certain threshold.
     if config.getboolean("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE"):
         wrapped = normalize_wrappedspace(wrapped, config.getfloat("LINE_METHOD_ADVANCED", "NORMALIZE_WRAPPEDSPACE_THRESHOLD"))
-
-    # # TODO remove
-    # plt.plot(wrapped)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "8wrapped_norm.png"))
-    # plt.close()
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(wrapped, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "8wrapped_norm.png")))
 
     #TODO This needed fixing: was a static path. But seems not even necessary for the line method?
     #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\wrapped.csv", wrapped, delimiter=',', fmt='%f')
 
     unwrapped = np.unwrap(wrapped)
-    # # TODO remove
-    # plt.plot(unwrapped)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "9unwrapped.png"))
-    # plt.close()
-    # logging.info("Average slice is wrapped and unwrapped")
+    # Saving temp
+    if SavingTemp:
+        saveTempPlot(unwrapped, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "9unwrapped.png")))
+
+    logging.info("Average slice is wrapped and unwrapped")
 
     if config.getboolean("PLOTTING", "FLIP_UNWRAPPED"):
         unwrapped = -unwrapped + np.max(unwrapped)
         logging.debug('Image surface flipped.')
 
     unwrapped_converted = unwrapped * conversionFactorZ
-    # # TODO remove
-    # plt.plot(unwrapped_converted)
-    # plt.savefig(os.path.join("C:\\TEMP_data_for_conversion", "10unwrappedConverted.png"))
-    # plt.close()
-    logging.debug('Conversion factor for Z applied.')
+    #Saving temp
+    if SavingTemp:
+        saveTempPlot(unwrapped_converted, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "10unwrappedConverted.png")))
 
-    #TODO was a static path, now variable to the savepath
-    #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\unwrapped.csv", unwrapped, delimiter=',', fmt='%f')
-    np.savetxt(os.path.join(Folders["savepath"], f"unwrapped\\unwrapped.csv"), unwrapped, delimiter=',', fmt='%f')
+    logging.debug('Conversion factor for Z applied.')
 
     from plotting import plot_lineprocess, plot_profiles, plot_sliceoverlay, plot_unwrappedslice
     fig1 = plot_profiles(config, profiles_aligned)
     fig2 = plot_lineprocess(config, profile, profile_filtered, wrapped, unwrapped)
-    fig3 = plot_sliceoverlay(config, all_coordinates, im_raw)
+    fig3 = plot_sliceoverlay(config, all_coordinates, im_raw, timeFormat(timeelapsed))
     fig4 = plot_unwrappedslice(config, unwrapped_converted, profiles_aligned, conversionFactorXY, unitXY, unitZ)
     logging.info(f"Plotting done.")
 
@@ -456,4 +511,4 @@ def method_line(config, **kwargs):
         logging.debug('PDF saving done.')
     logging.info(f"Saving done.")
 
-    return unwrapped
+    return unwrapped, P1, P2

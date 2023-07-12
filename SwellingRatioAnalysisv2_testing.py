@@ -195,9 +195,20 @@ def flipData(data):
     return [(-x + datamax) for x in data]
 
 def main():
-    SAVEFIG = True
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
+    """"Changeables: """
     source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    range1 = 2320       #start x left for plotting
+    range2 = 3300  # len(swellingProfile)
+    knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
+    knownHeightArr = [128, 216, 258, 300]       #Known brush thickness at pixellocation in nm
+    dryBrushThickness = 154        #in nm
+    outputFormatXY = 'mm'       #'pix' or 'mm'
+    #XLIM - True; Xlim = []
+    YLIM = True; Ylim = [-50, 650]
+    PLOTSWELLINGRATIO = True
+    SAVEFIG = True
+
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
@@ -208,8 +219,12 @@ def main():
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
 
+    print(f"With this conversionXY, 1000 pixels = {conversionFactorXY*1000} mm, \n"
+          f"and 1 mm = {1/conversionFactorXY} pixels")
+
+    idxx = 0
     for idx, n in enumerate(csvList):
-        if idx == 50:
+        if idx in [50, 95, 206, 395]:               #
             file = open(n)
             csvreader = csv.reader(file)
             rows = []
@@ -220,21 +235,47 @@ def main():
             swellingProfile = rows[1:]
             if idx == 1:
                 print("hi")
-            range1 = 2200
-            range2 = 3500#len(swellingProfile)
             swellingProfileZoom = swellingProfile[range1:range2]
             swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
-            x = np.linspace(range1, range2, range2-range1) * conversionFactorXY
-            xshifted = [q - min(x) for q in x]
-            plt.plot(xshifted, swellingProfileZoomConverted, 'k.', label=f'time={timeFormat(elapsedtime)}')
-            plt.xlabel(f"Distance ({unitXY})")
-            plt.ylabel(f"Height ({unitZ})")
-            plt.title(f"Swelling profile at time {timeFormat(elapsedtime)}")
-            plt.legend()
 
-            if SAVEFIG:
-                plt.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
-            plt.close()
+            knownHeight = knownHeightArr[idxx]       #in nm
+            swellingProfileZoomConverted = np.subtract(swellingProfileZoomConverted, (swellingProfileZoomConverted[knownPixelPosition] - knownHeight))
+            plt.ylabel(f"Height ({unitZ})")
+            if outputFormatXY == 'pix':
+                x = np.linspace(range1, range2, range2 - range1)
+                xshifted = [q - min(x) for q in x]
+                if PLOTSWELLINGRATIO:
+                    swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
+                    plt.ylabel(f"Swelling ratio (h/h0)")
+                plt.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
+                plt.plot(xshifted, np.zeros(len(xshifted)), '-')
+                plt.xlabel(f"Distance (pixels)")
+                plt.title(f"Swelling profile at time {timeFormat(elapsedtime)} \n shifted to {range1} pixels")
+                plt.legend()
+            elif outputFormatXY == 'mm':
+                x = np.linspace(range1, range2, range2 - range1) * conversionFactorXY
+                xshifted = [q - min(x) for q in x]
+                if PLOTSWELLINGRATIO:
+                    swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
+                    plt.ylabel(f"Swelling ratio (h/h0)")
+                plt.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
+                plt.plot(xshifted, np.zeros(len(xshifted)), '-')
+                plt.xlabel(f"Distance ({unitXY})")
+
+                plt.title(f"Swelling profile at time {timeFormat(elapsedtime)}")
+                plt.legend()
+            else:
+                print("wrong format input")
+            idxx = idxx + 1
+
+    if SAVEFIG:
+        if YLIM:
+            if PLOTSWELLINGRATIO:
+                Ylim = np.divide(Ylim, dryBrushThickness)
+            plt.ylim(Ylim)
+        plt.autoscale(enable=True, axis='x', tight=True)
+        plt.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
+    plt.close()
 
 
 if __name__ == "__main__":

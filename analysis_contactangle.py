@@ -7,6 +7,7 @@ import os
 import csv
 from matplotlib.widgets import RectangleSelector
 from datetime import datetime
+import glob
 
 
 '''
@@ -48,10 +49,13 @@ class Highlighter(object):
 
 
 procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20221212150731\PROC_20221212150731_statistics.json'
-print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
 
-csvPathAppend = r''
+print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
+originalPath = os.path.dirname(procStatsJsonPath)
+
+csvPathAppend = r'csv'
 flipData = False
+
 #analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
 analyzeImages = np.arange(0, 1, 1)
 
@@ -106,12 +110,20 @@ angleDegAll = np.zeros_like(timeFromStart, dtype='float')
 try:
     for idx, imageNumber in enumerate(analyzeImages):
         print(f'Analyzing image {idx}/{len(analyzeImages)}.')
-        originalPath = procStats["analysis"][str(imageNumber)]["wrappedPath"]
-        dataPath = os.path.join(os.path.dirname(originalPath), csvPathAppend, os.path.basename(originalPath))
-        print(dataPath)
+        #originalPath = procStats["analysis"][str(imageNumber)]["wrappedPath_csv"]
+        #dataPath = os.path.join(originalPath, csvPathAppend, f"*.csv")
+
+        csvList = [f for f in glob.glob(os.path.join(originalPath, csvPathAppend, f"*.csv"))]
+
+        #print(dataPath)
+        print(csvList[imageNumber])
 
         conversionZ = procStats["conversionFactorZ"]
-        y = np.loadtxt(dataPath, delimiter=",") * conversionZ   # y is in um
+
+        #TODO idk after a merge both of these popped up. idk how and what its supposed to do
+#        y = np.loadtxt(dataPath, delimiter=",") * conversionZ   # y is in um
+        y = np.loadtxt(csvList[imageNumber], delimiter=",") * conversionZ  # y is in um
+
         if flipData:
             y = -y + max(y)
 
@@ -151,6 +163,10 @@ try:
         # angleRad = math.atan((coef1[0]-coef2[0])/(1+coef1[0]*coef2[0]))
         angleRad = math.atan((coef1[0]-a_horizontal)/(1+coef1[0]*a_horizontal))
         angleDeg = math.degrees(angleRad)
+
+        #Flip measured CA degree if higher than 45.
+        if angleDeg > 45:
+            angleDeg = 90 - angleDeg
 
         # print(f"{angleRad=}")
         # print(f"{angleDeg=}")
@@ -201,12 +217,8 @@ with open(os.path.join(newfolder, f"angleFittingData.json"), 'w') as f:
 
 timeFromStart = np.array([data['data'][i]['timeFromStart'] for i in data['data']], dtype='float')
 angleDeg = np.array([data['data'][i]['angleDeg'] for i in data['data']], dtype='float')
-print(timeFromStart)
-print(angleDeg)
-
-np.savetxt(os.path.join(newfolder, f"angleFittingData.csv"), np.vstack((timeFromStart, angleDeg)),
-           delimiter=',', fmt='%f', header=f'Dataset: {os.path.basename(originalPath)}, row 1 = Time from start '
-                                           f'(depositing drop) [s], row 2 = contact angle [deg] ')
+print(f"TimefromStart: {timeFromStart}")
+print(f"Angle in deg.: {angleDeg}")
 
 fig = plt.figure(figsize=(8, 5))
 ax = fig.add_subplot(111)
@@ -215,6 +227,10 @@ ax.set_xlabel(f'[Time from drop creation [s]')
 ax.set_ylabel(f'[Contact angle [deg]')
 fig.tight_layout()
 fig.savefig(os.path.join(newfolder, f"angleFittingData.png"), dpi=300)
+
+np.savetxt(os.path.join(newfolder, f"angleFittingData.csv"), np.vstack((timeFromStart, angleDeg)),
+           delimiter=',', fmt='%f', header=f'Dataset: {os.path.basename(originalPath)}, row 1 = Time from start '
+                                           f'(depositing drop) [s], row 2 = contact angle [deg] ')
 exit()
 
 
