@@ -197,9 +197,9 @@ def flipData(data):
 def main():
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     """"Changeables: """
-    source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     range1 = 2320       #start x left for plotting
-    range2 = 3300  # len(swellingProfile)
+    range2 = 4500  # len(swellingProfile)
     knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
     knownHeightArr = [128, 216, 258, 300]       #Known brush thickness at pixellocation in nm
     dryBrushThickness = 154        #in nm
@@ -208,6 +208,7 @@ def main():
     YLIM = True; Ylim = [-50, 650]
     PLOTSWELLINGRATIO = True
     SAVEFIG = True
+    INTENSITYPROFILES = True
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
@@ -223,6 +224,7 @@ def main():
           f"and 1 mm = {1/conversionFactorXY} pixels")
 
     idxx = 0
+    fig1, ax1 = plt.subplots()
     for idx, n in enumerate(csvList):
         if idx in [50, 95, 206, 395]:               #
             file = open(n)
@@ -247,34 +249,89 @@ def main():
                 if PLOTSWELLINGRATIO:
                     swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
                     plt.ylabel(f"Swelling ratio (h/h0)")
-                plt.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
-                plt.plot(xshifted, np.zeros(len(xshifted)), '-')
+                ax1.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
+                ax1.plot(xshifted, np.zeros(len(xshifted)), '-')
                 plt.xlabel(f"Distance (pixels)")
                 plt.title(f"Swelling profile at time {timeFormat(elapsedtime)} \n shifted to {range1} pixels")
-                plt.legend()
+                ax1.legend()
             elif outputFormatXY == 'mm':
                 x = np.linspace(range1, range2, range2 - range1) * conversionFactorXY
                 xshifted = [q - min(x) for q in x]
                 if PLOTSWELLINGRATIO:
                     swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
                     plt.ylabel(f"Swelling ratio (h/h0)")
-                plt.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
-                plt.plot(xshifted, np.zeros(len(xshifted)), '-')
+                ax1.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
+                ax1.plot(xshifted, np.zeros(len(xshifted)), '-')
                 plt.xlabel(f"Distance ({unitXY})")
 
                 plt.title(f"Swelling profile at time {timeFormat(elapsedtime)}")
-                plt.legend()
+                ax1.legend()
             else:
                 print("wrong format input")
             idxx = idxx + 1
+
+    if INTENSITYPROFILES:
+        csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
+        knownHeightArr = [0,0,0,0]
+        idxx = 0
+        fig0, ax0 = plt.subplots()
+        for idx, n in enumerate(csvList):
+            if idx in [50, 95, 206, 395]:               #
+                file = open(n)
+                csvreader = csv.reader(file)
+                rows = []
+                for row in csvreader:
+                    rows.append(float(row[0]))
+                file.close()
+                elapsedtime = rows[0]
+                swellingProfile = rows[1:]
+                if idx == 1:
+                    print("hi")
+                swellingProfileZoom = swellingProfile[range1:range2]
+
+                swellingProfileZoomConverted = flipData([1 * x for x in swellingProfileZoom])       # no conversion required for intensity
+
+                knownHeight = knownHeightArr[idxx]       #in nm
+                swellingProfileZoomConverted = np.subtract(swellingProfileZoomConverted, (swellingProfileZoomConverted[knownPixelPosition] - knownHeight))
+                plt.ylabel(f"Height ({unitZ})")
+                if outputFormatXY == 'pix':
+                    x = np.linspace(range1, range2, range2 - range1)
+                    xshifted = [q - min(x) for q in x]
+                    if PLOTSWELLINGRATIO:
+                        swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
+                        plt.ylabel(f"Intensity")
+                    ax0.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
+                    ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
+                    plt.xlabel(f"Distance (pixels)")
+                    plt.title(f"Intensity profile at time {timeFormat(elapsedtime)} \n shifted to {range1} pixels")
+                    plt.legend()
+                elif outputFormatXY == 'mm':
+                    x = np.linspace(range1, range2, range2 - range1) * conversionFactorXY
+                    xshifted = [q - min(x) for q in x]
+                    if PLOTSWELLINGRATIO:
+                        swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
+                        plt.ylabel(f"Intensity")
+                    ax0.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
+                    ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
+                    plt.xlabel(f"Distance ({unitXY})")
+
+                    plt.title(f"Intensity profile at time {timeFormat(elapsedtime)}")
+                    plt.legend()
+                else:
+                    print("wrong format input")
+                idxx = idxx + 1
 
     if SAVEFIG:
         if YLIM:
             if PLOTSWELLINGRATIO:
                 Ylim = np.divide(Ylim, dryBrushThickness)
-            plt.ylim(Ylim)
-        plt.autoscale(enable=True, axis='x', tight=True)
-        plt.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
+            ax1.set_ylim(Ylim)
+        ax1.autoscale(enable=True, axis='x', tight=True)
+        fig1.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
+
+        if INTENSITYPROFILES:
+            ax0.autoscale(enable=True, axis='x', tight=True)
+            fig0.savefig(os.path.join(source, f"Swellingimages\\{idx}Intensity.png"),dpi=300)
     plt.close()
 
 
