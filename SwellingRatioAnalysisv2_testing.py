@@ -197,18 +197,20 @@ def flipData(data):
 def main():
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     """"Changeables: """
-    source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     range1 = 2320       #start x left for plotting
-    range2 = 4500  # len(swellingProfile)
+    range2 = 3500  # len(swellingProfile)
     knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
-    knownHeightArr = [128, 216, 258, 300]       #Known brush thickness at pixellocation in nm
-    dryBrushThickness = 154        #in nm
+    dryBrushThickness = 154                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    knownHeightArr = [128, 216, 258, 300]       #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
+    knownHeightArr = np.add(knownHeightArr, dryBrushThickness)      # true brush thickness = dry thickness + swollen thickness
     outputFormatXY = 'mm'       #'pix' or 'mm'
     #XLIM - True; Xlim = []
     YLIM = True; Ylim = [-50, 650]
     PLOTSWELLINGRATIO = True
     SAVEFIG = True
     INTENSITYPROFILES = True
+    REMOVEBACKGROUNDNOISE = True
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
@@ -235,8 +237,6 @@ def main():
             file.close()
             elapsedtime = rows[0]
             swellingProfile = rows[1:]
-            if idx == 1:
-                print("hi")
             swellingProfileZoom = swellingProfile[range1:range2]
             swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
 
@@ -272,11 +272,11 @@ def main():
 
     if INTENSITYPROFILES:
         csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
-        knownHeightArr = [0,0,0,0]
+        knownHeightArr = [0,0,0,0,0]
         idxx = 0
         fig0, ax0 = plt.subplots()
         for idx, n in enumerate(csvList):
-            if idx in [50, 95, 206, 395]:               #
+            if idx in [0,395]:               # 50, 95, 206,
                 file = open(n)
                 csvreader = csv.reader(file)
                 rows = []
@@ -285,21 +285,20 @@ def main():
                 file.close()
                 elapsedtime = rows[0]
                 swellingProfile = rows[1:]
-                if idx == 1:
-                    print("hi")
                 swellingProfileZoom = swellingProfile[range1:range2]
-
+                if REMOVEBACKGROUNDNOISE:
+                    if idx == 0:
+                        backgroundIntensityZoom = swellingProfileZoom
+                    else:
+                        swellingProfileZoom = np.subtract(swellingProfileZoom, backgroundIntensityZoom)
                 swellingProfileZoomConverted = flipData([1 * x for x in swellingProfileZoom])       # no conversion required for intensity
 
                 knownHeight = knownHeightArr[idxx]       #in nm
                 swellingProfileZoomConverted = np.subtract(swellingProfileZoomConverted, (swellingProfileZoomConverted[knownPixelPosition] - knownHeight))
-                plt.ylabel(f"Height ({unitZ})")
+                plt.ylabel(f"Intensity ({unitZ})")
                 if outputFormatXY == 'pix':
                     x = np.linspace(range1, range2, range2 - range1)
                     xshifted = [q - min(x) for q in x]
-                    if PLOTSWELLINGRATIO:
-                        swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
-                        plt.ylabel(f"Intensity")
                     ax0.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
                     ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
                     plt.xlabel(f"Distance (pixels)")
@@ -308,13 +307,9 @@ def main():
                 elif outputFormatXY == 'mm':
                     x = np.linspace(range1, range2, range2 - range1) * conversionFactorXY
                     xshifted = [q - min(x) for q in x]
-                    if PLOTSWELLINGRATIO:
-                        swellingProfileZoomConverted = np.divide(swellingProfileZoomConverted, dryBrushThickness)
-                        plt.ylabel(f"Intensity")
                     ax0.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
                     ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
                     plt.xlabel(f"Distance ({unitXY})")
-
                     plt.title(f"Intensity profile at time {timeFormat(elapsedtime)}")
                     plt.legend()
                 else:
@@ -322,14 +317,16 @@ def main():
                 idxx = idxx + 1
 
     if SAVEFIG:
-        if YLIM:
+        if YLIM:    #This part is for the swelling profiles
             if PLOTSWELLINGRATIO:
                 Ylim = np.divide(Ylim, dryBrushThickness)
             ax1.set_ylim(Ylim)
         ax1.autoscale(enable=True, axis='x', tight=True)
         fig1.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
 
-        if INTENSITYPROFILES:
+        if INTENSITYPROFILES:       #This part is for the intensity profiles
+            if REMOVEBACKGROUNDNOISE:
+                ax0.set_ylim([-50, 50])
             ax0.autoscale(enable=True, axis='x', tight=True)
             fig0.savefig(os.path.join(source, f"Swellingimages\\{idx}Intensity.png"),dpi=300)
     plt.close()
