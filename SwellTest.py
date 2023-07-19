@@ -101,7 +101,8 @@ def showPixellocation(pointa, pointb, source):
 def normalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
 
-
+def normalizeDataV2(data):
+    return preprocessing.normalize([data])[0]
 
 def poly_lsq(x,y,n,verbose=False,itmax=20000):
     ''' Performs a polynomial least squares fit to the data,
@@ -263,22 +264,23 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
 
 
 """"
-Do the same as in normal maeImages, but make no attempt at fitting. Just make the data-acquisition timeinterval regular by hand
-So e.g. first 40 images every 20 sec, then every 4 minutes -> take image 1 & 13 & 25 & 37
+Do the same as in normal makeImages, but make no attempt at fitting. Just make the data-acquisition timeinterval regular by hand
+So e.g. first 40 images every 20 sec, then every 4 minutes -> take image 1 & 13 & 25 & 37 to have images every 4 minutes throughout all data
 """
 def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, config):
+
     conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     fig0, ax0 = plt.subplots()
-    ax0.plot(timeFromStart, profile, label = f'normalized, unfiltered')
+    ax0.plot(timeFromStart, (profile), label = f'normalized, unfiltered')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
 
     #define which values to use for regular timeinterval
-    whichValuesToUse1 = [0, 11, 13, 15, 17]
-    whichValuesToUse2 = np.arange(20, len(profile),1)
+    whichValuesToUse1 = [0]
+    whichValuesToUse2 = np.arange(1, len(profile),1)
     whichValuesToUseTot = np.append(whichValuesToUse1, whichValuesToUse2)
 
     #whichValuesToUseTot = np.arange(0, len(profile),1)      #when all values are to be used
@@ -292,15 +294,15 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
     #equallySpacedProfile[6] = 5.5
     #equallySpacedProfile[7] = 6.5
 
-    ax0.plot(equallySpacedTimeFromStart, equallySpacedProfile, '.', label=f'equally spaced profile')
+    ax0.plot(equallySpacedTimeFromStart, normalizeData(equallySpacedProfile), '.', label=f'equally spaced profile')
 
     print(f"length of equally spaced profile = {len(equallySpacedProfile)}")
     nrOfDatapoints = len(equallySpacedProfile)
     print(f"{nrOfDatapoints}")
     hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
-    hiR = 10
+    hiR = 60
     loR = 1
-    for i in range(hiR,hiR+71,20):       #removing n highest frequencies
+    for i in range(hiR,hiR+1,1):       #removing n highest frequencies
         for j in range(loR, loR+1, 2):        #removing n lowest frequencies
             HIGHPASS_CUTOFF = i
             LOWPASS_CUTOFF = j
@@ -389,13 +391,13 @@ def main():
     """
     #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2190
-    pixelLoc2 = 2216  # pixelLoc1 + 1
-    pixelIV = 5  # interval between the two pixellocations to be taken.
+    pixelLoc1 = 4950
+    pixelLoc2 = 5001  # pixelLoc1 + 1
+    pixelIV = 1000  # interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
-    #source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
-    source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
+    source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
