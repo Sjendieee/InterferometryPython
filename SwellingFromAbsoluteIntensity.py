@@ -1,3 +1,6 @@
+"""
+Determine the height of a (swelling) thin film from the absolute intensity of said film.
+"""
 import pandas as pd
 import csv
 import os
@@ -15,6 +18,7 @@ from sklearn import preprocessing
 from configparser import ConfigParser
 from scipy.odr import odrpack as odr
 from scipy.odr import models
+from scipy.optimize import curve_fit
 
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
@@ -28,75 +32,15 @@ def click_eventSingle(event, x, y, flags, params):
         cv2.destroyAllWindows()
 
 
-def positiontest(source):
-    pointa = 5272, 1701
-    pointb = 430, 1843
-    x_coords, y_coords = zip(*[pointa, pointb])  # unzip coordinates to x and y
-    x_coords = np.array(x_coords) / 3.622
-    y_coords = np.array(y_coords) / 3.617
-    a = (y_coords[1] - y_coords[0]) / (x_coords[1] - x_coords[0])
-    b = y_coords[0] - a * x_coords[0]
-    offsetx = 465
-    offsety = 112
-    x = 490
-    y = a*(x+offsetx) + b + offsety
-    print(f"y is {y}")
-
-    rawImgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-    im_raw = cv2.imread(rawImgList[0])
-    im_temp = image_resize(im_raw, height=1200)
-    resize_factor = 1200 / im_raw.shape[0]
-    cv2.imshow('image', im_temp)
-    plt.plot(x, y, '.', 'ms', 20)
-    plt.show()
-
-    print(f"finished")
-
 #Input: a raw slice image, the chosen pixellocation
 #Output: a figure with a dot on the chosen pixellocation
 def showPixellocationv2(pointa, pointb, source):
-    imgblack = Image.open("C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\black square.png")
-    imgblack.resize((40,40))
-    imgblack.show()
-    rawImg = Image.open(os.path.join(source, f"rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230120_162715883_0010_analyzed_.png"))
-    rawImg.paste(imgblack,(100,500))
-    rawImg.show()
     print(f"this is fine")
 
 #Get images to see where you chose your pixel
 def showPixellocation(pointa, pointb, source):
-    rawImgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-    im_raw = cv2.imread(rawImgList[0])
-    im_temp = image_resize(im_raw, height=1200)
-    resize_factor = 1200 / im_raw.shape[0]
-    #cv2.imshow('image', im_temp)
-    #cv2.setWindowTitle("image", "Point selection window. Select 1 point.")
-    #cv2.setMouseCallback('image', click_eventSingle)
-    #cv2.waitKey(0)
-    #global right_clicks
-    P1 = np.array(right_clicks[0]) / resize_factor
-    print(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}]")
-    #Obtain scaling factor to correspond chosen pixellocation to new position in raw image
-    #Scaling factor = factor by which raw image was made smaller in new image
-    P1arr = np.array(pointa)
-    P2arr = np.array(pointb)
-    BLarr = np.array([im_raw.shape[1], im_raw.shape[0]])
 
-    adjP1 = np.subtract(P1arr, P2arr)
-    scaling = np.divide(adjP1, BLarr)
-    print(f"Scaling fators are: {scaling}")
-    #Read in from config file (selected points on which the line was drawn)
-    pointa = 5272, 1701
-    pointb = 430, 1843
-    x_coords, y_coords = zip(*[pointa, pointb])  # unzip coordinates to x and y
-    a = (y_coords[1] - y_coords[0]) / (x_coords[1] - x_coords[0])
-    b = y_coords[0] - a * x_coords[0]
-    for x in [-2400, -1500]:
-        y = a * x + b
-        print(f"y is: {y}")
-    bn = b
-    coordinates = coordinates_on_line(a, bn, [0, im_raw.shape[1], 0, im_raw.shape[0]])
-    print(f"The coordinates are: {coordinates}")
+    print(f"The coordinates are:")
 
 def normalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
@@ -107,34 +51,25 @@ def normalizeDataV2(data):
 def poly_lsq(x,y,n,verbose=False,itmax=20000):
     ''' Performs a polynomial least squares fit to the data,
     with errors! Uses scipy odrpack, but for least squares.
-
     IN:
        x,y (arrays) - data to fit
        n (int)      - polinomial order
        verbose      - can be 0,1,2 for different levels of output
                       (False or True are the same as 0 or 1)
        itmax (int)  - optional maximum number of iterations
-
     OUT:
        coeff -  polynomial coefficients, lowest order first
        err   - standard error (1-sigma) on the coefficients
-
-    --Tiago, 20071114
     '''
-
     # http://www.scipy.org/doc/api_docs/SciPy.odr.odrpack.html
     # see models.py and use ready made models!!!!
-
     func   = models.polynomial(n)
     mydata = odr.Data(x, y)
     myodr  = odr.ODR(mydata, func,maxit=itmax)
-
     # Set type of fit to least-squares:
     myodr.set_job(fit_type=2)
     if verbose == 2: myodr.set_iprint(final=2)
-
     fit = myodr.run()
-
     # Display results:
     if verbose: fit.pprint()
     if fit.stopreason[0] == 'Iteration limit reached':
@@ -142,12 +77,8 @@ def poly_lsq(x,y,n,verbose=False,itmax=20000):
     # Results and errors
     coeff = fit.beta[::-1]
     err   = fit.sd_beta[::-1]
-
     return coeff,err
 
-
-
-from scipy.optimize import curve_fit
 def custom_fit(x,a,b,c,d,e,f,g,h):
     return a + b*x + c*x**2 + d*x**3 + e*x**4 + f*x**0.67 + g * np.sin(h*x)
 
@@ -156,7 +87,7 @@ def custom_fit2(x,a,b,c,d,e,f,g,h):
 
 
 """"
-making an attempt at fitting the intensity vs time curve, in order to then extract data at an equally spaced timeinterval
+Making an attempt at fitting the intensity vs time curve, in order to then extract data at an equally spaced timeinterval
 Doesn't work properly though. 12th order polynomial didnt even fit well
 """
 def makeImages(profile, timeFromStart, source, pixelLocation, config):
@@ -268,7 +199,6 @@ Do the same as in normal makeImages, but make no attempt at fitting. Just make t
 So e.g. first 40 images every 20 sec, then every 4 minutes -> take image 1 & 13 & 25 & 37 to have images every 4 minutes throughout all data
 """
 def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, config):
-
     conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
@@ -279,8 +209,8 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
 
     #define which values to use for regular timeinterval
-    whichValuesToUse1 = [0]
-    whichValuesToUse2 = np.arange(1, len(profile),1)
+    whichValuesToUse1 = [0, 12, 24, 36]
+    whichValuesToUse2 = np.arange(37, len(profile),1)
     whichValuesToUseTot = np.append(whichValuesToUse1, whichValuesToUse2)
 
     #whichValuesToUseTot = np.arange(0, len(profile),1)      #when all values are to be used
@@ -332,6 +262,7 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
             profile_filtered = np.fft.ifft(profile_fft)
             #ax0.plot(equallySpacedTimeFromStart, ([profile_filtered.real])[0], label = f'hi:{highPass}, lo:{lowPass}')
             ax0.legend()
+            ax0.set_ylim([0,265])       #Pure Intensity can range from 0 - 256 (2^8)
             fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
                          dpi=300)
 
@@ -391,9 +322,9 @@ def main():
     """
     #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2550
-    pixelLoc2 = 2551  # pixelLoc1 + 1
-    pixelIV = 1000  # interval between the two pixellocations to be taken.
+    pixelLoc1 = 2400
+    pixelLoc2 = 2401  # pixelLoc1 + 1
+    pixelIV = 500  # interval between the two pixellocations to be taken.
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
