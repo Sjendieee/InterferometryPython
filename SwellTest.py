@@ -268,7 +268,6 @@ Do the same as in normal makeImages, but make no attempt at fitting. Just make t
 So e.g. first 40 images every 20 sec, then every 4 minutes -> take image 1 & 13 & 25 & 37 to have images every 4 minutes throughout all data
 """
 def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, config):
-
     conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
@@ -290,9 +289,6 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
     for i in whichValuesToUseTot:
         equallySpacedTimeFromStart = np.append(equallySpacedTimeFromStart, timeFromStart[i])
         equallySpacedProfile = np.append(equallySpacedProfile, profile[i])
-
-    #equallySpacedProfile[6] = 5.5
-    #equallySpacedProfile[7] = 6.5
 
     ax0.plot(equallySpacedTimeFromStart, normalizeData(equallySpacedProfile), '.', label=f'equally spaced profile')
 
@@ -325,7 +321,6 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
             ax3.legend()
             fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}, lofil{j}.png"),
                          dpi=300)
-
 
             #print(f"Size of dataarray: {len(profile_fft)}")
 
@@ -397,7 +392,8 @@ def main():
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
+    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
     #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
 
     config = ConfigParser()

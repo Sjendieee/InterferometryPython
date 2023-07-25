@@ -195,10 +195,11 @@ def flipData(data):
     return [(-x + datamax) for x in data]
 
 def main():
-    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     """"Changeables: """
-    source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
-    range1 = 2320       #start x left for plotting
+    #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
+
+    range1 = 2200#2320       #start x left for plotting
     range2 = 3500  # len(swellingProfile)
     knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
     dryBrushThickness = 154                 # dry brush thickness (measured w/ e.g. ellipsometry)
@@ -206,29 +207,27 @@ def main():
     knownHeightArr = np.add(knownHeightArr, dryBrushThickness)      # true brush thickness = dry thickness + swollen thickness
     outputFormatXY = 'mm'       #'pix' or 'mm'
     #XLIM - True; Xlim = []
-    YLIM = True; Ylim = [-50, 650]
+    YLIM = True; Ylim = [-50, 650]  #ylim for swelling profiles (only used when plotting absolute swelling height)
     PLOTSWELLINGRATIO = True
     SAVEFIG = True
     INTENSITYPROFILES = True
-    REMOVEBACKGROUNDNOISE = True
+    REMOVEBACKGROUNDNOISE = False
+    """"End of changeables"""
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
     conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
-
     csvList = [f for f in glob.glob(os.path.join(source, f"csv\\*unwrapped.csv"))]
-
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
-
     print(f"With this conversionXY, 1000 pixels = {conversionFactorXY*1000} mm, \n"
           f"and 1 mm = {1/conversionFactorXY} pixels")
 
     idxx = 0
     fig1, ax1 = plt.subplots()
     for idx, n in enumerate(csvList):
-        if idx in [50, 95, 206, 395]:               #
+        if idx in [50, 95, 206, 395]:               #For hexadecane(0,1,4,24h): 50, 95, 206, 395
             file = open(n)
             csvreader = csv.reader(file)
             rows = []
@@ -238,6 +237,7 @@ def main():
             elapsedtime = rows[0]
             swellingProfile = rows[1:]
             swellingProfileZoom = swellingProfile[range1:range2]
+            #TODO checkout why using flipdata here!
             swellingProfileZoomConverted = flipData([conversionFactorZ * x for x in swellingProfileZoom])
 
             knownHeight = knownHeightArr[idxx]       #in nm
@@ -276,7 +276,7 @@ def main():
         idxx = 0
         fig0, ax0 = plt.subplots()
         for idx, n in enumerate(csvList):
-            if idx in [0,395]:               # 50, 95, 206,
+            if idx in [0, 50]:               # 50, 95, 206,
                 file = open(n)
                 csvreader = csv.reader(file)
                 rows = []
@@ -284,36 +284,33 @@ def main():
                     rows.append(float(row[0]))
                 file.close()
                 elapsedtime = rows[0]
-                swellingProfile = rows[1:]
-                swellingProfileZoom = swellingProfile[range1:range2]
+                intensityProfile = rows[1:]
+                intensityProfileZoom = intensityProfile[range1:range2]
                 if REMOVEBACKGROUNDNOISE:
                     if idx == 0:
-                        backgroundIntensityZoom = swellingProfileZoom
+                        backgroundIntensityZoom = intensityProfileZoom
                     else:
-                        swellingProfileZoom = np.subtract(swellingProfileZoom, backgroundIntensityZoom)
-                swellingProfileZoomConverted = flipData([1 * x for x in swellingProfileZoom])       # no conversion required for intensity
+                        intensityProfileZoom = np.subtract(intensityProfileZoom, backgroundIntensityZoom)
+                intensityProfileZoomConverted = ([1 * x for x in intensityProfileZoom])       # no conversion required for intensity
 
                 knownHeight = knownHeightArr[idxx]       #in nm
-                swellingProfileZoomConverted = np.subtract(swellingProfileZoomConverted, (swellingProfileZoomConverted[knownPixelPosition] - knownHeight))
-                plt.ylabel(f"Intensity ({unitZ})")
+                #swellingProfileZoomConverted = np.subtract(swellingProfileZoomConverted, (swellingProfileZoomConverted[knownPixelPosition] - knownHeight))
+                plt.ylabel(f"Intensity (-)")
                 if outputFormatXY == 'pix':
                     x = np.linspace(range1, range2, range2 - range1)
-                    xshifted = [q - min(x) for q in x]
-                    ax0.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
-                    ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
                     plt.xlabel(f"Distance (pixels)")
-                    plt.title(f"Intensity profile at time {timeFormat(elapsedtime)} \n shifted to {range1} pixels")
-                    plt.legend()
                 elif outputFormatXY == 'mm':
                     x = np.linspace(range1, range2, range2 - range1) * conversionFactorXY
-                    xshifted = [q - min(x) for q in x]
-                    ax0.plot(xshifted, swellingProfileZoomConverted, '.', label=f'time={timeFormat(elapsedtime)}')
-                    ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
                     plt.xlabel(f"Distance ({unitXY})")
-                    plt.title(f"Intensity profile at time {timeFormat(elapsedtime)}")
-                    plt.legend()
                 else:
                     print("wrong format input")
+                plt.title(f"Intensity profile starting at pixel: {range1}")
+                xshifted = [q - min(x) for q in x]
+                ax0.plot(xshifted, intensityProfileZoomConverted, '.', label=f'Time={timeFormat(elapsedtime)}')
+                ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
+                plt.legend()
+
+
                 idxx = idxx + 1
 
     if SAVEFIG:

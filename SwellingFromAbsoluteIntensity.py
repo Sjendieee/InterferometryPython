@@ -19,6 +19,7 @@ from configparser import ConfigParser
 from scipy.odr import odrpack as odr
 from scipy.odr import models
 from scipy.optimize import curve_fit
+from scipy.signal import argrelmax, argrelmin
 
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
@@ -209,8 +210,8 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
 
     #define which values to use for regular timeinterval
-    whichValuesToUse1 = [0, 12, 24, 36]
-    whichValuesToUse2 = np.arange(37, len(profile),1)
+    whichValuesToUse1 = [0]
+    whichValuesToUse2 = np.arange(1, len(profile),1)
     whichValuesToUseTot = np.append(whichValuesToUse1, whichValuesToUse2)
 
     #whichValuesToUseTot = np.arange(0, len(profile),1)      #when all values are to be used
@@ -221,89 +222,29 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
         equallySpacedTimeFromStart = np.append(equallySpacedTimeFromStart, timeFromStart[i])
         equallySpacedProfile = np.append(equallySpacedProfile, profile[i])
 
-    #equallySpacedProfile[6] = 5.5
-    #equallySpacedProfile[7] = 6.5
+    indexmax = argrelmax(equallySpacedProfile, order=45)[0]
+    indexmin = argrelmin(equallySpacedProfile, order=45)[0]
 
-    ax0.plot(equallySpacedTimeFromStart, normalizeData(equallySpacedProfile), '.', label=f'equally spaced profile')
+    ax0.plot(equallySpacedTimeFromStart, (equallySpacedProfile), '.', label=f'equally spaced profile')
+    ax0.set_ylim([0, 265])
+    ax0.legend()
+
+    ax0.plot(equallySpacedTimeFromStart[indexmax], (equallySpacedProfile[indexmax]), '.', label=f'Maxima')
+    ax0.plot(equallySpacedTimeFromStart[indexmin], (equallySpacedProfile[indexmin]), '.', label=f'Maxima')
+
+    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"),
+                 dpi=300)
 
     print(f"length of equally spaced profile = {len(equallySpacedProfile)}")
     nrOfDatapoints = len(equallySpacedProfile)
     print(f"{nrOfDatapoints}")
-    hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
-    hiR = 60
-    loR = 1
-    for i in range(hiR,hiR+1,1):       #removing n highest frequencies
-        for j in range(loR, loR+1, 2):        #removing n lowest frequencies
-            HIGHPASS_CUTOFF = i
-            LOWPASS_CUTOFF = j
-            NORMALIZE_WRAPPEDSPACE = False
-            NORMALIZE_WRAPPEDSPACE_THRESHOLD = 3.14159265359
-            #conversionZ = 0.02885654477258912
-            FLIP = False
-
-            profile_fft = np.fft.fft(equallySpacedProfile)  # transform to fourier space
-            highPass = HIGHPASS_CUTOFF
-            lowPass = LOWPASS_CUTOFF
-            mask = np.ones_like(equallySpacedProfile).astype(float)
-            mask[0:lowPass] = 0
-            if highPass > 0:
-                mask[-highPass:] = 0
-            profile_fft = profile_fft * mask
-            fig3, ax3 = plt.subplots()
-            ax3.plot(preprocessing.normalize([profile_fft.real])[0], label=f'hi:{highPass}, lo:{lowPass}')
-            #ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
-            ax3.legend()
-            fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}, lofil{j}.png"),
-                         dpi=300)
 
 
-            #print(f"Size of dataarray: {len(profile_fft)}")
 
-            profile_filtered = np.fft.ifft(profile_fft)
-            #ax0.plot(equallySpacedTimeFromStart, ([profile_filtered.real])[0], label = f'hi:{highPass}, lo:{lowPass}')
-            ax0.legend()
-            ax0.set_ylim([0,265])       #Pure Intensity can range from 0 - 256 (2^8)
-            fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
-                         dpi=300)
+    #Saves data in time vs height profile plot so a csv file.
+    wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}.csv")
+    np.savetxt(wrappedPath, [p for p in zip(equallySpacedTimeFromStart, equallySpacedProfile)], delimiter=',', fmt='%s')
 
-            wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-            if NORMALIZE_WRAPPEDSPACE:
-                wrapped = normalize_wrappedspace(wrapped, NORMALIZE_WRAPPEDSPACE_THRESHOLD)
-            unwrapped = np.unwrap(wrapped)
-            if FLIP:
-                unwrapped = -unwrapped + np.max(unwrapped)
-
-            fig1, ax1 = plt.subplots()
-            # ax.plot(timeFromStart, wrapped)
-            ax1.plot(wrapped)
-            plt.title(f'Wrapped plot: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
-            fig2, ax2 = plt.subplots()
-            #TODO for even spreading of data (NOT true time!)
-            #spacedTimeFromStart = np.linspace(timeFromStart[0], timeFromStart[-1:], len(unwrapped))
-            ax2.plot(equallySpacedTimeFromStart, unwrapped * conversionFactorZ)
-            plt.xlabel('Time (h)')
-            #plt.ylabel(u"Height (\u03bcm)")
-            plt.ylabel(f"Height ({config.get('GENERAL', 'UNIT_Z')})")
-            plt.title(f'Swelling profile: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
-            #plt.show()
-
-            fig1.savefig(os.path.join(source, f"Swellingimages\\wrapped_pixel{pixelLocation}high{i},lo{j}.png"),
-                         dpi=300)
-            fig2.savefig(os.path.join(source, f"Swellingimages\\height_pixel{pixelLocation}high{i},lo{j}.png"),
-                         dpi=300)
-            plt.close(fig0)
-            plt.close(fig1)
-            plt.close(fig2)
-
-            #Saves data in time vs height profile plot so a csv file.
-            wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}high{i},lo{j}.csv")
-            #(np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-            np.savetxt(wrappedPath, [p for p in zip(equallySpacedTimeFromStart, equallySpacedProfile, unwrapped * conversionFactorZ)], delimiter=',', fmt='%s')
-    # now get datapoints we need.
-    #unwrapped_um = unwrapped * conversionZ
-    #analyzeTimes = np.linspace(0, 57604, 12)
-    #analyzeImages = np.array([find_nearest(timeFromStart, t)[1] for t in analyzeTimes])
-    #print(analyzeImages)
 def main():
     """
     Analyzes an input 'pixellocation' on a previously analyzed line (with the main.py file methods), as a function of time
@@ -325,10 +266,14 @@ def main():
     pixelLoc1 = 2400
     pixelLoc2 = 2401  # pixelLoc1 + 1
     pixelIV = 500  # interval between the two pixellocations to be taken.
+    #pixelArr = range(pixelLoc1, pixelLoc2, pixelIV)
+    pixelArr = [2400, 2550, 3550, 4000, 5050, 5550]
+    pixelArr = [2400, 2550]
     #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
+    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230724185238"   # hexadecane, NO filtering in /main.py, no contrast enhance
     #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
 
     config = ConfigParser()
@@ -344,7 +289,7 @@ def main():
     rangeLength = 5
 
     #With this loop, different pixel locations can be chosen to plot for
-    for i in range(pixelLoc1, pixelLoc2, pixelIV):
+    for i in pixelArr:
         meanIntensity = []
         elapsedtime = []
         #This loop takes data van intensity csv files at different moments in time (n), and calculates a mean value for a given rangeLength at the chosen pixelLocation

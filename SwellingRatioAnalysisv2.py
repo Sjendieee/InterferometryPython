@@ -198,14 +198,17 @@ def main():
     SAVEFIG = True
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230411134600_hexadecane_filter"
     #source = "I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"    #hexadecane, with filtering in /main.py
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"   #hexadecane, NO filtering in /main.py
+    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"   #hexadecane, NO filtering in /main.py
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
     conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
 
-    csvList = [f for f in glob.glob(os.path.join(source, f"csv\\*unwrapped.csv"))]
+    #csvList = [f for f in glob.glob(os.path.join(source, f"csv\\*unwrapped.csv"))]      #using the actual swelling profiles after unwrapping
+    csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]       #trial to show intensity of plots
+    conversionFactorZ = 1       #when showing the intensity
 
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))

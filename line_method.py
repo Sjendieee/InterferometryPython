@@ -322,6 +322,13 @@ def method_line(config, **kwargs):
     savename = kwargs['savename']
     timeelapsed = kwargs['timeelapsed']
 
+    # Save gray image to desired output location
+    if config.getboolean("SAVING", "SAVE_GREY_IMAGE"):
+        if not os.path.exists(os.path.join(config.get("SAVING", "OUTPUT_LOCATION"), f"greyImage")):
+            os.mkdir(os.path.join(config.get("SAVING", "OUTPUT_LOCATION"), f"greyImage"))
+        imgenhance = config.getboolean("IMAGE_PROCESSING", "IMAGE_CONTRAST_ENHANCE")
+        cv2.imwrite(os.path.join(config.get("SAVING", "OUTPUT_LOCATION"), f"greyImage\\greyscaledImage_{savename}_IMAGECONTRACTENHANCE{imgenhance}.png"), im_gray)
+
     # get the points for the center linear slice
     if config.getboolean("LINE_METHOD", "SELECT_POINTS"):
         print('Select 2 point one-by-one for the slice (points are not shown in the image window).')
