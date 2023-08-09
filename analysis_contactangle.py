@@ -48,9 +48,13 @@ class Highlighter(object):
 
 
 
-procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20230808171326\PROC_20230808171326_statistics.json'
-#PROC_20230808171326    hexadecane air side
-#PROC_20230808164951    hexadecane glass side v1
+#procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20230808171326\PROC_20230808171326_statistics.json'        #laptop
+procStatsJsonPath = r'C:\Users\ReuvekampSW\Documents\InterferometryPython\export\PROC_20230809115938\PROC_20230809115938_statistics.json'                    #chickencoop workstation
+
+#PROC_20230808171326    air side
+#PROC_20230808164951    glass side v1
+#PROC_20230809092232    glass side v1 contrast enhance
+#PROC_20230809115938    glass side, all 253 datapoints
 
 print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
 originalPath = os.path.dirname(procStatsJsonPath)
@@ -59,7 +63,8 @@ csvPathAppend = r'csv'
 flipData = False
 
 #analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
-analyzeImages = np.arange(0, 11, 1)
+analyzeImages = np.concatenate((np.arange(0, 40, 4), np.arange(50, 100, 10), np.arange(120, 250, 20)))
+#analyzeImages = np.arange(0, 11, 1)
 
 
 #analyzeImages = np.array([5])
@@ -227,8 +232,8 @@ print(f"Angle in deg.: {angleDeg}")
 
 fig = plt.figure(figsize=(8, 5))
 ax = fig.add_subplot(111)
-ax.plot(timeFromStart, angleDeg, '.-')
-ax.set_xlabel(f'[Time from drop creation [s]')
+ax.plot(np.divide(timeFromStart, 60), angleDeg, '.-')
+ax.set_xlabel(f'[Time from drop creation [min]')
 ax.set_ylabel(f'[Contact angle [deg]')
 fig.tight_layout()
 fig.savefig(os.path.join(newfolder, f"angleFittingData.png"), dpi=300)
