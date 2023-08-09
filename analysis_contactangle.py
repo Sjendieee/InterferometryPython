@@ -48,7 +48,9 @@ class Highlighter(object):
 
 
 
-procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20221212150731\PROC_20221212150731_statistics.json'
+procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20230808171326\PROC_20230808171326_statistics.json'
+#PROC_20230808171326    hexadecane air side
+#PROC_20230808164951    hexadecane glass side v1
 
 print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
 originalPath = os.path.dirname(procStatsJsonPath)
@@ -57,7 +59,7 @@ csvPathAppend = r'csv'
 flipData = False
 
 #analyzeImages = np.concatenate((np.arange(140, 160, 2), np.arange(160, 500, 10), np.arange(500, 914, 70)))
-analyzeImages = np.arange(0, 1, 1)
+analyzeImages = np.arange(0, 11, 1)
 
 
 #analyzeImages = np.array([5])
@@ -130,6 +132,9 @@ try:
         conversionXY = procStats["conversionFactorXY"]
         x = np.arange(0, len(y)) * conversionXY * 1000  # x is now in um
 
+        ##TODO: removed first datapoint because for whatever reason it was spuerfar outside the range, making it hard to select the good range in the plot
+        x = x[1:]
+        y = y[1:]
         fig, ax = plt.subplots()
         ax.scatter(x, y)
         highlighter = Highlighter(ax, x, y)

@@ -9,12 +9,15 @@ import os
 import matplotlib.pyplot as plt
 import glob
 import cv2
+import scipy.signal
+
 from general_functions import image_resize
 from line_method import coordinates_on_line, normalize_wrappedspace, mov_mean, timeFormat
 import numpy as np
 from PIL import Image
 from configparser import ConfigParser
 from general_functions import conversion_factors
+
 
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
@@ -197,12 +200,12 @@ def flipData(data):
 def main():
     """"Changeables: """
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
-
+    #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
+    source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
     range1 = 2200#2320       #start x left for plotting
-    range2 = 3500  # len(swellingProfile)
+    range2 = 4000  # len(swellingProfile)
     knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
-    dryBrushThickness = 154                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    dryBrushThickness = 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
     knownHeightArr = [128, 216, 258, 300]       #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
     knownHeightArr = np.add(knownHeightArr, dryBrushThickness)      # true brush thickness = dry thickness + swollen thickness
     outputFormatXY = 'mm'       #'pix' or 'mm'
@@ -211,7 +214,7 @@ def main():
     PLOTSWELLINGRATIO = True
     SAVEFIG = True
     INTENSITYPROFILES = True
-    REMOVEBACKGROUNDNOISE = False
+    REMOVEBACKGROUNDNOISE = True
     """"End of changeables"""
 
     config = ConfigParser()
@@ -226,7 +229,7 @@ def main():
 
     idxx = 0
     fig1, ax1 = plt.subplots()
-    for idx, n in enumerate(csvList):
+    for idx, n in enumerate(csvList):       #To obtain swellingprofiles from unwrapped data (data analysis has to be perfoermed beforehand in /main.py
         if idx in [50, 95, 206, 395]:               #For hexadecane(0,1,4,24h): 50, 95, 206, 395
             file = open(n)
             csvreader = csv.reader(file)
@@ -269,14 +272,15 @@ def main():
             else:
                 print("wrong format input")
             idxx = idxx + 1
+        plt.close()
 
+    np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})        #print arrays later with only 2 decimals
     if INTENSITYPROFILES:
         csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
-        knownHeightArr = [0,0,0,0,0]
         idxx = 0
         fig0, ax0 = plt.subplots()
         for idx, n in enumerate(csvList):
-            if idx in [0, 50]:               # 50, 95, 206,
+            if idx in [0, 50]:    #, 95, 206 Show intensity profiles from unadjusted/unfiltered intensity profiles from /main.py           # 50, 95, 206,
                 file = open(n)
                 csvreader = csv.reader(file)
                 rows = []
@@ -289,12 +293,11 @@ def main():
                 if REMOVEBACKGROUNDNOISE:
                     if idx == 0:
                         backgroundIntensityZoom = intensityProfileZoom
+                        intensityProfileZoom = np.divide(intensityProfileZoom, backgroundIntensityZoom)
                     else:
-                        intensityProfileZoom = np.subtract(intensityProfileZoom, backgroundIntensityZoom)
+                        intensityProfileZoom = np.divide(intensityProfileZoom, backgroundIntensityZoom)
                 intensityProfileZoomConverted = ([1 * x for x in intensityProfileZoom])       # no conversion required for intensity
 
-                knownHeight = knownHeightArr[idxx]       #in nm
-                #swellingProfileZoomConverted = np.subtract(swellingProfileZoomConverted, (swellingProfileZoomConverted[knownPixelPosition] - knownHeight))
                 plt.ylabel(f"Intensity (-)")
                 if outputFormatXY == 'pix':
                     x = np.linspace(range1, range2, range2 - range1)
@@ -310,8 +313,29 @@ def main():
                 ax0.plot(xshifted, np.zeros(len(xshifted)), '-')
                 plt.legend()
 
+            if idx in [50]:   #, 95, 206To make swellingprofiles from the previously shown intensityprofiles
+                peaks, _ = scipy.signal.find_peaks(intensityProfileZoomConverted, height = 0.80, distance = 40)        #obtain indeces om maxima
+                minima, _ = scipy.signal.find_peaks(-np.array(intensityProfileZoomConverted), height = -0.50, distance = 40)   #obtain indices of minima
+
+                print(f"T = {timeFormat(elapsedtime)}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}\n")
+                print(f"T = {timeFormat(elapsedtime)}\nMinima at index: {minima} \nAt x position: {np.array(xshifted)[minima]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[minima]}\n")
+
+                #plt.plot(xshifted, intensityProfileZoomConverted)
+                plt.plot(np.array(xshifted)[peaks], np.array(intensityProfileZoomConverted)[peaks], "x", label = f"peaks at {timeFormat(elapsedtime)}")
+                plt.plot(np.array(xshifted)[minima], np.array(intensityProfileZoomConverted)[minima], "x", label = f"minima at {timeFormat(elapsedtime)}")
+                plt.legend(loc = 'upper right')
+
+                peaks[2]
+                def intensityToSwellingBetweenMaxima(indexMax1, indexMax2, Iarr):
+                    curve = Iarr[indexMax1:indexMax2]
+
+
+
 
                 idxx = idxx + 1
+
+        plt.savefig(os.path.join(source, f"Swellingimages\\{idx}PeakFinding.png"),dpi=300)
+        plt.show()
 
     if SAVEFIG:
         if YLIM:    #This part is for the swelling profiles
@@ -322,8 +346,8 @@ def main():
         fig1.savefig(os.path.join(source, f"Swellingimages\\{idx}Swelling.png"),dpi=300)
 
         if INTENSITYPROFILES:       #This part is for the intensity profiles
-            if REMOVEBACKGROUNDNOISE:
-                ax0.set_ylim([-50, 50])
+            # if REMOVEBACKGROUNDNOISE:
+            #     ax0.set_ylim([-50, 50])
             ax0.autoscale(enable=True, axis='x', tight=True)
             fig0.savefig(os.path.join(source, f"Swellingimages\\{idx}Intensity.png"),dpi=300)
     plt.close()

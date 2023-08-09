@@ -1,30 +1,33 @@
 """
-Determine the height of a (swelling) thin film from the absolute intensity of said film.
+Determine the height of a (swelling) thin film from the absolute intensity of said film. By following the fringes /
+maxima-minima.
+
+This swellingratio analysis allows for investigation of Intensity vs. Distance, at a single timestep.
+This results in a swelling profile for every timestep.
+Adapted from SwellingRatioAnalysisv2_testing.py
 """
-import pandas as pd
+
 import csv
 import os
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import glob
 import cv2
-from general_functions import image_resize, conversion_factors
-from line_method import coordinates_on_line, normalize_wrappedspace, mov_mean
+import scipy.signal
+
+from general_functions import image_resize
+from line_method import coordinates_on_line, normalize_wrappedspace, mov_mean, timeFormat
 import numpy as np
-import logging
 from PIL import Image
-from itertools import chain
-from sklearn import preprocessing
 from configparser import ConfigParser
-from scipy.odr import odrpack as odr
-from scipy.odr import models
-from scipy.optimize import curve_fit
-from scipy.signal import argrelmax, argrelmin
+from general_functions import conversion_factors
+from itertools import zip_longest
+
+from SwellTest import findMiddleCrossing, idk, idkPre1stExtremum, idkPostLastExtremum
 
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
     '''
-    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordiantes.
+    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordinates.
     '''
     if event == cv2.EVENT_LBUTTONDOWN:
         global right_clicks
@@ -33,86 +36,88 @@ def click_eventSingle(event, x, y, flags, params):
         cv2.destroyAllWindows()
 
 
+def positiontest(source):
+    pointa = 5272, 1701
+    pointb = 430, 1843
+    x_coords, y_coords = zip(*[pointa, pointb])  # unzip coordinates to x and y
+    x_coords = np.array(x_coords) / 3.622
+    y_coords = np.array(y_coords) / 3.617
+    a = (y_coords[1] - y_coords[0]) / (x_coords[1] - x_coords[0])
+    b = y_coords[0] - a * x_coords[0]
+    offsetx = 465
+    offsety = 112
+    x = 490
+    y = a*(x+offsetx) + b + offsety
+    print(f"y is {y}")
+
+    rawImgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
+    im_raw = cv2.imread(rawImgList[0])
+    im_temp = image_resize(im_raw, height=1200)
+    resize_factor = 1200 / im_raw.shape[0]
+    cv2.imshow('image', im_temp)
+    plt.plot(x, y, '.', 'ms', 20)
+    plt.show()
+
+    print(f"finished")
+
 #Input: a raw slice image, the chosen pixellocation
 #Output: a figure with a dot on the chosen pixellocation
 def showPixellocationv2(pointa, pointb, source):
+    imgblack = Image.open("C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\black square.png")
+    imgblack.resize((40,40))
+    imgblack.show()
+    rawImg = Image.open(os.path.join(source, f"rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230120_162715883_0010_analyzed_.png"))
+    rawImg.paste(imgblack,(100,500))
+    rawImg.show()
     print(f"this is fine")
 
 #Get images to see where you chose your pixel
 def showPixellocation(pointa, pointb, source):
+    rawImgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
+    im_raw = cv2.imread(rawImgList[0])
+    im_temp = image_resize(im_raw, height=1200)
+    resize_factor = 1200 / im_raw.shape[0]
+    #cv2.imshow('image', im_temp)
+    #cv2.setWindowTitle("image", "Point selection window. Select 1 point.")
+    #cv2.setMouseCallback('image', click_eventSingle)
+    #cv2.waitKey(0)
+    #global right_clicks
+    P1 = np.array(right_clicks[0]) / resize_factor
+    print(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}]")
+    #Obtain scaling factor to correspond chosen pixellocation to new position in raw image
+    #Scaling factor = factor by which raw image was made smaller in new image
+    P1arr = np.array(pointa)
+    P2arr = np.array(pointb)
+    BLarr = np.array([im_raw.shape[1], im_raw.shape[0]])
 
-    print(f"The coordinates are:")
+    adjP1 = np.subtract(P1arr, P2arr)
+    scaling = np.divide(adjP1, BLarr)
+    print(f"Scaling fators are: {scaling}")
+    #Read in from config file (selected points on which the line was drawn)
+    pointa = 5272, 1701
+    pointb = 430, 1843
+    x_coords, y_coords = zip(*[pointa, pointb])  # unzip coordinates to x and y
+    a = (y_coords[1] - y_coords[0]) / (x_coords[1] - x_coords[0])
+    b = y_coords[0] - a * x_coords[0]
+    for x in [-2400, -1500]:
+        y = a * x + b
+        print(f"y is: {y}")
+    bn = b
+    coordinates = coordinates_on_line(a, bn, [0, im_raw.shape[1], 0, im_raw.shape[0]])
+    print(f"The coordinates are: {coordinates}")
 
+#normalize data of minimum and maximum between 0 and 1 resp.
 def normalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
 
-def normalizeDataV2(data):
-    return preprocessing.normalize([data])[0]
-
-def poly_lsq(x,y,n,verbose=False,itmax=20000):
-    ''' Performs a polynomial least squares fit to the data,
-    with errors! Uses scipy odrpack, but for least squares.
-    IN:
-       x,y (arrays) - data to fit
-       n (int)      - polinomial order
-       verbose      - can be 0,1,2 for different levels of output
-                      (False or True are the same as 0 or 1)
-       itmax (int)  - optional maximum number of iterations
-    OUT:
-       coeff -  polynomial coefficients, lowest order first
-       err   - standard error (1-sigma) on the coefficients
-    '''
-    # http://www.scipy.org/doc/api_docs/SciPy.odr.odrpack.html
-    # see models.py and use ready made models!!!!
-    func   = models.polynomial(n)
-    mydata = odr.Data(x, y)
-    myodr  = odr.ODR(mydata, func,maxit=itmax)
-    # Set type of fit to least-squares:
-    myodr.set_job(fit_type=2)
-    if verbose == 2: myodr.set_iprint(final=2)
-    fit = myodr.run()
-    # Display results:
-    if verbose: fit.pprint()
-    if fit.stopreason[0] == 'Iteration limit reached':
-        print('(WWW) poly_lsq: Iteration limit reached, result not reliable!')
-    # Results and errors
-    coeff = fit.beta[::-1]
-    err   = fit.sd_beta[::-1]
-    return coeff,err
-
-def custom_fit(x,a,b,c,d,e,f,g,h):
-    return a + b*x + c*x**2 + d*x**3 + e*x**4 + f*x**0.67 + g * np.sin(h*x)
-
-def custom_fit2(x,a,b,c,d,e,f,g,h):
-    return a * np.sin(b*x + c) + c * np.sin(d*x + e) + f * np.sin(g*x + h)
-
-
-""""
-Making an attempt at fitting the intensity vs time curve, in order to then extract data at an equally spaced timeinterval
-Doesn't work properly though. 12th order polynomial didnt even fit well
-"""
-def makeImages(profile, timeFromStart, source, pixelLocation, config):
-    conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
+def makeImages(profile, timeFromStart, source, pixelLocation):
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     fig0, ax0 = plt.subplots()
-    ax0.plot(timeFromStart, ([profile])[0], label = f'normalized, unfiltered')
+    ax0.plot(timeFromStart, normalizeData(profile), label = f'normalized, unfiltered')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
     plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
-
-    #order = 10
-    #fit, error = poly_lsq(timeFromStart, ([profile])[0], order)
-
-    popt, pcov = curve_fit(custom_fit2, timeFromStart, ([profile])[0])
-    print(popt)
-    print(np.linalg.cond(pcov))
-    xnew = np.linspace(timeFromStart[0], timeFromStart[len(timeFromStart)-1], 1000)
-    ynew = custom_fit2(xnew, *popt)
-    #ynew = np.polyval(fit, xnew)
-    #ax0.plot(xnew, ynew, label=f'fit {order}, unfiltered')
-    ax0.plot(xnew, ynew, label=f'fit, unfiltered')
-
     # plt.show()
     #plt.draw()
     #fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"), dpi=300)
@@ -121,37 +126,36 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     nrOfDatapoints = len(profile)
     print(f"{nrOfDatapoints}")
     hiR = nrOfDatapoints - round(nrOfDatapoints/18)     #OG = /13
-    hiR = 60
-    loR = 1
+    hiR = 0
+    loR = 0
     for i in range(hiR,hiR+1,20):       #removing n highest frequencies
         for j in range(loR, loR+1, 20):        #removing n lowest frequencies
             HIGHPASS_CUTOFF = i
             LOWPASS_CUTOFF = j
             NORMALIZE_WRAPPEDSPACE = False
             NORMALIZE_WRAPPEDSPACE_THRESHOLD = 3.14159265359
-            #conversionZ = 0.02885654477258912
+            conversionZ = 0.02885654477258912
             FLIP = False
 
-            profile_fft = np.fft.fft(ynew)  # transform to fourier space
+            profile_fft = np.fft.fft(profile)  # transform to fourier space
             highPass = HIGHPASS_CUTOFF
             lowPass = LOWPASS_CUTOFF
-            mask = np.ones_like(ynew).astype(float)
+            mask = np.ones_like(profile).astype(float)
             mask[0:lowPass] = 0
             if highPass > 0:
                 mask[-highPass:] = 0
             profile_fft = profile_fft * mask
             fig3, ax3 = plt.subplots()
-            ax3.plot(preprocessing.normalize([profile_fft.real])[0], label=f'hi:{highPass}, lo:{lowPass}')
-            #ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
+            ax3.plot(timeFromStart, normalizeData(profile_fft), label=f'hi:{highPass}, lo:{lowPass}')
             ax3.legend()
-            fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}, lofil{j}.png"),
+            fig3.savefig(os.path.join(source, f"Swellingimages\\FFT at {pixelLocation}, hiFil{i}.png"),
                          dpi=300)
 
 
             #print(f"Size of dataarray: {len(profile_fft)}")
 
             profile_filtered = np.fft.ifft(profile_fft)
-            ax0.plot(xnew, ([profile_filtered.real])[0], label = f'hi:{highPass}, lo:{lowPass}')
+            ax0.plot(timeFromStart, normalizeData(profile_filtered), label = f'hi:{highPass}, lo:{lowPass}')
             ax0.legend()
             fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}, hiFil{i}.png"),
                          dpi=300)
@@ -170,7 +174,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
             fig2, ax2 = plt.subplots()
             #TODO for even spreading of data (NOT true time!)
             spacedTimeFromStart = np.linspace(timeFromStart[0], timeFromStart[-1:], len(unwrapped))
-            ax2.plot(spacedTimeFromStart, unwrapped * conversionFactorZ)
+            ax2.plot(spacedTimeFromStart, unwrapped * conversionZ)
             plt.xlabel('Time (h)')
             plt.ylabel(u"Height (\u03bcm)")
             plt.title(f'Swelling profile: hi {highPass}, lo {lowPass}, pixelLoc: {pixelLocation}')
@@ -187,7 +191,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
             #Saves data in time vs height profile plot so a csv file.
             wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}high{i},lo{j}.csv")
             #(np.insert(realProfile, 0, timeelapsed)).tofile(wrappedPath, sep='\n', format='%.2f')
-            np.savetxt(wrappedPath, [p for p in zip(timeFromStart, ([profile])[0], unwrapped * conversionFactorZ)], delimiter=',', fmt='%s')
+            np.savetxt(wrappedPath, [p for p in zip(timeFromStart, unwrapped * conversionZ)], delimiter=',', fmt='%s')
     # now get datapoints we need.
     #unwrapped_um = unwrapped * conversionZ
     #analyzeTimes = np.linspace(0, 57604, 12)
@@ -195,134 +199,245 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     #print(analyzeImages)
 
 
-""""
-Do the same as in normal makeImages, but make no attempt at fitting. Just make the data-acquisition timeinterval regular by hand
-So e.g. first 40 images every 20 sec, then every 4 minutes -> take image 1 & 13 & 25 & 37 to have images every 4 minutes throughout all data
-"""
-def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, config):
-    conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
-    if not os.path.exists(os.path.join(source, f"Swellingimages")):
-        os.mkdir(os.path.join(source, f"Swellingimages"))
-    fig0, ax0 = plt.subplots()
-    ax0.plot(timeFromStart, (profile), label = f'normalized, unfiltered')
-    plt.xlabel('Time (h)')
-    plt.ylabel('Mean intensity')
-    plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
-
-    #define which values to use for regular timeinterval
-    whichValuesToUse1 = [0]
-    whichValuesToUse2 = np.arange(1, len(profile),1)
-    whichValuesToUseTot = np.append(whichValuesToUse1, whichValuesToUse2)
-
-    #whichValuesToUseTot = np.arange(0, len(profile),1)      #when all values are to be used
-    equallySpacedTimeFromStart = []
-    equallySpacedProfile = []
-
-    for i in whichValuesToUseTot:
-        equallySpacedTimeFromStart = np.append(equallySpacedTimeFromStart, timeFromStart[i])
-        equallySpacedProfile = np.append(equallySpacedProfile, profile[i])
-
-    indexmax = argrelmax(equallySpacedProfile, order=45)[0]
-    indexmin = argrelmin(equallySpacedProfile, order=45)[0]
-
-    ax0.plot(equallySpacedTimeFromStart, (equallySpacedProfile), '.', label=f'equally spaced profile')
-    ax0.set_ylim([0, 265])
-    ax0.legend()
-
-    ax0.plot(equallySpacedTimeFromStart[indexmax], (equallySpacedProfile[indexmax]), '.', label=f'Maxima')
-    ax0.plot(equallySpacedTimeFromStart[indexmin], (equallySpacedProfile[indexmin]), '.', label=f'Maxima')
-
-    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"),
-                 dpi=300)
-
-    print(f"length of equally spaced profile = {len(equallySpacedProfile)}")
-    nrOfDatapoints = len(equallySpacedProfile)
-    print(f"{nrOfDatapoints}")
-
-
-
-    #Saves data in time vs height profile plot so a csv file.
-    wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}.csv")
-    np.savetxt(wrappedPath, [p for p in zip(equallySpacedTimeFromStart, equallySpacedProfile)], delimiter=',', fmt='%s')
+def flipData(data):
+    datamax = max(data)
+    return [(-x + datamax) for x in data]
 
 def main():
-    """
-    Analyzes an input 'pixellocation' on a previously analyzed line (with the main.py file methods), as a function of time
-    A CSV file of the intensity along the drawn line at time t is read in, the mean intensity extracted at the pixellocation.
-    Then, the same is done at t+1, etc.. In the end, Intensity vs time is obtained.
-    This data can then be filtered in the frequency domain (removing high and/or low frequencies after a Fourier Transform),
-    after which it is returned to time domain. Due to the filtering, it should contain both a real and an imaginary part.
-    The phase difference between the two is determined by an atan2 method, resulting in a 'wrapped' plot, which should resemble a sawtooth profile.
-    Unwrapping the wrapped profile results in a swelling profile, after a conversion in Z is performed.
-
-    Main changeables:
-        pixeLoc1 & 2.
-        source
-        rangeLength
-        Highpass & lowpass filters
-    """
-    #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
-    #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2400
-    pixelLoc2 = 2401  # pixelLoc1 + 1
-    pixelIV = 500  # interval between the two pixellocations to be taken.
-    #pixelArr = range(pixelLoc1, pixelLoc2, pixelIV)
-    pixelArr = [2400, 2550, 3550, 4000, 5050, 5550]
-    pixelArr = [2400, 2550]
-    #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
-    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
-    #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
-    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
-    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230724185238"   # hexadecane, NO filtering in /main.py, no contrast enhance
-    #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
+    """"Changeables: """
+    #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
+    #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
+    source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
+    range1 = 2250#2320       #start x left for plotting
+    range2 = 3850  # len(swellingProfile)
+    knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
+    dryBrushThickness = 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    knownHeightArr = [128, 216, 258, 300]       #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
+    knownHeightArr = np.add(knownHeightArr, dryBrushThickness)      # true brush thickness = dry thickness + swollen thickness
+    outputFormatXY = 'mm'       #'pix' or 'mm'
+    #XLIM - True; Xlim = []
+    YLIM = True; Ylim = [-50, 650]  #ylim for swelling profiles (only used when plotting absolute swelling height)
+    PLOTSWELLINGRATIO = True
+    SAVEFIG = True
+    INTENSITYPROFILES = True
+    REMOVEBACKGROUNDNOISE = True
+    normalizeFactor = 1               #normalize intensity by camera intensity range: 256, or use 1 if not normalizing
+    FLIP = False                 #True=flip data after h analysis to have the height increase at the left
+    """"End of changeables"""
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
     config.read(os.path.join(source, configName[0]))
+    conversionFactorXY, conversionFactorZ, unitXY, unitZ = conversion_factors(config)
+    if not os.path.exists(os.path.join(source, f"Swellingimages")):
+        os.mkdir(os.path.join(source, f"Swellingimages"))
+    print(f"With this conversionXY, 1000 pixels = {conversionFactorXY*1000} mm, \n"
+          f"and 1 mm = {1/conversionFactorXY} pixels")
 
-    # TODO show where your chosen pixel is actually located
-    #positiontest(source)
-    #showPixellocationv2(1,2, source)
+    np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})        #print arrays later with only 2 decimals
+    if INTENSITYPROFILES:
+        csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
+        fig0, ax0 = plt.subplots()
+        idxx = 0
+        for idx, n in enumerate(csvList):
+            if idx in [0, 50]:    #, 95, 206 Show intensity profiles from unadjusted/unfiltered intensity profiles from /main.py           # 50, 95, 206,
+                file = open(n)
+                csvreader = csv.reader(file)
+                rows = []
+                for row in csvreader:
+                    rows.append(float(row[0]))
+                file.close()
+                elapsedtime = rows[0]
+                intensityProfile = rows[1:]
+                intensityProfileZoom = intensityProfile[range1:range2]      #only look at a certain range in the intensity profile
+                if REMOVEBACKGROUNDNOISE:           #divide intensity profile by intensity profile at t=0 to 'remove background noise'
+                    if idx == 0:
+                        backgroundIntensityZoom = intensityProfileZoom
+                        intensityProfileZoom = np.divide(intensityProfileZoom, backgroundIntensityZoom)
+                    else:
+                        intensityProfileZoom = np.divide(intensityProfileZoom, backgroundIntensityZoom)
+                intensityProfileZoomConverted = normalizeData(intensityProfileZoom)
 
-    csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
-    #Length*2 = range over which the intensity will be taken
-    rangeLength = 5
+                plt.ylabel(f"Intensity (-)")
+                if outputFormatXY == 'pix':
+                    x = np.linspace(range1, range2, range2 - range1)
+                    plt.xlabel(f"Distance (pixels)")
+                elif outputFormatXY == 'mm':
+                    x = np.linspace(range1, range2, range2 - range1) * conversionFactorXY
+                    plt.xlabel(f"Distance ({unitXY})")
+                else:
+                    print("wrong format input")
+                plt.title(f"Intensity profile starting at pixel: {range1}")
+                xshifted = [q - min(x) for q in x]
+                ax0.plot(xshifted, intensityProfileZoomConverted, '.', label=f'Time={timeFormat(elapsedtime)}')
+                ax0.plot(xshifted, np.zeros(len(xshifted)), '-')        #line at y=0
+                plt.legend()
 
-    #With this loop, different pixel locations can be chosen to plot for
-    for i in pixelArr:
-        meanIntensity = []
-        elapsedtime = []
-        #This loop takes data van intensity csv files at different moments in time (n), and calculates a mean value for a given rangeLength at the chosen pixelLocation
-        for n in csvList: #range(cvsFilenr1, cvsFilenr2, cvsFileIV):
-            #file = open(os.path.join(source, f"process\\{csvName}{str(n).zfill(4)}_analyzed__real.csv"))
-            file = open(n)
-            csvreader = csv.reader(file)
-            header = ['Real intensity value']
-            rows = []
-            for row in csvreader:
-                rows.append(row[0])
-            file.close()
-            elapsedtime.append(float(rows[0])/3600)
+                ###### Up untill now: only splot intensity profiles in desired range.
+                #Below: convert intensity profiles to height profiles
+                ######
 
-            pixelLocation = i
-            range1 = pixelLocation - rangeLength
-            range2 = pixelLocation + rangeLength
-            if (range1 < 1) or (range2>len(rows)):
-                raise Exception(f"There were not enough values to average over. Either lower mean-range, or choose different pixel location. range1 = {range1}, range2 = {range2}, Rows={len(rows)}")
+            if idx in [50]:   #, 95, 206To make swellingprofiles from the previously shown intensityprofiles
+                peaks, _ = scipy.signal.find_peaks(np.divide(intensityProfileZoomConverted, normalizeFactor), height=0.5, distance=40, prominence=0.04)        #obtain indeces om maxima
+                minima, _ = scipy.signal.find_peaks(np.divide(-np.array(intensityProfileZoomConverted), normalizeFactor), height=-0.35, distance=40, prominence=0.05)  #obtain indices of minima
 
-            total = 0
+                print(f"T = {timeFormat(elapsedtime)}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}\n")
+                print(f"T = {timeFormat(elapsedtime)}\nMinima at index: {minima} \nAt x position: {np.array(xshifted)[minima]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[minima]}\n")
 
-            for idx in range(range1, range2):
-                total = total + float(rows[idx])
-            meanIntensity.append(total / (range2 - range1))
+                ax0.plot(np.array(xshifted)[peaks], np.divide(np.array(intensityProfileZoomConverted)[peaks], normalizeFactor), "x")
+                ax0.plot(np.array(xshifted)[minima], np.divide(np.array(intensityProfileZoomConverted)[minima], normalizeFactor), "x")
+                plt.legend(loc = 'upper right')
+                print(f"Nr. of maxima found: {len(peaks)}, nr. of minima found: {len(minima)}\n"
+                      f"Maxima at distance= {np.array(xshifted)[peaks]} \n"
+                      f"With indices= {peaks}\n"
+                      f"Minima at distance= {np.array(xshifted)[minima]}\n"
+                      f"With indices= {minima}")
 
-        #TODO for even spreading of data (NOT true time!)
-        #elapsedtime = np.arange(0,len(meanIntensity))
+                ######################################################################################################
+                ############## Below: calculate height profiles making use of the known maxima & minima ##############
+                ######################################################################################################
+                minAndMax = np.concatenate([peaks, minima])
+                minAndMaxOrderedUnsorted = np.sort(minAndMax)
 
-        # for nn in [1]:
-        #     makeImages(meanIntensity[0:-nn:], elapsedtime[0:-nn:], source, pixelLocation)
-        makeImagesManualTimeadjust(meanIntensity, elapsedtime, source, pixelLocation, config)
-    print(f"Read-in lenght of rows from csv file = {len(rows)}")
+                minAndMaxOrdered = []
+                ###Below: sort the list of minima and maxima such that minima and maxima are alternating.
+                ### this requires all min & maxima to be 'correctly found' beforehand:
+                for i in range(0,len(minAndMaxOrderedUnsorted)-1):
+                    if i == 0:  #always input first extremum
+                        minAndMaxOrdered.append(minAndMaxOrderedUnsorted[i])
+                    else:
+                        if minAndMaxOrdered[len(minAndMaxOrdered)-1] in minima:   #if last value in new adjust list is a minimum:
+                            #then next value should be a maximum
+                            for maximum in peaks:
+                                if maximum > minAndMaxOrdered[-1]:
+                                    minAndMaxOrdered.append(maximum)
+                                    break
+                        elif minAndMaxOrdered[len(minAndMaxOrdered)-1] in peaks:   #if last value in new adjust list is a maximum:
+                            #then next value should be a minimum
+                            for minimum in minima:
+                                if minimum > minAndMaxOrdered[-1]:
+                                    minAndMaxOrdered.append(minimum)
+                                    break
+                        else:
+                            print(f"Skipped {minAndMaxOrderedUnsorted[i]}")
+
+
+                ax0.plot(np.array(xshifted)[minAndMaxOrdered], np.divide(np.array(intensityProfileZoomConverted)[minAndMaxOrdered], normalizeFactor), "o")
+
+                # if FLIP:
+                #     xshifted.reverse()
+                #     np.flip(intensityProfileZoomConverted)
+                #     minAndMaxOrdered = np.subtract(len(xshifted)-1,  minAndMaxOrdered)
+                #     minAndMaxOrdered = np.sort(minAndMaxOrdered)
+
+                hdry = 0
+                h = []
+                xrange = []
+                # evaluate before first extremum: before index 0
+                # between all extrema: between indices 0 - (len(extrema)-1)
+                # after last extremum: after (len(extrema)-1)
+                for i in range(0, len(minAndMaxOrdered) - 1):   #iterating from the first to the first-to-last extremum
+                    extremum1 = minAndMaxOrdered[i]
+                    extremum2 = minAndMaxOrdered[i + 1]
+                    #to calculate profile before first extremum
+                    if i == 0:  # calculate profile before first extremum
+                        dataI = np.divide(np.array(intensityProfileZoomConverted)[0:extremum2],
+                                          normalizeFactor)  # intensity (y) data
+                        datax = np.array(xshifted)[0:extremum2]  # time (x) data
+                        # Below: calculate heights of[0 : Extremum1]. Resulting h will not start at 0, because index=0 does not start at an extremum, so must be corrected for.
+                        h_newrange = idkPre1stExtremum(datax, dataI, extremum1 - 1,
+                                                       extremum2 - 1)  # do some -1 stuff because f how indexes work when parsing
+                        h_newrange = np.subtract(h_newrange, h_newrange[
+                            0])  # substract value at index0 from all heights since the programn assumed the height to start at 0 (but it doesn't since we did not tsart at an extremum)
+
+
+                        #TODO below: this is not necesairy for this analysis I think. At the left, we don't known/need to know the height in advance
+                        #TODO: Set height at index 0 just to 0, and later
+
+                        # adjust entire h_newrange by stitching last value of h_newrange to height of first extremum
+                        # estimate from known dry height at what thickness the first extremum is.
+                        # in case of a maximum: 181.1*N
+                        # in case of minimum: 90.9 + 181.1*N
+                        if dataI[extremum1] - dataI[0] > 0:  # if etrx1 > data[0], next up is a maximum
+                            maximas = np.arange(0, 181.1 * 20, 181.1)
+                            diff_maximas = np.abs(np.subtract(maximas, hdry))
+                            maxIndex = np.where(diff_maximas == min(diff_maximas))
+                            h_1stextremum = maximas[maxIndex]
+                        else:
+                            minima = np.arange(90.9, 90.9 + 181.1 * 20, 181.1)
+                            diff_minima = np.abs(np.subtract(minima, hdry))
+                            minIndex = np.where(diff_minima == min(diff_minima))
+                            h_1stextremum = minima[minIndex]
+
+                        print(f"Calculated extremum: {h_1stextremum}")
+                        #TODO adusting normal code: set h_1st extremum to the last value of the calculated height profile
+                        #this just makes for a smooth profile, which hsould then start at h=0?
+                        h_1stextremum = h_newrange[-1]
+                        print(f"But using extremum: {h_1stextremum}")
+                        diff_hExtremumAndFinalnewRange = np.subtract(h_1stextremum, h_newrange[-1])  # substract h of extremum with last value of calculated height
+                        h_newrange = np.add(h_newrange,
+                                            diff_hExtremumAndFinalnewRange)  # add that difference to all calculated heights to stich profiles together
+                        xrange = np.concatenate([xrange, np.array(xshifted)[0:extremum1]])
+                        h = np.concatenate([h, h_newrange])     #main output if this part: height profile before first extremum.
+
+                    #to calculate profiles in between extrema
+                    dataI = np.divide(np.array(intensityProfileZoomConverted)[extremum1:extremum2],
+                                      normalizeFactor)  # intensity (y) data
+                    datax = np.array(xshifted)[extremum1:extremum2]  # time (x) data
+                    h_newrange = np.add(idk(datax, dataI, 0, len(datax) - 1), h_1stextremum + i * 90.9)
+                    xrange = np.concatenate([xrange, datax])
+                    h = np.concatenate([h, h_newrange])
+
+                    #Once the first-to-last maximum is reached, above the profile between first-to-last and last extremum is calculated.
+                    #Below, the profile after last extremum is calculated
+                    if i == len(minAndMaxOrdered) - 2:  # -2 because this then happens after effectively the last extremum
+                        # input data ranging from the first extremum
+                        dataI = np.divide(np.array(intensityProfileZoomConverted)[0:len(xshifted) - 1],
+                                          normalizeFactor)  # intensity (y) data
+                        datax = np.array(xshifted)[0:len(xshifted) - 1]  # time (x) data
+                        # Below: calculate heights of[Extremum2:end].
+                        ###TODO check if (i) or (i+1), beforehand (i+1) worked, now not?
+                        h_newrange = np.add(idkPostLastExtremum(datax, dataI, extremum1 - 1, extremum2 - 1),
+                                            h_1stextremum + (i+1) * 90.9)  # do some -1 stuff because f how indexes work when parsing
+                        # xrange = np.concatenate([xrange, datax])
+                        xrange = np.concatenate(
+                            [xrange, np.array(xshifted)[extremum2:len(xshifted) - 1]])
+                        h = np.concatenate([h, h_newrange])
+
+                #once entire height profile is calculated, convert to 'correct' height profile
+                if FLIP:
+                    #first plot the data upside down, to have the height more swollen on the left
+                    h = -np.subtract(h, max(h))
+                    #then, correct height with a 'known' height somewhere. Can be dry height in dry region, or from a known height vs. time curve at a pixellocation
+                    diffh = knownHeightArr[idxx] - h[knownPixelPosition]
+                    print(f"Correcting height with {diffh} nm, because known height= {knownHeightArr[idxx]}, and calculated height= {h[knownPixelPosition]}")
+                    h = np.add(h, diffh)
+
+
+                fig1, ax1 = plt.subplots()
+                ax1.plot(xrange, h)
+                ax1.set_ylabel("Height (nm)")
+                ax1.set_xlabel("Distance from contact line (micro meter)")
+                ax1.set_title(f"Height profile at time: {timeFormat(elapsedtime)} in pixelrange {range1}:{range2}")
+                fig1.show()
+
+                if SAVEFIG:
+                    if INTENSITYPROFILES:       #This part is for the intensity profiles
+                        # if REMOVEBACKGROUNDNOISE:
+                        #     ax0.set_ylim([-50, 50])
+                        ax0.autoscale(enable=True, axis='x', tight=True)
+                        fig0.savefig(os.path.join(source, f"Swellingimages\\{idx}Intensity.png"),dpi=300)
+                        ax1.autoscale(enable=True, axis='x', tight=True)
+                        fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{timeFormat(elapsedtime)}.png"), dpi=300)
+
+                        # Saves data in time vs height profile plot so a csv file.
+                        wrappedPath = os.path.join(source, f"Swellingimages\\data{timeFormat(elapsedtime)}PureIntensity.csv")
+                        np.savetxt(wrappedPath, [p for p in zip_longest(xshifted, intensityProfileZoomConverted, xrange, h, fillvalue='')], delimiter=',', fmt='%s')
+
+                idxx = idxx + 1
+
+    plt.close()
+
 
 if __name__ == "__main__":
     main()
