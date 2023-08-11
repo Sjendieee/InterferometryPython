@@ -49,7 +49,6 @@ class Highlighter(object):
 
 
 procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20230808171326\PROC_20230808171326_statistics.json'
-#PROC_20230808171326    hexadecane air side
 #PROC_20230808164951    hexadecane glass side v1
 
 print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
