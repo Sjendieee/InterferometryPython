@@ -345,6 +345,9 @@ def method_line(config, **kwargs):
         P2 = np.array(right_clicks[1]) / resize_factor
         logging.info(f"Selected coordinates: {P1=}, {P2=}.")
         logging.info(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}], P2 = [{P2[0]:.0f}, {P2[1]:.0f}]")
+        logging.info(f"Selection coordinates:\n"
+                     f"pointa = {P1[0]:.0f}, {P1[1]:.0f}\n"
+                     f"pointb = {P2[0]:.0f}, {P2[1]:.0f}")
     else:
         # get from config file if preferred
         P1 = [int(e.strip()) for e in config.get('LINE_METHOD', 'POINTA').split(',')]
