@@ -240,9 +240,9 @@ def main():
         csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
         fig0, ax0 = plt.subplots()
         idxx = 0
-        nr = 50
+        idxArrToUse = [0, 50, 95, 206, 395]
         for idx, n in enumerate(csvList):
-            if idx in [0, nr]:    #50, 95, 206 Show intensity profiles from unadjusted/unfiltered intensity profiles from /main.py           # 50, 95, 206,
+            if idx in idxArrToUse[:]:    #50, 95, 206 Show intensity profiles from unadjusted/unfiltered intensity profiles from /main.py           # 50, 95, 206,
                 file = open(n)
                 csvreader = csv.reader(file)
                 rows = []
@@ -281,7 +281,7 @@ def main():
                 #Below: convert intensity profiles to height profiles
                 ######
 
-            if idx in [nr]:   #50, 95, 206To make swellingprofiles from the previously shown intensityprofiles
+            if idx in idxArrToUse[1:]:   #50, 95, 206To make swellingprofiles from the previously shown intensityprofiles
                 #TODO prominances etc have to be adjusted manually it seems in order to have proper peakfinding
                 peaks, _ = scipy.signal.find_peaks(np.divide(intensityProfileZoomConverted, normalizeFactor), height=0.5, distance=40, prominence=0.05)        #obtain indeces om maxima
                 minima, _ = scipy.signal.find_peaks(np.divide(-np.array(intensityProfileZoomConverted), normalizeFactor), height=-0.35, distance=40, prominence=0.05)  #obtain indices of minima
