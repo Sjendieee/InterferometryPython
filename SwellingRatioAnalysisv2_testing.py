@@ -202,9 +202,9 @@ def main():
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
     source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
-    range1 = 2200#2320       #start x left for plotting
+    range1 = 2250#2320       #start x left for plotting
     range2 = 4000  # len(swellingProfile)
-    knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
+    knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the brush height is known at various times
     dryBrushThickness = 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
     knownHeightArr = [128, 216, 258, 300]       #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
     knownHeightArr = np.add(knownHeightArr, dryBrushThickness)      # true brush thickness = dry thickness + swollen thickness

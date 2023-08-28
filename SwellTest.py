@@ -550,6 +550,10 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
     hdry = 160
     h = []
     xrange = []
+    #TODO Below = temporary: plot part between 2 extrema
+    temprange = np.arange(minAndMaxOrdered[1], minAndMaxOrdered[2], 1)
+    ax0.plot(np.array(equallySpacedTimeFromStart)[temprange], np.divide(np.array(equallySpacedProfile)[temprange], normalizeFactor), "-")
+
     #evaluate before first extremum: before index 0
     #between all extrema: between indices 0 - (len(extrema)-1)
     #after last extremum: after (len(extrema)-1)

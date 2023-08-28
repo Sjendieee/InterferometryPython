@@ -48,12 +48,14 @@ class Highlighter(object):
 
 #procStatsJsonPath = r'C:\Users\ReuvekampSW\PycharmProjects\InterferometryPython\export\PROC_20230808171326\PROC_20230808171326_statistics.json'        #laptop
 #procStatsJsonPath = r'C:\Users\ReuvekampSW\Documents\InterferometryPython\export\PROC_20230809115938\PROC_20230809115938_statistics.json'                    #chickencoop workstation
-procStatsJsonPath = r'I:\2023_08_09CA_analysis_dodecane_glassSide\PROC_20230809115938\PROC_20230809115938_statistics.json'
+#procStatsJsonPath = r'I:\2023_08_09CA_analysis_dodecane_glassSide\PROC_20230809115938\PROC_20230809115938_statistics.json'
+procStatsJsonPath = r'E:\2023_08_011_PLMA_Basler5x_dodecane_1_28_S5_OpenAir\Analysis_v1\PROC_20230811121032\PROC_20230811121032_statistics.json'
 
 #PROC_PROC_20230810183031                       air side                106 datapoints              #nr1            till frame 60 movement
 #PROC_20230809115938                            glass side v1, all      253 datapoints              #nr2
 #ROC_20230810204448_do wedge glass v2 f1_58     glass side v2, 1-58     60                          @nr3
-#PROC_20230810210250_do wedge glass v2 f58_end  glass side v2, 58-end   16
+#PROC_20230810210250_do wedge glass v2 f58_end  glass side v2, 58-end   16                          #nr4
+#PROC_20230811121032                            open air                77                          #nr5
 
 print(os.path.join(os.path.dirname(procStatsJsonPath), f"angleFittingData.csv"))
 originalPath = os.path.dirname(procStatsJsonPath)
@@ -62,10 +64,10 @@ csvPathAppend = r'csv'
 flipData = False
 
 #analyzeImages = np.concatenate((np.arange(0, 60, 5), np.arange(70, 86, 10)))                                       #nr1
-analyzeImages = np.concatenate((np.arange(0, 40, 4), np.arange(50, 100, 10), np.arange(120, 250, 20)))             #nr2
+#analyzeImages = np.concatenate((np.arange(0, 40, 4), np.arange(50, 100, 10), np.arange(120, 250, 20)))             #nr2
 #analyzeImages = np.concatenate((np.arange(0, 15, 2), np.arange(20, 60, 5)))                                         #nr3
 #analyzeImages = np.arange(0, 16, 1)                                                                                 #nr4
-
+analyzeImages = np.arange(2, 77, 4)
 
 #analyzeImages = np.array([5])
 
@@ -120,7 +122,7 @@ try:
     unitZ = procStats["unitZ"]
     unitXY = procStats["unitXY"]
     #TODO implement in code that conversion is good also for different units of input (factors 1000) belowfor x & y = ...
-    if unitZ == "nm" or unitXY == "mm":
+    if unitZ != "nm" or unitXY != "mm":
         raise Exception("One of either units is not correct for good conversion. Fix manually or implement in code")
 
     print(f"unitZ: {unitZ}, conversionZ = {conversionZ}. unitXY: {unitXY},  converzionXY = {conversionXY}")

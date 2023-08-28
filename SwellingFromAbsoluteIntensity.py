@@ -222,7 +222,8 @@ def main():
     INTENSITYPROFILES = True
     REMOVEBACKGROUNDNOISE = True
     normalizeFactor = 1               #normalize intensity by camera intensity range: 256, or use 1 if not normalizing
-    FLIP = False                 #True=flip data after h analysis to have the height increase at the left
+    FLIP = True                 #True=flip data after h analysis to have the height increase at the left
+    MOVMEAN = True              #average the intensity values to obtain a smoother profile (at a loss of peak intensity)
     """"End of changeables"""
 
     config = ConfigParser()
@@ -239,8 +240,9 @@ def main():
         csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
         fig0, ax0 = plt.subplots()
         idxx = 0
+        nr = 50
         for idx, n in enumerate(csvList):
-            if idx in [0, 50]:    #, 95, 206 Show intensity profiles from unadjusted/unfiltered intensity profiles from /main.py           # 50, 95, 206,
+            if idx in [0, nr]:    #50, 95, 206 Show intensity profiles from unadjusted/unfiltered intensity profiles from /main.py           # 50, 95, 206,
                 file = open(n)
                 csvreader = csv.reader(file)
                 rows = []
@@ -249,6 +251,8 @@ def main():
                 file.close()
                 elapsedtime = rows[0]
                 intensityProfile = rows[1:]
+                if MOVMEAN:
+                    intensityProfile = mov_mean(intensityProfile, 3)
                 intensityProfileZoom = intensityProfile[range1:range2]      #only look at a certain range in the intensity profile
                 if REMOVEBACKGROUNDNOISE:           #divide intensity profile by intensity profile at t=0 to 'remove background noise'
                     if idx == 0:
@@ -277,8 +281,9 @@ def main():
                 #Below: convert intensity profiles to height profiles
                 ######
 
-            if idx in [50]:   #, 95, 206To make swellingprofiles from the previously shown intensityprofiles
-                peaks, _ = scipy.signal.find_peaks(np.divide(intensityProfileZoomConverted, normalizeFactor), height=0.5, distance=40, prominence=0.04)        #obtain indeces om maxima
+            if idx in [nr]:   #50, 95, 206To make swellingprofiles from the previously shown intensityprofiles
+                #TODO prominances etc have to be adjusted manually it seems in order to have proper peakfinding
+                peaks, _ = scipy.signal.find_peaks(np.divide(intensityProfileZoomConverted, normalizeFactor), height=0.5, distance=40, prominence=0.05)        #obtain indeces om maxima
                 minima, _ = scipy.signal.find_peaks(np.divide(-np.array(intensityProfileZoomConverted), normalizeFactor), height=-0.35, distance=40, prominence=0.05)  #obtain indices of minima
 
                 print(f"T = {timeFormat(elapsedtime)}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}\n")
@@ -417,7 +422,7 @@ def main():
                 fig1, ax1 = plt.subplots()
                 ax1.plot(xrange, h)
                 ax1.set_ylabel("Height (nm)")
-                ax1.set_xlabel("Distance from contact line (micro meter)")
+                ax1.set_xlabel("Distance from contact line (mm)")
                 ax1.set_title(f"Height profile at time: {timeFormat(elapsedtime)} in pixelrange {range1}:{range2}")
                 fig1.show()
 

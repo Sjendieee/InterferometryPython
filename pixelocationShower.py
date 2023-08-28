@@ -12,11 +12,11 @@ This part is to show dots of pixellocations for all swellingImages, without clic
 # Read RGB image
 source = 'D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'
 imgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-pixellocationLarge = [0, 2350, 2550, 6707]#2170
+pixellocationLarge = [0, 2200, 4000, 6707]#2170
 CLICKEVENT = False
 n = 0
 #nAllImages = np.arange(0, len(imgList),1)
-nAllImages = [0,1, len(imgList)-1]
+nAllImages = [0, 50]
 print(f"Total amount of images in folder: {len(imgList)}. \nTotal amount of images used: {len(nAllImages)}")
 for imgPath in imgList:
     if n in nAllImages:
@@ -26,7 +26,7 @@ for imgPath in imgList:
         #imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
         imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
         resizedimg = cv2.resize(img, [2400, 1500], interpolation = cv2.INTER_AREA)
-        squareSize = 5
+        squareSize = 25
         resizedImagBlack = cv2.resize(imgblack, [squareSize, squareSize], interpolation = cv2.INTER_AREA)
 
         def calcLineEquation(x_coords, y_coords):       #For eq   y = ax +b
