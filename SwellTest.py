@@ -547,70 +547,72 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
     ######################################################################################################
     minAndMax = np.concatenate([peaks, minima])
     minAndMaxOrdered = np.sort(minAndMax)
-    hdry = 160
+    hdry = dry_thickness
     h = []
     xrange = []
-    #TODO Below = temporary: plot part between 2 extrema
-    temprange = np.arange(minAndMaxOrdered[1], minAndMaxOrdered[2], 1)
-    ax0.plot(np.array(equallySpacedTimeFromStart)[temprange], np.divide(np.array(equallySpacedProfile)[temprange], normalizeFactor), "-")
+    if len(minAndMaxOrdered) > 2:
+        # TODO Below = temporary: plot part between 2 extrema
+        temprange = np.arange(minAndMaxOrdered[1], minAndMaxOrdered[2], 1)
+        ax0.plot(np.array(equallySpacedTimeFromStart)[temprange],
+                 np.divide(np.array(equallySpacedProfile)[temprange], normalizeFactor), "-")
 
-    #evaluate before first extremum: before index 0
-    #between all extrema: between indices 0 - (len(extrema)-1)
-    #after last extremum: after (len(extrema)-1)
-    for i in range(0, len(minAndMaxOrdered)-1):
-        extremum1 = minAndMaxOrdered[i]
-        extremum2 = minAndMaxOrdered[i+1]
-        if i == 0:  # calculate profile before first extremum
-            dataI = np.divide(np.array(equallySpacedProfile)[0:extremum2], normalizeFactor)  # intensity (y) data
-            datax = np.array(equallySpacedTimeFromStart)[0:extremum2]  # time (x) data
-            #Below: calculate heights of[0 : Extremum1]. Resulting h will not start at 0, because index=0 does not start at an extremum, so must be corrected for.
-            h_newrange = idkPre1stExtremum(datax, dataI, extremum1-1, extremum2-1)      #do some -1 stuff because f how indexes work when parsing
-            h_newrange = np.subtract(h_newrange, h_newrange[0]) #substract value at index0 from all heights since the programn assumed the height to start at 0 (but it doesn't since we did not tsart at an extremum)
+        #evaluate before first extremum: before index 0
+        #between all extrema: between indices 0 - (len(extrema)-1)
+        #after last extremum: after (len(extrema)-1)
+        for i in range(0, len(minAndMaxOrdered)-1):
+            extremum1 = minAndMaxOrdered[i]
+            extremum2 = minAndMaxOrdered[i+1]
+            if i == 0:  # calculate profile before first extremum
+                dataI = np.divide(np.array(equallySpacedProfile)[0:extremum2], normalizeFactor)  # intensity (y) data
+                datax = np.array(equallySpacedTimeFromStart)[0:extremum2]  # time (x) data
+                #Below: calculate heights of[0 : Extremum1]. Resulting h will not start at 0, because index=0 does not start at an extremum, so must be corrected for.
+                h_newrange = idkPre1stExtremum(datax, dataI, extremum1-1, extremum2-1)      #do some -1 stuff because f how indexes work when parsing
+                h_newrange = np.subtract(h_newrange, h_newrange[0]) #substract value at index0 from all heights since the programn assumed the height to start at 0 (but it doesn't since we did not tsart at an extremum)
 
-            # adjust entire h_newrange by stitching last value of h_newrange to height of first extremum
-            # estimate from known dry height at what thickness the first extremum is.
-            #in case of a maximum: 181.1*N
-            #in case of minimum: 90.9 + 181.1*N
-            if dataI[extremum1] - dataI[0] > 0: #if etrx1 > data[0], next up is a maximum
-                maximas = np.arange(0,181.1*20, 181.1)
-                diff_maximas = np.abs(np.subtract(maximas, hdry))
-                maxIndex = np.where(diff_maximas == min(diff_maximas))
-                h_1stextremum = maximas[maxIndex]
-            else:
-                minima = np.arange(90.9, 90.9 + 181.1 * 20, 181.1)
-                diff_minima = np.abs(np.subtract(minima, hdry))
-                minIndex = np.where(diff_minima == min(diff_minima))
-                h_1stextremum = minima[minIndex]
+                # adjust entire h_newrange by stitching last value of h_newrange to height of first extremum
+                # estimate from known dry height at what thickness the first extremum is.
+                #in case of a maximum: 181.1*N
+                #in case of minimum: 90.9 + 181.1*N
+                if dataI[extremum1] - dataI[0] > 0: #if etrx1 > data[0], next up is a maximum
+                    maximas = np.arange(0,181.1*20, 181.1)
+                    diff_maximas = np.abs(np.subtract(maximas, hdry))
+                    maxIndex = np.where(diff_maximas == min(diff_maximas))
+                    h_1stextremum = maximas[maxIndex]
+                else:
+                    minima = np.arange(90.9, 90.9 + 181.1 * 20, 181.1)
+                    diff_minima = np.abs(np.subtract(minima, hdry))
+                    minIndex = np.where(diff_minima == min(diff_minima))
+                    h_1stextremum = minima[minIndex]
 
-            print(f"Calculated extremum: {h_1stextremum}")
-            diff_hExtremumAndFinalnewRange = np.subtract(h_1stextremum, h_newrange[len(h_newrange)-1])     #substract h of extremum with last value of calculated height
-            h_newrange = np.add(h_newrange, diff_hExtremumAndFinalnewRange) #add that difference to all calculated heights to stich profiles together
-            xrange = np.concatenate([xrange, np.array(equallySpacedTimeFromStart)[0:extremum1]])
+                print(f"Calculated extremum: {h_1stextremum}")
+                diff_hExtremumAndFinalnewRange = np.subtract(h_1stextremum, h_newrange[len(h_newrange)-1])     #substract h of extremum with last value of calculated height
+                h_newrange = np.add(h_newrange, diff_hExtremumAndFinalnewRange) #add that difference to all calculated heights to stich profiles together
+                xrange = np.concatenate([xrange, np.array(equallySpacedTimeFromStart)[0:extremum1]])
+                h = np.concatenate([h, h_newrange])
+
+            dataI = np.divide(np.array(equallySpacedProfile)[extremum1:extremum2], normalizeFactor)  # intensity (y) data
+            datax = np.array(equallySpacedTimeFromStart)[extremum1:extremum2]  # time (x) data
+            h_newrange = np.add(idk(datax, dataI, 0, len(datax)-1), h_1stextremum + i*90.9)
+            xrange = np.concatenate([xrange, datax])
             h = np.concatenate([h, h_newrange])
-            print(f"Did we get here? {h}")
+        if i == len(minAndMaxOrdered)-2: #-2 because this then happens after effectively the last extremum
+            #input all data, and allow function adkPostLastExtremum() to do analysis from the last & first-to-last extremum
+            dataI = np.divide(np.array(equallySpacedProfile)[0:len(equallySpacedTimeFromStart)-1], normalizeFactor)  # intensity (y) data
+            datax = np.array(equallySpacedTimeFromStart)[0:len(equallySpacedTimeFromStart)-1]  # time (x) data
+            # Below: calculate heights of[Extremum2:end].
+            h_newrange = np.add(idkPostLastExtremum(datax, dataI, extremum1 - 1, extremum2 - 1), h_1stextremum + (i+1)*90.9)  # do some -1 stuff because f how indexes work when parsing
+            xrange = np.concatenate([xrange, np.array(equallySpacedTimeFromStart)[extremum2:len(equallySpacedTimeFromStart)-1]])
+            h = np.concatenate([h, h_newrange])
 
-        dataI = np.divide(np.array(equallySpacedProfile)[extremum1:extremum2], normalizeFactor)  # intensity (y) data
-        datax = np.array(equallySpacedTimeFromStart)[extremum1:extremum2]  # time (x) data
-        h_newrange = np.add(idk(datax, dataI, 0, len(datax)-1), h_1stextremum + i*90.9)
-        xrange = np.concatenate([xrange, datax])
-        h = np.concatenate([h, h_newrange])
-        print("we get herev2")
-    if i == len(minAndMaxOrdered)-2: #-2 because this then happens after effectively the last extremum
-        #input all data, and allow function adkPostLastExtremum() to do analysis from the last & first-to-last extremum
-        dataI = np.divide(np.array(equallySpacedProfile)[0:len(equallySpacedTimeFromStart)-1], normalizeFactor)  # intensity (y) data
-        datax = np.array(equallySpacedTimeFromStart)[0:len(equallySpacedTimeFromStart)-1]  # time (x) data
-        # Below: calculate heights of[Extremum2:end].
-        h_newrange = np.add(idkPostLastExtremum(datax, dataI, extremum1 - 1, extremum2 - 1), h_1stextremum + (i+1)*90.9)  # do some -1 stuff because f how indexes work when parsing
-        xrange = np.concatenate([xrange, np.array(equallySpacedTimeFromStart)[extremum2:len(equallySpacedTimeFromStart)-1]])
-        h = np.concatenate([h, h_newrange])
-
-        print(f"{h_newrange}")
-
-    fig1, ax1 = plt.subplots()
-    ax1.plot(xrange, h)
-    ax1.set_ylabel("Height (nm)")
-    ax1.set_xlabel("Time (h)")
-    fig1.show()
+        fig1, ax1 = plt.subplots()
+        ax1.plot(xrange, h)
+        ax1.set_ylabel("Height (nm)")
+        ax1.set_xlabel("Time (h)")
+        fig1.show()
+        fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{pixelLocation}.png"), dpi=300)
+    else:
+        print(f"No minimum and maximum were found. Only a single extremum at {equallySpacedTimeFromStart[minAndMaxOrdered]}")
+    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"), dpi=300)
 
     #angleArr = [angleFromExtrumum(datax, dataI, f, 0, len(datax)-1) for f in range(0,(len(datax)-1))]
     #heights = [relateAngleToHeight(f, 180) for f in angleArr]
@@ -623,13 +625,13 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
     #fig1.show()
 
 
-    fig0.savefig(os.path.join(source, f"Swellingimages\\IntensityProfile{pixelLocation}.png"), dpi=300)
-    fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{pixelLocation}.png"), dpi=300)
+
+
 
     # Saves data in time vs height profile plot so a csv file.
     wrappedPath = os.path.join(source, f"Swellingimages\\data{pixelLocation}PureIntensity.csv")
     np.savetxt(wrappedPath, [p for p in zip_longest(equallySpacedTimeFromStart, equallySpacedProfile, xrange, h, fillvalue='')], delimiter=',', fmt='%s')
-
+    return xrange, h
 
 def main():
     """
@@ -649,15 +651,15 @@ def main():
     """
     #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2550
-    pixelLoc2 = 2551  # pixelLoc1 + 1
+    pixelLoc1 = 2700
+    pixelLoc2 = 2701  # pixelLoc1 + 1
     pixelIV = 100  # interval between the two pixellocations to be taken.
-    #source = "E:\\2023_03_07_Data_for_Swellinganalysis\\export\\PROC_20230306180748"
-    #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230327160828_nofilter"
+    timeOutput = [15/60, 30/60, 1, 2, 3] #in hours
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
-    source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
-    dry_thickness = 160
+    #source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
+    source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"  # dodecane
+    dry_thickness = 220
     #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
 
     config = ConfigParser()
@@ -701,7 +703,12 @@ def main():
             meanIntensity.append(total / (range2 - range1))
 
         #makeImagesManualTimeadjust(meanIntensity, elapsedtime, source, pixelLocation, config)
-        makeImagesManualTimeAdjustFromPureIntensity(meanIntensity, elapsedtime, source, pixelLocation, config, dry_thickness)
+        time, height = makeImagesManualTimeAdjustFromPureIntensity(meanIntensity, elapsedtime, source, pixelLocation, config, dry_thickness)
+        print(f"Idx     Time(h)    Height(nm)")
+        for n in timeOutput:
+            fileIndex = np.argmin(abs(time-n))
+            print(f"{fileIndex}     {time[fileIndex]:.2f}       {height[fileIndex]:.2f}")
+
     print(f"Read-in lenght of rows from csv file = {len(rows)}")
 
 if __name__ == "__main__":
