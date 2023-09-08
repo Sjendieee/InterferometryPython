@@ -8,27 +8,27 @@ from line_method import click_event, coordinates_on_line
 """"
 This part is to show dots of pixellocations for all swellingImages, without clickingevents (below; to obtain required sizes in pixels etc.).
 """
-##linmethod: pointa = 1766, 1782; pointb = 1928, 1916
 # Read RGB image
-#source = 'D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'     #hexadecane
-source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"       #dodecane
+source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'     #hexadecane
+#source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"       #dodecane
+#source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"           #dodecane 2d
 
 # TODO make sure this path is correct as well to the square to be inputted
-imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
-#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
+#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
+imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
 imgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-pixellocationLarge = [0, 2050, 2085, 2700, 5436]#2170
+pixellocationLarge = [0, 2250, 2550, 3850, 6707]#2170
 CLICKEVENT = False
 n = 0
 #nAllImages = np.arange(0, len(imgList),1)
-nAllImages = [0, 15, 20, 50, 100]
+nAllImages = [0, 50, 95, 206, 395]
 print(f"Total amount of images in folder: {len(imgList)}. \nTotal amount of images used: {len(nAllImages)}")
 for imgPath in imgList:
     if n in nAllImages:
         img = cv2.imread(imgPath)
         csvList = [f for f in glob.glob(os.path.join(source, f"csv\\*unwrapped.csv"))]
         resizedimg = cv2.resize(img, [2400, 1500], interpolation = cv2.INTER_AREA)
-        squareSize = 10
+        squareSize = 20
         resizedImagBlack = cv2.resize(imgblack, [squareSize, squareSize], interpolation = cv2.INTER_AREA)
 
         def calcLineEquation(x_coords, y_coords):       #For eq   y = ax +b
@@ -46,11 +46,14 @@ for imgPath in imgList:
         #INPUT EDGES OF THE LINE WITH BORDER OF IMAGE IN PLOT AS (P1 = [x,y])
         #Check this in e.g. paint.net with the cursor
         #For hexadecane
-        #P1 = [466, 206]
-        #P2 = [1892, 1382]
+        P1 = [466, 206]
+        P2 = [1892, 1382]
         #For dodecane
-        P1 = [467, 611]
-        P2 = [1932, 302]
+        #P1 = [467, 611]
+        #P2 = [1932, 302]
+        #Dodecane v2
+        #P1 = [467, 472]
+        #P2 = [1933, 444]
 
         a, b = calcLineEquation([P1[0], P2[0]], [P1[1], P2[1]])
         limits = [466, 1937, 112, 1385]     #xmin xmin ymin ymax of image in plot. Should always be same

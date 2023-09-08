@@ -17,6 +17,37 @@ from scipy.odr import odrpack as odr
 from scipy.odr import models
 import scipy.signal
 
+from analysis_contactangle import Highlighter
+
+def selectMinimaAndMaxima(y):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    x = np.arange(0,len(y))
+    print(f"len x={len(x)}, len y = {len(y)} ")
+    ax.scatter(x, y)
+    highlighter = Highlighter(ax, x, y)
+    plt.show()
+    selected_regions = highlighter.mask
+    xrange1, yrange1 = x[selected_regions], y[selected_regions]
+
+    extremaRanges = [xrange1[0]]        #always add first x value into array
+    for i in range(1,len(xrange1)):     #check for all x elements if their step increase is 1
+        if (xrange1[i] - xrange1[i-1]) > 1: #if the step is larger than 1, a new extremum range occurs.
+            extremaRanges.append(xrange1[i-1])    #input last x value to end previous range
+            extremaRanges.append(xrange1[i])  #input newest x+1 value to start new extremum range
+    extremaRanges.append(xrange1[-1])   #always append last x element to close the last extremum range
+
+    outputExtrema = []
+    #next, find maxima and minima for in every extremum range (so between extremaRanges[0-1, 2-3, 4-5] etc..)
+    for i in range(0, len(extremaRanges),2):
+        lowerlimitRange = extremaRanges[i]
+        upperlimitRange = extremaRanges[i+1]
+        if y[(round((upperlimitRange + lowerlimitRange) / 2))] > 0.5:     #likely to be a maximum
+            tempPosition = np.argmax(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of maximum
+        else:
+            tempPosition = np.argmin(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of minimum
+        outputExtrema.append(tempPosition)
+    return outputExtrema
+
 right_clicks = list()
 def click_eventSingle(event, x, y, flags, params):
     '''
@@ -168,7 +199,7 @@ def makeImages(profile, timeFromStart, source, pixelLocation, config):
     ax0.plot(timeFromStart, ([profile])[0], label = f'normalized, unfiltered')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
-    plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
+    plt.title(f'Intensity profile at pixellocation = {pixelLocation}')
 
     #order = 10
     #fit, error = poly_lsq(timeFromStart, ([profile])[0], order)
@@ -489,8 +520,28 @@ def idkPostLastExtremum(xdata, ydata, indexPeak1, indexPeak2):
     # Evaluate if starting value is in upwards or downwards trend:
     if ydata[indexPeak1] > ydata[indexPeak2] :  # extremum2 was a minimum if intensity of extremum1 > extremum2. Then we are going to a maximum: we are in upwards trend. We are in somewhere in phase pi - 2*pi
         x_range = np.linspace(np.pi, 2 * np.pi, 1000)
+        # Check if any of the last intensity data is higher than the last extremum -> then use the max of that data
+        # TODO this method is not ideal, because it is unsure if this is actually a maximum, but it's a better approximation than not doing it at all
+        if any(ydata[indexPeak1] < ydata[indexPeak2:-1]):
+            localmax = max(ydata[indexPeak2:-1])
+            a = abs((localmax - ydata[indexPeak2])) / 2
+            b = (localmax + ydata[indexPeak2]) / 2
+            print(f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                  f"ATTENTION: Somewhere after the last minimum, higher intensity values were found than the last maximum!\n"
+                  f"The reference maximum has therefore been adjusted!\n"
+                  f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
     else:  # Else, extremum2 was a maximum, now downwards in phase 0-pi
         x_range = np.linspace(0, np.pi, 1000)
+        # Check if any of the last intensity data is lower than the last extremum -> then use the min of that data
+        # TODO this method is not ideal, because it is unsure if this is actually a maximum, but it's a better approximation than not doing it at all
+        if any(ydata[indexPeak1] > ydata[indexPeak2:-1]):
+            localmin = min(ydata[indexPeak2:-1])
+            a = abs((localmin - ydata[indexPeak2])) / 2
+            b = (localmin + ydata[indexPeak2]) / 2
+            print(f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                  f"ATTENTION: Somewhere after the last maximum, lower intensity values were found than the last minimum!\n"
+                  f"The reference minimum has therefore been adjusted!\n"
+                  f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
 
     h_range = np.linspace(0, 90.9, 1000)
     I_modelx = a * np.cos(x_range) + b
@@ -501,7 +552,7 @@ def idkPostLastExtremum(xdata, ydata, indexPeak1, indexPeak2):
         minIndexInmodelX = np.where(diffInI == np.min(diffInI))[0][0]
         h.append(h_range[minIndexInmodelX])
     return h
-def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, pixelLocation, config, dry_thickness):
+def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, pixelLocation, config, dry_thickness, approx_startThickness):
     #predict intensity as a function of film thickness with simplified model (from Özlems paper). :
     #h = film thickness ; l = wavelength of light ; n = refractive index film
     modelIntensity = lambda h, l, n: (1 / 2) * (np.cos(4 * np.pi * h / (l / n)) + 1)
@@ -514,7 +565,7 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
     ax0.plot(timeFromStart, np.divide(profile, normalizeFactor), label=f'normalized, unfiltered')
     plt.xlabel('Time (h)')
     plt.ylabel('Mean intensity')
-    plt.title(f'Intensity profile. Pixellocation = {pixelLocation}')
+    plt.title(f'Intensity profile at pixellocation = {pixelLocation}')
 
     # define which values to use for regular timeinterval
     whichValuesToUse1 = [0]
@@ -547,12 +598,15 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
     ######################################################################################################
     minAndMax = np.concatenate([peaks, minima])
     minAndMaxOrdered = np.sort(minAndMax)
-    hdry = dry_thickness
+
+    minAndMaxOrdered = selectMinimaAndMaxima(np.divide(equallySpacedProfile, 256))
+    ax0.plot(np.array(equallySpacedTimeFromStart)[minAndMaxOrdered], np.divide(np.array(equallySpacedProfile)[minAndMaxOrdered], normalizeFactor), "o")
+    hdry = approx_startThickness
     h = []
     xrange = []
-    if len(minAndMaxOrdered) > 2:
+    if len(minAndMaxOrdered) > 1:   #if at least 2 extrema are found
         # TODO Below = temporary: plot part between 2 extrema
-        temprange = np.arange(minAndMaxOrdered[1], minAndMaxOrdered[2], 1)
+        temprange = np.arange(minAndMaxOrdered[0], minAndMaxOrdered[1] + 1, 1)
         ax0.plot(np.array(equallySpacedTimeFromStart)[temprange],
                  np.divide(np.array(equallySpacedProfile)[temprange], normalizeFactor), "-")
 
@@ -608,6 +662,13 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
         ax1.plot(xrange, h)
         ax1.set_ylabel("Height (nm)")
         ax1.set_xlabel("Time (h)")
+        ax1.set_title(f"Height profile at pixellocation = {pixelLocation}")
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('Swelling ratio (h/h$_{0}$)')
+        ax2.plot(xrange, np.divide(h, dry_thickness))
+        ax2.tick_params(axis='y')
+        ax1.set_ylim(bottom=dry_thickness)
+        ax2.set_ylim(bottom=1)
         fig1.show()
         fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{pixelLocation}.png"), dpi=300)
     else:
@@ -651,15 +712,17 @@ def main():
     """
     #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2700
-    pixelLoc2 = 2701  # pixelLoc1 + 1
+    pixelLoc1 = 2330
+    pixelLoc2 = 2331  # pixelLoc1 + 1
     pixelIV = 100  # interval between the two pixellocations to be taken.
-    timeOutput = [15/60, 30/60, 1, 2, 3] #in hours
+    timeOutput = [0, 5/60, 10/60, 15/60, 30/60, 45/60] #in hours
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
     #source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
-    source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"  # dodecane
-    dry_thickness = 220
+    #source = "D:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"  # dodecane
+    source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
+    dry_thickness = 190     #known dry thickness of the brush (for calculation of swelling ratio)
+    approx_startThickness = 210 #approximate thickness of the brush at the desired location. Could be different from dry thickness if already partially swollen
     #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
 
     config = ConfigParser()
@@ -703,7 +766,7 @@ def main():
             meanIntensity.append(total / (range2 - range1))
 
         #makeImagesManualTimeadjust(meanIntensity, elapsedtime, source, pixelLocation, config)
-        time, height = makeImagesManualTimeAdjustFromPureIntensity(meanIntensity, elapsedtime, source, pixelLocation, config, dry_thickness)
+        time, height = makeImagesManualTimeAdjustFromPureIntensity(meanIntensity, elapsedtime, source, pixelLocation, config, dry_thickness, approx_startThickness)
         print(f"Idx     Time(h)    Height(nm)")
         for n in timeOutput:
             fileIndex = np.argmin(abs(time-n))
