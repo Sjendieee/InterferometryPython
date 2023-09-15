@@ -38,76 +38,6 @@ def click_eventSingle(event, x, y, flags, params):
         cv2.destroyAllWindows()
 
 
-def positiontest(source):
-    pointa = 5272, 1701
-    pointb = 430, 1843
-    x_coords, y_coords = zip(*[pointa, pointb])  # unzip coordinates to x and y
-    x_coords = np.array(x_coords) / 3.622
-    y_coords = np.array(y_coords) / 3.617
-    a = (y_coords[1] - y_coords[0]) / (x_coords[1] - x_coords[0])
-    b = y_coords[0] - a * x_coords[0]
-    offsetx = 465
-    offsety = 112
-    x = 490
-    y = a*(x+offsetx) + b + offsety
-    print(f"y is {y}")
-
-    rawImgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-    im_raw = cv2.imread(rawImgList[0])
-    im_temp = image_resize(im_raw, height=1200)
-    resize_factor = 1200 / im_raw.shape[0]
-    cv2.imshow('image', im_temp)
-    plt.plot(x, y, '.', 'ms', 20)
-    plt.show()
-
-    print(f"finished")
-
-#Input: a raw slice image, the chosen pixellocation
-#Output: a figure with a dot on the chosen pixellocation
-def showPixellocationv2(pointa, pointb, source):
-    imgblack = Image.open("C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\black square.png")
-    imgblack.resize((40,40))
-    imgblack.show()
-    rawImg = Image.open(os.path.join(source, f"rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230120_162715883_0010_analyzed_.png"))
-    rawImg.paste(imgblack,(100,500))
-    rawImg.show()
-    print(f"this is fine")
-
-#Get images to see where you chose your pixel
-def showPixellocation(pointa, pointb, source):
-    rawImgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-    im_raw = cv2.imread(rawImgList[0])
-    im_temp = image_resize(im_raw, height=1200)
-    resize_factor = 1200 / im_raw.shape[0]
-    #cv2.imshow('image', im_temp)
-    #cv2.setWindowTitle("image", "Point selection window. Select 1 point.")
-    #cv2.setMouseCallback('image', click_eventSingle)
-    #cv2.waitKey(0)
-    #global right_clicks
-    P1 = np.array(right_clicks[0]) / resize_factor
-    print(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}]")
-    #Obtain scaling factor to correspond chosen pixellocation to new position in raw image
-    #Scaling factor = factor by which raw image was made smaller in new image
-    P1arr = np.array(pointa)
-    P2arr = np.array(pointb)
-    BLarr = np.array([im_raw.shape[1], im_raw.shape[0]])
-
-    adjP1 = np.subtract(P1arr, P2arr)
-    scaling = np.divide(adjP1, BLarr)
-    print(f"Scaling fators are: {scaling}")
-    #Read in from config file (selected points on which the line was drawn)
-    pointa = 5272, 1701
-    pointb = 430, 1843
-    x_coords, y_coords = zip(*[pointa, pointb])  # unzip coordinates to x and y
-    a = (y_coords[1] - y_coords[0]) / (x_coords[1] - x_coords[0])
-    b = y_coords[0] - a * x_coords[0]
-    for x in [-2400, -1500]:
-        y = a * x + b
-        print(f"y is: {y}")
-    bn = b
-    coordinates = coordinates_on_line(a, bn, [0, im_raw.shape[1], 0, im_raw.shape[0]])
-    print(f"The coordinates are: {coordinates}")
-
 #normalize data of minimum and maximum between 0 and 1 resp.
 def normalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
@@ -209,46 +139,70 @@ def selectMinimaAndMaxima(y, idx):
     plt.show()
     selected_regions = highlighter.mask
     xrange1, yrange1 = x[selected_regions], y[selected_regions]
-
-    extremaRanges = [xrange1[0]]        #always add first x value into array
-    for i in range(1,len(xrange1)):     #check for all x elements if their step increase is 1
-        if (xrange1[i] - xrange1[i-1]) > 1: #if the step is larger than 1, a new extremum range occurs.
-            extremaRanges.append(xrange1[i-1])    #input last x value to end previous range
-            extremaRanges.append(xrange1[i])  #input newest x+1 value to start new extremum range
-    extremaRanges.append(xrange1[-1])   #always append last x element to close the last extremum range
-    if idx == 206:
-        print("pausing")
     outputExtrema = []
-    #next, find maxima and minima for in every extremum range (so between extremaRanges[0-1, 2-3, 4-5] etc..)
-    for i in range(0, len(extremaRanges),2):
-        lowerlimitRange = extremaRanges[i]
-        upperlimitRange = extremaRanges[i+1]
-        if y[(round((upperlimitRange + lowerlimitRange) / 2))] > 0.5:     #likely to be a maximum
-            tempPosition = np.argmax(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of maximum
-        else:
-            tempPosition = np.argmin(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of minimum
-        outputExtrema.append(tempPosition)
+    if sum(yrange1) > 0:    #only if extrema are selected (otherwise it'll throw an error)
+        extremaRanges = [xrange1[0]]        #always add first x value into array
+        for i in range(1,len(xrange1)):     #check for all x elements if their step increase is 1
+            if (xrange1[i] - xrange1[i-1]) > 1: #if the step is larger than 1, a new extremum range occurs.
+                extremaRanges.append(xrange1[i-1])    #input last x value to end previous range
+                extremaRanges.append(xrange1[i])  #input newest x+1 value to start new extremum range
+        extremaRanges.append(xrange1[-1])   #always append last x element to close the last extremum range
+        #next, find maxima and minima for in every extremum range (so between extremaRanges[0-1, 2-3, 4-5] etc..)
+        for i in range(0, len(extremaRanges),2):
+            lowerlimitRange = extremaRanges[i]
+            upperlimitRange = extremaRanges[i+1]
+            if y[(round((upperlimitRange + lowerlimitRange) / 2))] > ((y[upperlimitRange] + y[lowerlimitRange])/2):     #likely to be a maximum if the middle value in range > the mean of first&last value
+                tempPosition = np.argmax(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of maximum
+            else:
+                tempPosition = np.argmin(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of minimum
+            outputExtrema.append(tempPosition)
     return outputExtrema
 def flipData(data):
     datamax = max(data)
     return [(-x + datamax) for x in data]
 
+def saveDataToFile(data, path, name):           #save a single list of itmens
+    if not os.path.exists(os.path.join(path)):
+        print(f"ERROR: THIS PATH DOES NOT EXIST YET:\n"
+        f"{path}")
+    with open(os.path.join(path, f"{name}"), 'w') as fp:
+        for item in data:
+            # write each item on a new line
+            fp.write("%s\n" % item)
+
+def readDataFromfile(path):         #read in a single list of items
+    data = []
+    with open(path, 'r') as fp:
+        for line in fp:
+            # remove linebreak from a current name
+            # linebreak is the last character of each line
+            x = int(line[:-1])
+            # add current item to the list
+            data.append(x)
+    return data
+
 def main():
     """"Changeables: """
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
-    source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
+    #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
+    source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
     #source = "D:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"   #dodecane swelling profiles, not filtering no contrast enhance
     #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
-    range1 = 2250#2320       #start x left for plotting
-    range2 = 3850  # len(swellingProfile)
+    range1 = 2000#2320       #start x left for plotting
+    range2 = 5300  # len(swellingProfile)
 
-    # hexadecane
-    knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
-    dryBrushThickness = 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
-    idxArrToUse = [0, 50, 95, 206, 395]         #id of csv files to use
-    knownHeightArr = [128, 216, 258, 300]       #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
-    knownHeightArr = np.add(knownHeightArr, dryBrushThickness)      # true brush thickness = dry thickness + swollen thickness
+    # hexadecane v1
+    # knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
+    # dryBrushThickness = 167.4       #160                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    # idxArrToUse = [0, 50, 95, 206, 395]         #id of csv files to use
+    # knownHeightArr = [260.44, 351.98, 408.30, 443.52]   #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
+    # zeroImage = 1
+    # hexadecane Condens only
+    knownPixelPosition = 2200 - range1 - 1  # pixellocation at which the bursh height is known at various times
+    dryBrushThickness = 172.8  # 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    idxArrToUse = [0, 50, 95, 206, 395]  # id of csv files to use
+    knownHeightArr = [ 328.87, 381.28, 445.43, 468.27]  #172.8, Known brush swelling at pixellocation in nm for certain timesteps   #in nm
     zeroImage = 1
 
     #dodecane
@@ -271,7 +225,8 @@ def main():
     PLOTSWELLINGRATIO = True
     SAVEFIG = True
 
-    MANUALPEAKSELECTION = True     #allows for manual selection of extrema in interactive plot.
+    MANUALPEAKSELECTION = True     #use peaks selected by manual picking (thus not the automatic peakfinder).
+    USESAVEDPEAKS = True        #True: use previously manually selected peaks.  False: opens interative plot, in which peak regions can be selected
     REMOVEBACKGROUNDNOISE = True        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
     normalizeFactor = 1               #normalize intensity by camera intensity range: 256, or use 1 if not normalizing
     FLIP = True                 #True=flip data after h analysis to have the height increase at the left
@@ -392,11 +347,19 @@ def main():
                         print(f"Skipped {minAndMaxOrderedUnsorted[i]}")
 
             #TODO select regions in plot to find minima and maxima
-            if MANUALPEAKSELECTION:
-                minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
+            if MANUALPEAKSELECTION:     #use manually selected peaks, either from a previous time or select new ones now
+                if USESAVEDPEAKS:       #use peaks from a previous time (if they exist)
+                    if os.path.exists(os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}.txt")):
+                        minAndMaxOrdered = readDataFromfile(os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}.txt"))
+                    else:
+                        print(f"No saved peaks yet. Select them now:")
+                        minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
+                else:                   #select new peaks now
+                    minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
                 print(f"Handpicked extrema at: \n"
                       f"Indices: {[minAndMaxOrdered]}\n"
                       f"Distance: {np.array(xshifted)[minAndMaxOrdered]}")
+                saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}.txt" )
 
             ax0.plot(np.array(xshifted)[minAndMaxOrdered], np.array(intensityProfileZoomConverted)[minAndMaxOrdered], "o")
 
@@ -493,10 +456,11 @@ def main():
 
 
                 ax1.set_xlabel("Distance from contact line (mm)")
+                h_ratio = np.divide(h, hdry)
                 if PLOTSWELLINGRATIO:
-                    h_ratio = np.divide(h, hdry)
                     ax1.set_ylabel("Swelling ratio (h/h$_{0}$)")
                     ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(elapsedtime)}')
+                    ax1.set_ylim(bottom=0.75)
                     ax1.set_title(f"Height profiles in pixelrange {range1}:{range2}")
                     ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'o')
                 else:
@@ -504,7 +468,11 @@ def main():
                     ax1.plot(xrange, h)
                     ax1.set_title(f"Height profile at time: {timeFormat(elapsedtime)} in pixelrange {range1}:{range2}")
                     ax1.plot(xrange[knownPixelPosition], h[knownPixelPosition], 'o')
+                print(f"Mean thickness (50 points) far from droplet: {np.mean(h[-50:-1])}")
 
+                # Saves data in time vs height profile plot so a csv file.
+                wrappedPath = os.path.join(source, f"Swellingimages\\data{timeFormat(elapsedtime)}PureIntensity.csv")
+                np.savetxt(wrappedPath, [p for p in zip_longest(xshifted, intensityProfileZoomConverted, xrange, h, h_ratio, fillvalue='')], delimiter=',', fmt='%s')
             else:
                 print(f"No minimum and maximum were found. Only a single extremum")
 
@@ -517,17 +485,11 @@ def main():
                 fig0.savefig(os.path.join(source, f"Swellingimages\\{idx}Intensity.png"),dpi=300)
                 ax1.autoscale(enable=True, axis='x', tight=True)
                 fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{timeFormat(elapsedtime)}.png"), dpi=300)
-
-                # Saves data in time vs height profile plot so a csv file.
-                wrappedPath = os.path.join(source, f"Swellingimages\\data{timeFormat(elapsedtime)}PureIntensity.csv")
-                np.savetxt(wrappedPath, [p for p in zip_longest(xshifted, intensityProfileZoomConverted, xrange, h, h_ratio, fillvalue='')], delimiter=',', fmt='%s')
-
             if SEPERATEPLOTTING:
                 plt.close(fig1)
                 plt.close(fig0)
                 fig0, ax0 = plt.subplots()
                 fig1, ax1 = plt.subplots()
-
             idxx = idxx + 1
 
 

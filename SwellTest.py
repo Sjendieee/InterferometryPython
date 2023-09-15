@@ -35,13 +35,12 @@ def selectMinimaAndMaxima(y):
             extremaRanges.append(xrange1[i-1])    #input last x value to end previous range
             extremaRanges.append(xrange1[i])  #input newest x+1 value to start new extremum range
     extremaRanges.append(xrange1[-1])   #always append last x element to close the last extremum range
-
     outputExtrema = []
     #next, find maxima and minima for in every extremum range (so between extremaRanges[0-1, 2-3, 4-5] etc..)
     for i in range(0, len(extremaRanges),2):
         lowerlimitRange = extremaRanges[i]
         upperlimitRange = extremaRanges[i+1]
-        if y[(round((upperlimitRange + lowerlimitRange) / 2))] > 0.5:     #likely to be a maximum
+        if y[(round((upperlimitRange + lowerlimitRange) / 2))] > ((y[upperlimitRange] + y[lowerlimitRange]) / 2):  # likely to be a maximum if the middle value in range > the mean of first&last value
             tempPosition = np.argmax(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of maximum
         else:
             tempPosition = np.argmin(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of minimum
@@ -552,7 +551,7 @@ def idkPostLastExtremum(xdata, ydata, indexPeak1, indexPeak2):
         minIndexInmodelX = np.where(diffInI == np.min(diffInI))[0][0]
         h.append(h_range[minIndexInmodelX])
     return h
-def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, pixelLocation, config, dry_thickness, approx_startThickness):
+def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, pixelLocation, config, dry_thickness, approx_startThickness, MANUALPEAKSELECTION):
     #predict intensity as a function of film thickness with simplified model (from Özlems paper). :
     #h = film thickness ; l = wavelength of light ; n = refractive index film
     modelIntensity = lambda h, l, n: (1 / 2) * (np.cos(4 * np.pi * h / (l / n)) + 1)
@@ -599,7 +598,8 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
     minAndMax = np.concatenate([peaks, minima])
     minAndMaxOrdered = np.sort(minAndMax)
 
-    minAndMaxOrdered = selectMinimaAndMaxima(np.divide(equallySpacedProfile, 256))
+    if MANUALPEAKSELECTION:
+        minAndMaxOrdered = selectMinimaAndMaxima(np.divide(equallySpacedProfile, 256))
     ax0.plot(np.array(equallySpacedTimeFromStart)[minAndMaxOrdered], np.divide(np.array(equallySpacedProfile)[minAndMaxOrdered], normalizeFactor), "o")
     hdry = approx_startThickness
     h = []
@@ -712,18 +712,22 @@ def main():
     """
     #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2330
-    pixelLoc2 = 2331  # pixelLoc1 + 1
+    pixelLoc1 = 2200
+    pixelLoc2 = 2201  # pixelLoc1 + 1
     pixelIV = 100  # interval between the two pixellocations to be taken.
-    timeOutput = [0, 5/60, 10/60, 15/60, 30/60, 45/60] #in hours
+    #timeOutput = [0, 5/60, 10/60, 15/60, 30/60, 45/60] #in hours
+    timeOutput = [0, 1, 4, 12, 24]
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
-    #source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
+    #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
+    source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
     #source = "D:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"  # dodecane
-    source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
-    dry_thickness = 190     #known dry thickness of the brush (for calculation of swelling ratio)
-    approx_startThickness = 210 #approximate thickness of the brush at the desired location. Could be different from dry thickness if already partially swollen
+    #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
+    dry_thickness = 160     #known dry thickness of the brush (for calculation of swelling ratio)
+    approx_startThickness = 160 #approximate thickness of the brush at the desired location. Could be different from dry thickness if already partially swollen
     #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
+
+    MANUALPEAKSELECTION = True
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
@@ -766,7 +770,7 @@ def main():
             meanIntensity.append(total / (range2 - range1))
 
         #makeImagesManualTimeadjust(meanIntensity, elapsedtime, source, pixelLocation, config)
-        time, height = makeImagesManualTimeAdjustFromPureIntensity(meanIntensity, elapsedtime, source, pixelLocation, config, dry_thickness, approx_startThickness)
+        time, height = makeImagesManualTimeAdjustFromPureIntensity(meanIntensity, elapsedtime, source, pixelLocation, config, dry_thickness, approx_startThickness, MANUALPEAKSELECTION)
         print(f"Idx     Time(h)    Height(nm)")
         for n in timeOutput:
             fileIndex = np.argmin(abs(time-n))
