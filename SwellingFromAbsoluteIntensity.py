@@ -12,6 +12,7 @@ import os
 import matplotlib.pyplot as plt
 import glob
 import cv2
+import pandas as pd
 import scipy.signal
 
 from general_functions import image_resize
@@ -186,48 +187,48 @@ def main():
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
     #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
-    source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
-    #source = "D:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"   #dodecane swelling profiles, not filtering no contrast enhance
+    #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
+    source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"   #dodecane swelling profiles, not filtering no contrast enhance
     #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
-    range1 = 2000#2320       #start x left for plotting
-    range2 = 5300  # len(swellingProfile)
+    range1 = 2030#2320       #start x left for plotting
+    range2 = 2700  # len(swellingProfile)
 
-    # hexadecane v1
+    # ###hexadecane v1
     # knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
     # dryBrushThickness = 167.4       #160                 # dry brush thickness (measured w/ e.g. ellipsometry)
     # idxArrToUse = [0, 50, 95, 206, 395]         #id of csv files to use
     # knownHeightArr = [260.44, 351.98, 408.30, 443.52]   #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
     # zeroImage = 1
-    # hexadecane Condens only
-    knownPixelPosition = 2200 - range1 - 1  # pixellocation at which the bursh height is known at various times
-    dryBrushThickness = 172.8  # 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
-    idxArrToUse = [0, 50, 95, 206, 395]  # id of csv files to use
-    knownHeightArr = [ 328.87, 381.28, 445.43, 468.27]  #172.8, Known brush swelling at pixellocation in nm for certain timesteps   #in nm
-    zeroImage = 1
+    # ###hexadecane Condens only
+    # knownPixelPosition = 2200 - range1 - 1  # pixellocation at which the bursh height is known at various times
+    # dryBrushThickness = 172.8  # 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    # idxArrToUse = [0, 50, 95, 206, 395]  # id of csv files to use
+    # knownHeightArr = [ 328.87, 381.28, 445.43, 468.27]  #172.8, Known brush swelling at pixellocation in nm for certain timesteps   #in nm
+    # zeroImage = 1
 
-    #dodecane
-    #knownPixelPosition = 2085 - range1 - 1  # pixellocation at which the bursh height is known at various times
-    #dryBrushThickness = 160  # dry brush thickness (measured w/ e.g. ellipsometry)
-    #idxArrToUse = [0, 14, 19, 22, 30, 45, 75, 105]  # id of csv files to use
-    #knownHeightArr = [252.71, 351.34, 378.37, 395.66, 429.78, 453.8, 493.0, 507.2]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
-    #zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
+    ###dodecane
+    knownPixelPosition = 2085 - range1 - 1  # pixellocation at which the bursh height is known at various times
+    dryBrushThickness = 160  # dry brush thickness (measured w/ e.g. ellipsometry)
+    idxArrToUse = [0, 14, 19, 22, 30, 45, 75, 105]  # id of csv files to use
+    knownHeightArr = [252.71, 351.34, 378.37, 395.66, 429.78, 453.8, 493.0, 507.2]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
+    zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
 
-    #dodecane v2
-    #knownPixelPosition = 2330 - range1 - 1  # pixellocation at which the bursh height is known at various times
-    #dryBrushThickness = 190  # dry brush thickness (measured w/ e.g. ellipsometry)
-    #idxArrToUse = [0, 10, 20, 30, 60, 90]  # id of csv files to use
-    #knownHeightArr = [203, 325, 404, 492, 535, 538]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
-    #zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
+    # ###dodecane v2
+    # knownPixelPosition = 2330 - range1 - 1  # pixellocation at which the bursh height is known at various times
+    # dryBrushThickness = 190  # dry brush thickness (measured w/ e.g. ellipsometry)
+    # idxArrToUse = [0, 10, 20, 30, 60, 90]  # id of csv files to use
+    # knownHeightArr = [203, 325, 404, 492, 535, 538]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
+    # zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
 
     outputFormatXY = 'mm'       #'pix' or 'mm'
     #XLIM - True; Xlim = []
     YLIM = True; Ylim = [-50, 650]  #ylim for swelling profiles (only used when plotting absolute swelling height)
-    PLOTSWELLINGRATIO = True
+    PLOTSWELLINGRATIO = True        #True for swelling ratio, False for height profiles
     SAVEFIG = True
 
     MANUALPEAKSELECTION = True     #use peaks selected by manual picking (thus not the automatic peakfinder).
     USESAVEDPEAKS = True        #True: use previously manually selected peaks.  False: opens interative plot, in which peak regions can be selected
-    REMOVEBACKGROUNDNOISE = True        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
+    REMOVEBACKGROUNDNOISE = False        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
     normalizeFactor = 1               #normalize intensity by camera intensity range: 256, or use 1 if not normalizing
     FLIP = True                 #True=flip data after h analysis to have the height increase at the left
     MOVMEAN = 5              #average the intensity values to obtain a smoother profile (at a loss of peak intensity)
@@ -460,7 +461,6 @@ def main():
                 if PLOTSWELLINGRATIO:
                     ax1.set_ylabel("Swelling ratio (h/h$_{0}$)")
                     ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(elapsedtime)}')
-                    ax1.set_ylim(bottom=0.75)
                     ax1.set_title(f"Height profiles in pixelrange {range1}:{range2}")
                     ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'o')
                 else:
@@ -472,18 +472,22 @@ def main():
 
                 # Saves data in time vs height profile plot so a csv file.
                 wrappedPath = os.path.join(source, f"Swellingimages\\data{timeFormat(elapsedtime)}PureIntensity.csv")
-                np.savetxt(wrappedPath, [p for p in zip_longest(xshifted, intensityProfileZoomConverted, xrange, h, h_ratio, fillvalue='')], delimiter=',', fmt='%s')
+                d = dict({'xshifted (mm)' : xshifted, 'Insensity converted (-)' :intensityProfileZoomConverted, 'xrange (mm)' : xrange, 'height (nm)' : h, 'Swelling ratio (-)' : h_ratio})
+                df = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in d.items() ]))      #pad shorter colums with NaN's
+                df.to_csv(wrappedPath, index=False)
+                #np.savetxt(wrappedPath, [p for p in zip_longest('xshifted (mm)', 'Insensity converted (-)', 'xrange (mm)', 'height (nm)', 'Swelling ratio (-)', fillvalue='')], delimiter=',', fmt='%s')
+                #np.savetxt(wrappedPath, [p for p in zip_longest(xshifted, intensityProfileZoomConverted, xrange, h, h_ratio, fillvalue='')], delimiter=',', fmt='%s')
             else:
                 print(f"No minimum and maximum were found. Only a single extremum")
 
             ax0.legend(loc='upper right')
             ax1.legend(loc='upper right')
             if SAVEFIG:
-                # if REMOVEBACKGROUNDNOISE:
-                #     ax0.set_ylim([-50, 50])
                 ax0.autoscale(enable=True, axis='x', tight=True)
                 fig0.savefig(os.path.join(source, f"Swellingimages\\{idx}Intensity.png"),dpi=300)
                 ax1.autoscale(enable=True, axis='x', tight=True)
+                ax1.autoscale(enable=True, axis='y', tight=True)
+                ax1.set_ylim(bottom=0.9)
                 fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{timeFormat(elapsedtime)}.png"), dpi=300)
             if SEPERATEPLOTTING:
                 plt.close(fig1)
