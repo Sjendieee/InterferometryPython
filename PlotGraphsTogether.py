@@ -6,26 +6,31 @@ import os
 import csv
 import re
 
-def extractTimeFromName(name):
-    nr = re.findall(r'(\d+)' , name)
-    time = re.findall(r'(s|min|hrs)', name)[0]
+def extractTimeFromName(name):          #extract the time (e.g. 5min, or 10 hrs) from the filename
+    nr = re.findall(r'(\d+)' , name)        #look for the number in the name (5, 10, 60, etc..)
+    time = re.findall(r'(s|min|hrs)', name)[0]  #check for the time-unit: s, min, or hrs
     return nr[0] + time
 
 
 def main():
     #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
-    #source2 ='E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'
+    source2 ='D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'
     source = 'F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238'
     #source2 = 'E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930'
 
-    colorscheme = 'plasma'     #colorscheme for matplotlib.  Can be any of the schemes, https://matplotlib.org/stable/users/explain/colors/colormaps.html#
+    xoffset = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.1]
+    firstData = "DD"; secondData = "HD"
+    colorscheme1 = 'plasma'; colorscheme2 = 'plasma'     #colorscheme for matplotlib.  Can be any of the schemes, https://matplotlib.org/stable/users/explain/colors/colormaps.html#
     csvList = [f for f in glob.glob(os.path.join(source, f"Swellingimages\\data*minPureIntensity.csv"))]
     [csvList.append(f) for f in glob.glob(os.path.join(source, f"Swellingimages\\data*hrsPureIntensity.csv"))]
-    #[csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*minPureIntensity.csv"))]
-    #[csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*hrsPureIntensity.csv"))]
+    nrofFilesList1 = len(csvList)
+    [csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*minPureIntensity.csv"))]
+    [csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*hrsPureIntensity.csv"))]
     nrofFiles = len(csvList)
-    gradient = np.linspace(0, 1, nrofFiles)
-    cmap = plt.get_cmap(colorscheme)
+    gradient1 = np.linspace(0, 1, nrofFilesList1)
+    gradient2 = np.linspace(0, 1, nrofFiles-nrofFilesList1)
+    cmap1 = plt.get_cmap(colorscheme1)
+    cmap2 = plt.get_cmap(colorscheme2)
 
     fig1, ax1 = plt.subplots()
     rowsToImport = np.subtract([3 ,5], 1)
@@ -37,20 +42,23 @@ def main():
         ydata = []
         for row in csvreader:
             try:
-                xdata.append(float(row[rowsToImport[0]]))
+                xdata.append(float(row[rowsToImport[0]]) - xoffset[i])
                 ydata.append(float(row[rowsToImport[1]]))
             except:
                 print("!Some value could not be casted to a float. Whether that is an issue or not is up to the user.!")
-
         file.close()
-        linecolor = cmap(gradient[i])
-        ax1.plot(xdata, ydata, label=f'{extractTimeFromName(filename)}', color=linecolor)
+        if i < nrofFilesList1:
+            linecolor = cmap1(gradient1[i])
+            ax1.plot(xdata, ydata, label=f'{firstData}: {extractTimeFromName(filename)}', color=linecolor)
+        else:
+            linecolor = cmap2(gradient2[i - nrofFilesList1])
+            ax1.plot(xdata, ydata, label=f'{secondData}: {extractTimeFromName(filename)}', color=linecolor, linestyle='--')
 
     ax1.set_xlabel('Distance from CL (mm)')
     ax1.set_ylabel('Swelling ratio (h/h$_{0}$)')
     ax1.legend(loc='upper right')
-    #fig1.show()
-    fig1.savefig(os.path.join(source, "SwellingImages\\CombinedFigures.png"), dpi=300)
+    ax1.axvline(0, color='black')
+    fig1.savefig(os.path.join(source, "SwellingImages\\CombinedFigures.png"), dpi=600)
 
 if __name__ == "__main__":
     main()
