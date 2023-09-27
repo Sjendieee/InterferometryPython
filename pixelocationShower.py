@@ -10,15 +10,16 @@ This part is to show dots of pixellocations for all swellingImages, without clic
 """
 # Read RGB image
 #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'     #hexadecane
-source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'     #hexadecane, condens only
+#source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'     #hexadecane, condens only
 #source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"       #dodecane
 #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"           #dodecane 2d
+source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
 
 # TODO make sure this path is correct as well to the square to be inputted
-#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
-imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
+imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
+#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
 imgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-pixellocationLarge = [0, 2000, 2200, 5328]#2170
+pixellocationLarge = [0, 1100, 3450]#2170
 CLICKEVENT = False
 n = 0
 #nAllImages = np.arange(0, len(imgList),1)
@@ -50,14 +51,17 @@ for imgPath in imgList:
         #P1 = [466, 206]
         #P2 = [1892, 1382]
         #For hexadecane, condens only
-        P1 = [466, 414]
-        P2 = [1933, 418]
+        #P1 = [466, 414]
+        #P2 = [1933, 418]
         #For dodecane
         #P1 = [467, 611]
         #P2 = [1932, 302]
         #Dodecane v2
         #P1 = [467, 472]
         #P2 = [1933, 444]
+        #hexadecane 09_22 split, imbed
+        P1 = [1097, 114]
+        P2 = [467, 1040]
 
         a, b = calcLineEquation([P1[0], P2[0]], [P1[1], P2[1]])
         limits = [466, 1937, 112, 1385]     #xmin xmin ymin ymax of image in plot. Should always be same
