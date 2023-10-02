@@ -185,22 +185,22 @@ def readDataFromfile(path):         #read in a single list of items
 def main():
     """"Changeables: """
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
-    #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
-    #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
+    source = "D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
     #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
     #source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"   #dodecane swelling profiles, not filtering no contrast enhance
     #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
-    source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617"  # tetradecane split, imbed
+    #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617"  # tetradecane split, imbed
 
-    range1 = 1800#2320       #start x left for plotting
-    range2 = 3000  # len(swellingProfile)
+    range1 = 2250#2320       #start x left for plotting
+    range2 = 3850  # len(swellingProfile)
 
-    # ###hexadecane v1
-    # knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
-    # dryBrushThickness = 167.4       #160                 # dry brush thickness (measured w/ e.g. ellipsometry)
-    # idxArrToUse = [0, 50, 95, 206, 395]         #id of csv files to use
-    # knownHeightArr = [260.44, 351.98, 408.30, 443.52]   #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
-    # zeroImage = 1
+    ###hexadecane v1
+    knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
+    dryBrushThickness = 167.4       #160                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    idxArrToUse = [0, 48, 93, 213, 393]         #id of csv files to use [0, 50, 95, 206, 395]?
+    knownHeightArr = [260.44, 350.53, 408.30, 443.52]   #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
+    #knownHeightArr = [180, 196, 231, 256]
+    zeroImage = 1
     # ###hexadecane Condens only
     # knownPixelPosition = 2200 - range1 - 1  # pixellocation at which the bursh height is known at various times
     # dryBrushThickness = 172.8  # 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
@@ -223,12 +223,12 @@ def main():
     # zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
 
     ### Tetradecane split, imbed
-    knownPixelPosition = 2050 - range1 - 1  # pixellocation at which the bursh height is known at various times
-    dryBrushThickness = 190  # dry brush thickness (measured w/ e.g. ellipsometry)
-    idxArrToUse = [0, 47, 62, 122, 212, 332]  # id of csv files to use
-    knownHeightArr = [181.1, 343.06, 388.29, 470.54, 507.94, 522.23]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
-    #knownHeightArr = [181, 584, 610, 611, 631]
-    zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
+    # knownPixelPosition = 2050 - range1 - 1  # pixellocation at which the bursh height is known at various times
+    # dryBrushThickness = 190  # dry brush thickness (measured w/ e.g. ellipsometry)
+    # idxArrToUse = [0, 47, 62, 122, 212, 332]  # id of csv files to use
+    # knownHeightArr = [181.1, 343.06, 388.29, 470.54, 507.94, 522.23]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
+    # #knownHeightArr = [181, 584, 610, 611, 631]
+    # zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
 
     outputFormatXY = 'mm'       #'pix' or 'mm'
     #XLIM - True; Xlim = []
@@ -236,10 +236,10 @@ def main():
     PLOTSWELLINGRATIO = True        #True for swelling ratio, False for height profiles
     SAVEFIG = True
 
-    EVALUATERIGHTTOLEFT = True         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
+    EVALUATERIGHTTOLEFT = False         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
     MANUALPEAKSELECTION = True     #use peaks selected by manual picking (thus not the automatic peakfinder).
     USESAVEDPEAKS = True        #True: use previously manually selected peaks.  False: opens interative plot, in which peak regions can be selected
-    REMOVEBACKGROUNDNOISE = False        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
+    REMOVEBACKGROUNDNOISE = True        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
     normalizeFactor = 1               #normalize intensity by camera intensity range: 256, or use 1 if not normalizing
     FLIP = True                 #True=flip data after h analysis to have the height increase at the left
     MOVMEAN = 5              #average the intensity values to obtain a smoother profile (at a loss of peak intensity)
