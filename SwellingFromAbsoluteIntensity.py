@@ -236,6 +236,7 @@ def main():
     PLOTSWELLINGRATIO = True        #True for swelling ratio, False for height profiles
     SAVEFIG = True
 
+    EVALUATERIGHTTOLEFT = True         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
     MANUALPEAKSELECTION = True     #use peaks selected by manual picking (thus not the automatic peakfinder).
     USESAVEDPEAKS = True        #True: use previously manually selected peaks.  False: opens interative plot, in which peak regions can be selected
     REMOVEBACKGROUNDNOISE = False        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
@@ -271,6 +272,15 @@ def main():
             elapsedtime = rows[0]
             intensityProfile = rows[1:]
             intensityProfile = mov_mean(intensityProfile, MOVMEAN)  #apply a moving average to the intensity array
+            if EVALUATERIGHTTOLEFT:
+                intensityProfile.reverse()
+                if idx == idxArrToUse[0]:
+                    knownPixelPosition = knownPixelPosition + range1
+                    lengthOfData = len(intensityProfile)
+                    range2temp = lengthOfData - range1
+                    range1 = lengthOfData - range2
+                    range2 = range2temp
+                    knownPixelPosition = lengthOfData - knownPixelPosition - range1
             intensityProfileZoom = intensityProfile[range1:range2]      #only look at a certain range in the intensity profile
             if REMOVEBACKGROUNDNOISE:           #divide intensity profile by intensity profile at t=0 to 'remove background noise'
                 if idx == 0:
@@ -279,7 +289,6 @@ def main():
                 else:
                     intensityProfileZoom = np.divide(intensityProfileZoom, backgroundIntensityZoom)
             intensityProfileZoomConverted = (intensityProfileZoom)
-
             plt.ylabel(f"Intensity (-)")
             if outputFormatXY == 'pix':
                 x = np.linspace(range1, range2, range2 - range1)

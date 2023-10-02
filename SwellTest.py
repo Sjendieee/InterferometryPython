@@ -715,6 +715,7 @@ def main():
     pixelLoc1 = 2850
     pixelLoc2 = 3051  # pixelLoc1 + 1
     pixelIV = 200  # interval between the two pixellocations to be taken.
+
     #timeOutput = [0, 5/60, 10/60, 15/60, 30/60, 45/60] #in hours
     timeOutput = [0, 0.5, 1, 3, 6, 10]
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
@@ -728,6 +729,8 @@ def main():
     #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919150913_conds"  # hexadecane v2_conds only
     #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617_imbed"  # tetradecane split, imbed
     source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230927143637_condens"  # tetradecane split condens
+    source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"  # hexadecane, imbed
+
 
     dry_thickness = 190     #known dry thickness of the brush (for calculation of swelling ratio)
     approx_startThickness = 190 #approximate thickness of the brush at the desired location. Could be different from dry thickness if already partially swollen

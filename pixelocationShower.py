@@ -16,11 +16,13 @@ This part is to show dots of pixellocations for all swellingImages, without clic
 #source = "E:\\2023_04_03_PLMA_TetraDecane_Basler2x_Xp1_24_s10_single______DECENT\\A_Analysis\\PROC_20230915102215"  # tetradecane swelling
 #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919122236_imbed_conds"    #hexadecane v2_EvapConds
 #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919150913_conds"          #hexadecane v2_conds only
+source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
+
 
 source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230927143637_condens"        #tetradecane split, imbed & condens
 # TODO make sure this path is correct as well to the square to be inputted
-#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
-imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
+imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
+#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
 imgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
 pixellocationLarge = [0, 2050, 5328]
 CLICKEVENT = False
@@ -77,6 +79,10 @@ for imgPath in imgList:
             #tetradecane split, condens
         P1 = [461, 360]
         P2 = [1933, 363]
+            #hexadecane 09_22 split, imbed
+        P1 = [1097, 114]
+        P2 = [467, 1040]
+
         a, b = calcLineEquation([P1[0], P2[0]], [P1[1], P2[1]])
         limits = [466, 1937, 112, 1385]     #xmin xmin ymin ymax of image in plot. Should always be same
         l = calcLineLength(P1, P2)
