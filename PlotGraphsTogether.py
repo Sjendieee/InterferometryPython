@@ -14,18 +14,22 @@ def extractTimeFromName(name):          #extract the time (e.g. 5min, or 10 hrs)
 
 def main():
     #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
-    source2 ='D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'
-    source = 'F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238'
+    #source2 ='D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'
+    #source = 'F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238'
     #source2 = 'E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930'
 
-    xoffset = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.1]
-    firstData = "DD"; secondData = "HD"
+    source = 'D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617'
+    source2 = 'D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617'
+
+    firstData = "1950"; secondData = "2050"
     colorscheme1 = 'plasma'; colorscheme2 = 'plasma'     #colorscheme for matplotlib.  Can be any of the schemes, https://matplotlib.org/stable/users/explain/colors/colormaps.html#
-    csvList = [f for f in glob.glob(os.path.join(source, f"Swellingimages\\data*minPureIntensity.csv"))]
-    [csvList.append(f) for f in glob.glob(os.path.join(source, f"Swellingimages\\data*hrsPureIntensity.csv"))]
+    csvList = [f for f in glob.glob(os.path.join(source, f"Swellingimages\\data*min*149*PureIntensity.csv"))]
+    [csvList.append(f) for f in glob.glob(os.path.join(source, f"Swellingimages\\data*hrs*149*PureIntensity.csv"))]
     nrofFilesList1 = len(csvList)
-    [csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*minPureIntensity.csv"))]
-    [csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*hrsPureIntensity.csv"))]
+    [csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*min*249*PureIntensity.csv"))]
+    [csvList.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*hrs*249*PureIntensity.csv"))]
+    # xoffset = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.1]
+    xoffset = np.multiply(np.ones(len(csvList)), 0.18)
     nrofFiles = len(csvList)
     gradient1 = np.linspace(0, 1, nrofFilesList1)
     gradient2 = np.linspace(0, 1, nrofFiles-nrofFilesList1)
@@ -48,7 +52,7 @@ def main():
                 print("!Some value could not be casted to a float. Whether that is an issue or not is up to the user.!")
         file.close()
         if i < nrofFilesList1:
-            linecolor = cmap1(gradient1[i])
+            linecolor = cmap1(gradient2[i+1])
             ax1.plot(xdata, ydata, label=f'{firstData}: {extractTimeFromName(filename)}', color=linecolor)
         else:
             linecolor = cmap2(gradient2[i - nrofFilesList1])
