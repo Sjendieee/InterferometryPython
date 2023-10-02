@@ -667,8 +667,8 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
         ax2.set_ylabel('Swelling ratio (h/h$_{0}$)')
         ax2.plot(xrange, np.divide(h, dry_thickness))
         ax2.tick_params(axis='y')
-        ax1.set_ylim(bottom=dry_thickness)
-        ax2.set_ylim(bottom=1)
+        #ax1.set_ylim(bottom=dry_thickness)
+        #ax2.set_ylim(bottom=1)
         fig1.show()
         fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{pixelLocation}.png"), dpi=300)
     else:
@@ -712,19 +712,25 @@ def main():
     """
     #TODO elapsedtime now starts at 0, even though first csv file might not be true t=0
     #Required changeables. Note that chosen Pixellocs must have enough datapoints around them to average over. Otherwise code fails.
-    pixelLoc1 = 2200
-    pixelLoc2 = 2201  # pixelLoc1 + 1
-    pixelIV = 100  # interval between the two pixellocations to be taken.
+    pixelLoc1 = 2850
+    pixelLoc2 = 3051  # pixelLoc1 + 1
+    pixelIV = 200  # interval between the two pixellocations to be taken.
     #timeOutput = [0, 5/60, 10/60, 15/60, 30/60, 45/60] #in hours
-    timeOutput = [0, 1, 4, 12, 24]
+    timeOutput = [0, 0.5, 1, 3, 6, 10]
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104" # hexadecane, with filtering in /main.py
     #source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20230721120624"  # hexadecane, NO filtering in /main.py
     #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
-    source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
+    #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
     #source = "D:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"  # dodecane
     #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
-    dry_thickness = 160     #known dry thickness of the brush (for calculation of swelling ratio)
-    approx_startThickness = 160 #approximate thickness of the brush at the desired location. Could be different from dry thickness if already partially swollen
+    #source = "E:\\2023_04_03_PLMA_TetraDecane_Basler2x_Xp1_24_s10_single______DECENT\\A_Analysis\\PROC_20230918141721"      #tetradecane swelling
+    #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919122236_imbed_conds"    #hexadecane v2 split
+    #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919150913_conds"  # hexadecane v2_conds only
+    #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617_imbed"  # tetradecane split, imbed
+    source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230927143637_condens"  # tetradecane split condens
+
+    dry_thickness = 190     #known dry thickness of the brush (for calculation of swelling ratio)
+    approx_startThickness = 190 #approximate thickness of the brush at the desired location. Could be different from dry thickness if already partially swollen
     #source = "E:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis\\PROC_20230710212856"      #The dodecane sample
 
     MANUALPEAKSELECTION = True
@@ -739,7 +745,7 @@ def main():
 
     csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
     #Length*2 = range over which the intensity will be taken
-    rangeLength = 5
+    rangeLength = 8
 
     #With this loop, different pixel locations can be chosen to plot for
     for i in range(pixelLoc1, pixelLoc2, pixelIV):
@@ -762,13 +768,10 @@ def main():
             range2 = pixelLocation + rangeLength
             if (range1 < 1) or (range2>len(rows)):
                 raise Exception(f"There were not enough values to average over. Either lower mean-range, or choose different pixel location. range1 = {range1}, range2 = {range2}, Rows={len(rows)}")
-
             total = 0
-
             for idx in range(range1, range2):
                 total = total + float(rows[idx])
             meanIntensity.append(total / (range2 - range1))
-
         #makeImagesManualTimeadjust(meanIntensity, elapsedtime, source, pixelLocation, config)
         time, height = makeImagesManualTimeAdjustFromPureIntensity(meanIntensity, elapsedtime, source, pixelLocation, config, dry_thickness, approx_startThickness, MANUALPEAKSELECTION)
         print(f"Idx     Time(h)    Height(nm)")
