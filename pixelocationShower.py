@@ -9,13 +9,15 @@ from line_method import click_event, coordinates_on_line
 This part is to show dots of pixellocations for all swellingImages, without clickingevents (below; to obtain required sizes in pixels etc.).
 """
 # Read RGB image
-#source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'     #hexadecane
+#source = 'D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'     #hexadecane
 #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'     #hexadecane, condens only
 #source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"       #dodecane
 #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"           #dodecane 2d
 #source = "E:\\2023_04_03_PLMA_TetraDecane_Basler2x_Xp1_24_s10_single______DECENT\\A_Analysis\\PROC_20230915102215"  # tetradecane swelling
 #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919122236_imbed_conds"    #hexadecane v2_EvapConds
 #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919150913_conds"          #hexadecane v2_conds only
+#source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
+#source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230927143637_condens"        #tetradecane split, imbed & condens
 #source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
 
 
