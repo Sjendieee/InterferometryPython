@@ -16,19 +16,21 @@ This part is to show dots of pixellocations for all swellingImages, without clic
 #source = "E:\\2023_04_03_PLMA_TetraDecane_Basler2x_Xp1_24_s10_single______DECENT\\A_Analysis\\PROC_20230915102215"  # tetradecane swelling
 #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919122236_imbed_conds"    #hexadecane v2_EvapConds
 #source = "E:\\2023_02_13_PLMA_Hexadecane_Basler2x_Xp1_24_S10_split_v2\\Analysis_v2\\PROC_20230919150913_conds"          #hexadecane v2_conds only
-source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
+#source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
 
 
-source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230927143637_condens"        #tetradecane split, imbed & condens
+source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"        #tetradecane split, imbed & condens
 # TODO make sure this path is correct as well to the square to be inputted
-imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
-#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
+#imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
+imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
 imgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-pixellocationLarge = [0, 2050, 5328]
+pixellocationLarge = range(2250, 3850)
+showPixelLocationLegend = False
 CLICKEVENT = False
 n = 0
 #nAllImages = np.arange(0, len(imgList),1)
-nAllImages = [0, 344]
+nAllImages = [0, 62, 122, 212, 332]
+nAllImages = range(0, 393, 5)
 print(f"Total amount of images in folder: {len(imgList)}. \nTotal amount of images used: {len(nAllImages)}")
 for imgPath in imgList:
     if n in nAllImages:
@@ -53,14 +55,14 @@ for imgPath in imgList:
         #INPUT EDGES OF THE LINE WITH BORDER OF IMAGE IN PLOT AS (P1 = [x,y])
         #Check this in e.g. paint.net with the cursor
             #For hexadecane, v1
-        #P1 = [466, 206]
-        #P2 = [1892, 1382]
+        P1 = [466, 206]
+        P2 = [1892, 1382]
             #For hexadecane, condens only
         #P1 = [466, 414]
         #P2 = [1933, 418]
             #For dodecane
-        #P1 = [467, 611]
-        #P2 = [1932, 302]
+        # P1 = [467, 611]
+        # P2 = [1932, 302]
             #Dodecane v2
         #P1 = [467, 472]
         #P2 = [1933, 444]
@@ -74,14 +76,14 @@ for imgPath in imgList:
         #P1 = [467, 439]
         #P2 = [1933, 475]
             #tetradecane split, imbed
-        #P1 = [689, 114]
-        #P2 = [1130, 1381]
+        # P1 = [689, 114]
+        # P2 = [1130, 1381]
             #tetradecane split, condens
-        P1 = [461, 360]
-        P2 = [1933, 363]
+        # P1 = [461, 360]
+        # P2 = [1933, 363]
             #hexadecane 09_22 split, imbed
-        P1 = [1097, 114]
-        P2 = [467, 1040]
+        # P1 = [1097, 114]
+        # P2 = [467, 1040]
 
         a, b = calcLineEquation([P1[0], P2[0]], [P1[1], P2[1]])
         limits = [466, 1937, 112, 1385]     #xmin xmin ymin ymax of image in plot. Should always be same
@@ -103,7 +105,8 @@ for imgPath in imgList:
             y_offset = round(pixely - squareSize/2)         #-squareSize/2 to centre the square
             print(f"pixelLocNew={pixelLocNew} x={x_offset}, y = {y_offset}")
             resizedimg[y_offset:y_offset+resizedImagBlack.shape[0], x_offset:x_offset+resizedImagBlack.shape[1]] = resizedImagBlack
-            resizedimg = cv2.putText(resizedimg, f"pix: {pixelLocation}", [2000, 120+i*30], cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
+            if showPixelLocationLegend:
+                resizedimg = cv2.putText(resizedimg, f"pix: {pixelLocation}", [2000, 120+i*30], cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
             if CLICKEVENT:
                 cv2.imshow('image', resizedimg)
                 right_clicks = []

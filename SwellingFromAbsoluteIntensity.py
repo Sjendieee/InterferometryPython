@@ -186,21 +186,20 @@ def main():
     """"Changeables: """
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
-    #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
+    source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238" # hexadecane, NO filtering in /main.py, no contrast enhance
     #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
     #source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"   #dodecane swelling profiles, not filtering no contrast enhance
     #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
-    source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617"  # tetradecane split, imbed
+    #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617"  # tetradecane split, imbed
+    range1 = 2250#2320       #start x left for plotting
+    range2 = 3850  # len(swellingProfile)
 
-    range1 = 1800#2320       #start x left for plotting
-    range2 = 3000  # len(swellingProfile)
-
-    # ###hexadecane v1
-    # knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
-    # dryBrushThickness = 167.4       #160                 # dry brush thickness (measured w/ e.g. ellipsometry)
-    # idxArrToUse = [0, 50, 95, 206, 395]         #id of csv files to use
-    # knownHeightArr = [260.44, 351.98, 408.30, 443.52]   #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
-    # zeroImage = 1
+    ###hexadecane v1
+    knownPixelPosition = 2550 - range1 - 1 #pixellocation at which the bursh height is known at various times
+    dryBrushThickness = 167.4       #160                 # dry brush thickness (measured w/ e.g. ellipsometry)
+    idxArrToUse = [0, 50, 95, 206, 395]         #id of csv files to use
+    knownHeightArr = [260.44, 351.98, 408.30, 443.52]   #Known brush swelling at pixellocation in nm for certain timesteps   #in nm
+    zeroImage = 1
     # ###hexadecane Condens only
     # knownPixelPosition = 2200 - range1 - 1  # pixellocation at which the bursh height is known at various times
     # dryBrushThickness = 172.8  # 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
@@ -223,12 +222,12 @@ def main():
     # zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
 
     ### Tetradecane split, imbed
-    knownPixelPosition = 2050 - range1 - 1  # pixellocation at which the bursh height is known at various times
-    dryBrushThickness = 190  # dry brush thickness (measured w/ e.g. ellipsometry)
-    idxArrToUse = [0, 47, 62, 122, 212, 332]  # id of csv files to use
-    knownHeightArr = [181.1, 343.06, 388.29, 470.54, 507.94, 522.23]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
-    #knownHeightArr = [181, 584, 610, 611, 631]
-    zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
+    # knownPixelPosition = 2050 - range1 - 1  # pixellocation at which the bursh height is known at various times
+    # dryBrushThickness = 190  # dry brush thickness (measured w/ e.g. ellipsometry)
+    # idxArrToUse = [0, 47, 62, 122, 212, 332]  # id of csv files to use
+    # knownHeightArr = [181.1, 343.06, 388.29, 470.54, 507.94, 522.23]  # Total Known brush height at pixellocation in nm for certain timesteps   #in nm
+    # #knownHeightArr = [181, 584, 610, 611, 631]
+    # zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
 
     outputFormatXY = 'mm'       #'pix' or 'mm'
     #XLIM - True; Xlim = []
@@ -236,15 +235,17 @@ def main():
     PLOTSWELLINGRATIO = True        #True for swelling ratio, False for height profiles
     SAVEFIG = True
 
-    EVALUATERIGHTTOLEFT = True         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
+    EVALUATERIGHTTOLEFT = False         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
     MANUALPEAKSELECTION = True     #use peaks selected by manual picking (thus not the automatic peakfinder).
     USESAVEDPEAKS = True        #True: use previously manually selected peaks.  False: opens interative plot, in which peak regions can be selected
-    REMOVEBACKGROUNDNOISE = False        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
+    REMOVEBACKGROUNDNOISE = True        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
     normalizeFactor = 1               #normalize intensity by camera intensity range: 256, or use 1 if not normalizing
     FLIP = True                 #True=flip data after h analysis to have the height increase at the left
     MOVMEAN = 5              #average the intensity values to obtain a smoother profile (at a loss of peak intensity)
-    SEPERATEPLOTTING = False     #true to plot the intensity profiles in seperate figures
+    SEPERATEPLOTTING = True     #true to plot the intensity profiles in seperate figures
+    colorscheme = 'plasma'
     """"End of changeables"""
+
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
@@ -256,8 +257,9 @@ def main():
           f"and 1 mm = {1/conversionFactorXY} pixels")
 
     np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})        #print arrays later with only 2 decimals
-
     csvList = [f for f in glob.glob(os.path.join(source, f"process\\*real.csv"))]
+    cmap = plt.get_cmap(colorscheme)
+    colorGradient = np.linspace(0, 1, len(knownHeightArr))
     fig0, ax0 = plt.subplots()
     fig1, ax1 = plt.subplots()
     idxx = 0
@@ -300,8 +302,8 @@ def main():
                 print("wrong format input")
             plt.title(f"Intensity profile starting at pixel: {range1}")
             xshifted = [q - min(x) for q in x]
-            ax0.plot(xshifted, intensityProfileZoomConverted, '.', label=f'Time={timeFormat(elapsedtime)}')
-            ax0.plot(xshifted, np.zeros(len(xshifted)), '-')        #line at y=0
+            ax0.plot(xshifted, intensityProfileZoomConverted, '.', label=f'Time={timeFormat(elapsedtime)}', color = cmap(colorGradient[idxx]))
+            #ax0.plot(xshifted, np.zeros(len(xshifted)), 'w-')        #line at y=0
 
             ###### Up untill now: only splot intensity profiles in desired range.
             #Below: convert intensity profiles to height profiles
@@ -315,8 +317,9 @@ def main():
             print(f"\n\nT = {timeFormat(elapsedtime)}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}")
             print(f"T = {timeFormat(elapsedtime)}\nMinima at index: {minima} \nAt x position: {np.array(xshifted)[minima]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[minima]}\n")
 
-            ax0.plot(np.array(xshifted)[peaks], np.array(intensityProfileZoomConverted)[peaks], "x")
-            ax0.plot(np.array(xshifted)[minima], np.array(intensityProfileZoomConverted)[minima], "x")
+            #for showing/plotting automatically picked peaks
+            #ax0.plot(np.array(xshifted)[peaks], np.array(intensityProfileZoomConverted)[peaks], "x")
+            #ax0.plot(np.array(xshifted)[minima], np.array(intensityProfileZoomConverted)[minima], "x")
 
             print(f"Nr. of maxima found: {len(peaks)}, nr. of minima found: {len(minima)}\n"
                   f"Maxima at distance= {np.array(xshifted)[peaks]} \n"
@@ -381,7 +384,7 @@ def main():
                       f"Distance: {np.array(xshifted)[minAndMaxOrdered]}")
                 saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}.txt" )
 
-            ax0.plot(np.array(xshifted)[minAndMaxOrdered], np.array(intensityProfileZoomConverted)[minAndMaxOrdered], "o")
+            ax0.plot(np.array(xshifted)[minAndMaxOrdered], np.array(intensityProfileZoomConverted)[minAndMaxOrdered], "ob")
 
             # if FLIP:
             #     xshifted.reverse()
@@ -474,19 +477,22 @@ def main():
                     print(f"Correcting height with {diffh} nm, because known height= {knownHeightArr[idxx]}, and calculated height= {h[knownPixelPosition]}")
                     h = np.add(h, diffh)
 
-
-                ax1.set_xlabel("Distance from contact line (mm)")
                 h_ratio = np.divide(h, hdry)
+                ax1.set_xlabel("Distance of chosen range (mm)")
                 if PLOTSWELLINGRATIO:
                     ax1.set_ylabel("Swelling ratio (h/h$_{0}$)")
-                    ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(elapsedtime)}')
-                    ax1.set_title(f"Height profiles in pixelrange {range1}:{range2}")
-                    ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'o')
+                    ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(elapsedtime)}', color=cmap(colorGradient[idxx]))
+                    ax1.set_title(f"Swelling profiles in pixelrange {range1}:{range2}")
+                    ax1.set_title(f"Calibrated swelling profiles")
+                    ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'ok', markersize=9)
+                    ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'o', color=cmap(colorGradient[idxx]))
                 else:
-                    ax1.set_ylabel("Height (nm)")
-                    ax1.plot(xrange, h)
-                    ax1.set_title(f"Height profile at time: {timeFormat(elapsedtime)} in pixelrange {range1}:{range2}")
-                    ax1.plot(xrange[knownPixelPosition], h[knownPixelPosition], 'o')
+                    ax1.set_ylabel("Film thickness (nm)")
+                    ax1.plot(xrange, h, label=f'Time={timeFormat(elapsedtime)}', color=cmap(colorGradient[idxx]))
+                    #ax1.set_title(f"Height profile at time: {timeFormat(elapsedtime)} in pixelrange {range1}:{range2}")
+                    ax1.set_title(f"Calibrated height profiles")
+                    ax1.plot(xrange[knownPixelPosition], h[knownPixelPosition], 'ok', markersize=9)
+                    ax1.plot(xrange[knownPixelPosition], h[knownPixelPosition], 'o', color=cmap(colorGradient[idxx]))
                 print(f"Mean thickness (50 points) far from droplet: {np.mean(h[-50:-1])}")
 
                 # Saves data in time vs height profile plot so a csv file.
@@ -500,6 +506,9 @@ def main():
                 print(f"No minimum and maximum were found. Only a single extremum")
 
             ax0.legend(loc='upper right')
+            ax0.set_ylabel("Intensity (-)")
+            ax0.set_xlabel("Distance of chosen range (mm)")
+            ax0.set_title("Intensity profile")
             ax1.legend(loc='upper right')
             if SAVEFIG:
                 ax0.autoscale(enable=True, axis='x', tight=True)
