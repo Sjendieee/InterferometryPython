@@ -26,25 +26,29 @@ def sortCSVListAscendingTime(list):
 
 def main():
     #source = 'D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'  # hexadecane, condens only
-    source ='D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'
+    #source ='D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'
     #source = 'F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238'
-    source2 = 'E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed'
+    #source2 = 'E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed'
     #source2 = 'E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930'
 
     #source = 'D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617_imbed'
     #source2 = 'D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617_imbed'
 
-    firstData = "Source1"; secondData = "Source2"
+    source = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20231004114924"     #open air wedge
+    source2 = "C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20231004114924"    #closed side wedge
+
+    firstData = "open air"; secondData = "covered"
     colorscheme1 = 'plasma'; colorscheme2 = 'plasma'     #colorscheme for matplotlib.  Can be any of the schemes, https://matplotlib.org/stable/users/explain/colors/colormaps.html#
-    csvList = [f for f in glob.glob(os.path.join(source, f"Swellingimages\\data*minPureIntensity.csv"))]
+    csvList = [f for f in glob.glob(os.path.join(source, f"Swellingimages\\open air side\\data*PureIntensity.csv"))]
     [csvList.append(f) for f in glob.glob(os.path.join(source, f"Swellingimages\\data*hrsPureIntensity.csv"))]
     nrofFilesList1 = len(csvList)
     OrderedList1 = sortCSVListAscendingTime(csvList)
-    csvList2 = [f for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*minPureIntensity.csv"))]
+    csvList2 = [f for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*PureIntensity.csv"))]
     [csvList2.append(f) for f in glob.glob(os.path.join(source2, f"Swellingimages\\data*hrsPureIntensity.csv"))]
     OrderedList2 = sortCSVListAscendingTime(csvList2)
     csvList = OrderedList1 + OrderedList2
-    xoffset = [0.1, 0.1, 0.1, 0.1, 0.1, 0.23, 0.23, 0.27]
+    #xoffset = [0.1, 0.1, 0.1, 0.1, 0.1, 0.23, 0.23, 0.27]
+    xoffset = [0.111, 0.10]
     #xoffset = np.multiply(np.ones(len(csvList)), 0.0)
     nrofFiles = len(csvList)
     gradient1 = np.linspace(0, 1, nrofFilesList1)
@@ -79,6 +83,7 @@ def main():
     ax1.set_ylabel('Swelling ratio (h/h$_{0}$)')
     ax1.legend(loc='upper right')
     ax1.axvline(0, color='black')
+    ax1.set_xlim([-0.05, 0.1])
     fig1.savefig(os.path.join(source, "SwellingImages\\CombinedFigures.png"), dpi=600)
 
 if __name__ == "__main__":

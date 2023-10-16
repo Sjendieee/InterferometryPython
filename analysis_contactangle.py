@@ -84,19 +84,13 @@ def main():
     1.53
     
     237pix = 237/1687 = 0.1405 mm
-    
-    
-    
     '''
-
-
     data = {}
     data['jsonPath'] = procStatsJsonPath
     data['processDatetime'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     data['analyzeImages'] = ','.join(analyzeImages.astype(str))
     data['csvPathAppend'] = csvPathAppend
     data['data'] = {}
-
 
     deltaTime = procStats["deltatime"]
     timeFromStart = np.cumsum(deltaTime)

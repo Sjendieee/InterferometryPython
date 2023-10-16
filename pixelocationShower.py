@@ -9,7 +9,7 @@ from line_method import click_event, coordinates_on_line
 This part is to show dots of pixellocations for all swellingImages, without clickingevents (below; to obtain required sizes in pixels etc.).
 """
 # Read RGB image
-source = 'D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'     #hexadecane
+#source = 'D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238'     #hexadecane
 #source = 'E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230913122145_condensOnly'     #hexadecane, condens only
 #source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"       #dodecane
 #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"           #dodecane 2d
@@ -19,15 +19,16 @@ source = 'D:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-D
 #source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
 #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230927143637_condens"        #tetradecane split, imbed & condens
 
+source = "C:\\Users\ReuvekampSW\\Documents\\InterferometryPython\\export\\PROC_20231004113717"
 # TODO make sure this path is correct as well to the square to be inputted
 imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
 #imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
 imgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-pixellocationLarge = [0, 2250, 2550, 3850, 6707]
+pixellocationLarge = [0, 3300, 3900, 5910]
 CLICKEVENT = False
 n = 0
 #nAllImages = np.arange(0, len(imgList),1)
-nAllImages = [0, 48, 93, 213, 393]
+nAllImages = [0]
 print(f"Total amount of images in folder: {len(imgList)}. \nTotal amount of images used: {len(nAllImages)}")
 for imgPath in imgList:
     if n in nAllImages:
@@ -52,8 +53,8 @@ for imgPath in imgList:
         #INPUT EDGES OF THE LINE WITH BORDER OF IMAGE IN PLOT AS (P1 = [x,y])
         #Check this in e.g. paint.net with the cursor
             #For hexadecane, v1
-        P1 = [466, 206]
-        P2 = [1892, 1382]
+        # P1 = [466, 206]
+        # P2 = [1892, 1382]
             #For hexadecane, condens only
         #P1 = [466, 414]
         #P2 = [1933, 418]
@@ -81,6 +82,8 @@ for imgPath in imgList:
             #hexadecane 09_22 split, imbed
         # P1 = [1097, 114]
         # P2 = [467, 1040]
+        P1 = [467, 468]
+        P2 = [1933, 1180]
 
         a, b = calcLineEquation([P1[0], P2[0]], [P1[1], P2[1]])
         limits = [466, 1937, 112, 1385]     #xmin xmin ymin ymax of image in plot. Should always be same
