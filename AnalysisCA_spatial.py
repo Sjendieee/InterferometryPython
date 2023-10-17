@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import shapely
 import math
+import time
 
 def get_normals(x, y, length=30):
     #from https://stackoverflow.com/questions/65310948/how-to-plot-normal-vectors-in-each-point-of-the-curve-with-a-given-length
@@ -20,12 +21,16 @@ def get_normals(x, y, length=30):
     return x0arr, dxarr, y0arr, dyarr    # return the normals
 
 def get_normalsV2(x, y, length=30):
+    #For each coordinate, fit with nearby points to a polynomial to better estimate the dx dy -> tangent
     x0arr = []; dyarr = []; y0arr = []; dxarr = []
-    for idx in range(3, len(x)-3):
-        xarr = [x[idx-2], x[idx-1], x[idx], x[idx+1], x[idx+2]]             #define x'es to use for polynomial fitting
-        yarr = [y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2]]     #define y's ...
+    for idx in range(5, len(x)-5):
+        #xarr = [x[idx-2], x[idx-1], x[idx], x[idx+1], x[idx+2]]             #define x'es to use for polynomial fitting
+        #yarr = [y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2]]     #define y's ...
+        xarr = [x[idx - 4], x[idx - 3], x[idx - 2], x[idx - 1], x[idx], x[idx + 1], x[idx + 2], x[idx +3], x[idx + 4]]  # define x'es to use for polynomial fitting
+        yarr = [y[idx - 4], y[idx - 3], y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2], y[idx + 3], y[idx + 4]]  # define y's ...
         fit = np.poly1d(np.polyfit(xarr, yarr, 2))                                     #fit with second order polynomial
-        x0 = x[idx]; x1 = x[idx]+1
+        x0 = x[idx]; x1 = x[idx]+1      #NOTE HERE:mannualy set to a +1 value, because if x[idx+1] is used, sometimes x1=x2 -> a NaN later on
+
         y0 = fit(x0); y1 = fit(x1)
         dx, dy = x1 - x0, y1 - y0
         norm = math.hypot(dx, dy) * 1/length
@@ -36,8 +41,56 @@ def get_normalsV2(x, y, length=30):
         dyarr.append(round(y0 + dx))
     return x0arr, dxarr, y0arr, dyarr  # return the normals
 
+
+def get_normalsV3(x, y, L=30):
+    # For each coordinate, fit with nearby points to a polynomial to better estimate the dx dy -> tangent
+    # Take derivative of the polynomial to obtain tangent and use that one.
+    x0arr = []; dyarr = []; y0arr = []; dxarr = []
+    for idx in range(5, len(x) - 5):
+        #xarr = [x[idx - 4], x[idx - 3], x[idx - 2], x[idx - 1], x[idx], x[idx + 1], x[idx + 2], x[idx +3], x[idx + 4]]  # define x'es to use for polynomial fitting
+        #yarr = [y[idx - 4], y[idx - 3], y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2], y[idx + 3], y[idx + 4]]  # define y's ...
+        xarr = [ x[idx - 2], x[idx - 1], x[idx], x[idx + 1], x[idx + 2]]  # define x'es to use for polynomial fitting
+        yarr = [y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2]]  # define y's ...
+        fit = np.poly1d(np.polyfit(xarr, yarr, 2))  # fit with second order polynomial
+        x0 = x[idx]; y0 = fit(x0);
+
+        if idx == 917:
+            print("hey")
+        ffit = lambda xcoord : 2*fit[2]*xcoord + fit[1]           #derivative of a second order polynomial
+        dx = 1
+        dy = ffit(x0)  #ffit(x0)
+        normalisation = L / np.sqrt(1+dy**2)        #normalise by desired length vs length of vector
+
+        nx = -dy*normalisation
+        ny = dx*normalisation
+        #x0dx = x0 + nx
+        #y0dy = y0 + ny
+
+        # grad = [dx, dy]
+        # grad /= np.linalg.norm(grad, axis=0)  # normalizing to unit vector
+        # nx = (x0 - L / 2 * grad[0], x0 + L / 2 * grad[0])
+        # ny = (y0 - L / 2 * grad[1], y0 + L / 2 * grad[1])
+
+        #norm = math.hypot(nx, ny) * 1 / L
+        #nx /= norm
+        #ny /= norm
+        x0arr.append(x0);
+        y0arr.append(round(y0))
+        dxarr.append(round(x0+nx))
+        dyarr.append(round(y0+ny))
+        #Below: for plotting & showing of a few polynomial fits - to investigate how good the fit is
+        if idx == 3 or idx == len(x) - 4 or idx == round(len(x) / 2) or idx == round(len(x) * (1/4)) or idx == round(len(x) * (3/4)):
+            plt.plot(xarr, yarr, '.')
+            xrange = np.linspace(xarr[0], xarr[-1], 100)
+            yrange = fit(xrange)
+            plt.plot(xrange, yrange)
+            #plt.show()
+            #plt.close()
+            print(f"idx: {idx} - {fit}")
+    return x0arr, dxarr, y0arr, dyarr  # return the normals
+
 def main():
-    imgPath = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\\Basler_a2A5328-15ucBAS__40087133__20230807_165508421_0132.tiff"
+    imgPath = "G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\\Basler_a2A5328-15ucBAS__40087133__20230807_165508421_0132.tiff"
     basePath = os.path.dirname(imgPath)
     analysisFolder = os.path.join(basePath,"Analysis CA Spatial")
 
@@ -106,7 +159,7 @@ def main():
             resizedimg = cv2.polylines(resizedimg, np.array([usableContour]), False, (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
 
             #Should yield the normal for every point: output is original x&y, and corresponding normal x,y (defined as dx and dy) 30 points inwards
-            x0arr, dxarr, y0arr, dyarr = get_normalsV2(useablexlist, useableylist)
+            x0arr, dxarr, y0arr, dyarr = get_normalsV3(useablexlist, useableylist)
             for k in range(0, len(x0arr)):
                 #TODO trying to get this to work: plotting normals obtained with above function get_normals
                 #resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
@@ -135,7 +188,8 @@ def main():
 
             # Display the input and output frames
             cv2.imshow('Input', resizedimg)
-            cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine{1}.png") , resizedimg)
+            tstring = str(time.strftime("%H_%M_%S", time.localtime()))
+            cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine{1}{tstring}.png") , resizedimg)
             #cv2.imshow('Output', thresh)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
