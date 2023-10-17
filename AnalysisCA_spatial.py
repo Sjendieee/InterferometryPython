@@ -5,16 +5,12 @@ import matplotlib.pyplot as plt
 import shapely
 import math
 
-def get_normals(x,y, length=30):
+def get_normals(x, y, length=30):
     #from https://stackoverflow.com/questions/65310948/how-to-plot-normal-vectors-in-each-point-of-the-curve-with-a-given-length
-    x0arr = []
-    dyarr = []
-    y0arr = []
-    dxarr = []
+    x0arr = []; dyarr = []; y0arr = []; dxarr = []
     for idx in range(len(x)-1):
         x0, y0, xa, ya = x[idx], y[idx], x[idx+1], y[idx+1]
-        x0arr.append(x0)
-        y0arr.append(y0)
+        x0arr.append(x0); y0arr.append(y0)
         dx, dy = xa-x0, ya-y0
         norm = math.hypot(dx, dy) * 1/length
         dx /= norm
@@ -23,8 +19,25 @@ def get_normals(x,y, length=30):
         dyarr.append(round(y0+dx))
     return x0arr, dxarr, y0arr, dyarr    # return the normals
 
+def get_normalsV2(x, y, length=30):
+    x0arr = []; dyarr = []; y0arr = []; dxarr = []
+    for idx in range(3, len(x)-3):
+        xarr = [x[idx-2], x[idx-1], x[idx], x[idx+1], x[idx+2]]             #define x'es to use for polynomial fitting
+        yarr = [y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2]]     #define y's ...
+        fit = np.poly1d(np.polyfit(xarr, yarr, 2))                                     #fit with second order polynomial
+        x0 = x[idx]; x1 = x[idx]+1
+        y0 = fit(x0); y1 = fit(x1)
+        dx, dy = x1 - x0, y1 - y0
+        norm = math.hypot(dx, dy) * 1/length
+        dx /= norm
+        dy /= norm
+        x0arr.append(x0); y0arr.append(round(y0))
+        dxarr.append(round(x0 - dy))
+        dyarr.append(round(y0 + dx))
+    return x0arr, dxarr, y0arr, dyarr  # return the normals
+
 def main():
-    imgPath = "G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\\Basler_a2A5328-15ucBAS__40087133__20230807_165508421_0132.tiff"
+    imgPath = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\\Basler_a2A5328-15ucBAS__40087133__20230807_165508421_0132.tiff"
     basePath = os.path.dirname(imgPath)
     analysisFolder = os.path.join(basePath,"Analysis CA Spatial")
 
@@ -35,7 +48,6 @@ def main():
     # # Create a window to display the input video
     # cv2.namedWindow('Input', cv2.WINDOW_NORMAL)
     # cv2.resizeWindow('Input', 500, 500)
-
 
     img = cv2.imread(imgPath)
     #convert to greyscale
@@ -94,11 +106,14 @@ def main():
             resizedimg = cv2.polylines(resizedimg, np.array([usableContour]), False, (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
 
             #Should yield the normal for every point: output is original x&y, and corresponding normal x,y (defined as dx and dy) 30 points inwards
-            x0arr, dxarr, y0arr, dyarr = get_normals(useablexlist, useableylist)
+            x0arr, dxarr, y0arr, dyarr = get_normalsV2(useablexlist, useableylist)
             for k in range(0, len(x0arr)):
                 #TODO trying to get this to work: plotting normals obtained with above function get_normals
                 #resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
-                resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe
+                if k % 5 == 0:
+                    resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe
+
+
 
             #TODO attempt at lines for determining a normal
             # line = shapely.linestrings([usableContour])
