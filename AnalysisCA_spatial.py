@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import shapely
 import math
 import time
+import warnings
 
 def get_normals(x, y, length=30):
     #from https://stackoverflow.com/questions/65310948/how-to-plot-normal-vectors-in-each-point-of-the-curve-with-a-given-length
@@ -49,48 +50,59 @@ def get_normalsV3(x, y, L=30):
     for idx in range(5, len(x) - 5):
         #xarr = [x[idx - 4], x[idx - 3], x[idx - 2], x[idx - 1], x[idx], x[idx + 1], x[idx + 2], x[idx +3], x[idx + 4]]  # define x'es to use for polynomial fitting
         #yarr = [y[idx - 4], y[idx - 3], y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2], y[idx + 3], y[idx + 4]]  # define y's ...
-        xarr = [ x[idx - 2], x[idx - 1], x[idx], x[idx + 1], x[idx + 2]]  # define x'es to use for polynomial fitting
+        xarr = [x[idx - 2], x[idx - 1], x[idx], x[idx + 1], x[idx + 2]]  # define x'es to use for polynomial fitting
         yarr = [y[idx - 2], y[idx - 1], y[idx], y[idx + 1], y[idx + 2]]  # define y's ...
-        fit = np.poly1d(np.polyfit(xarr, yarr, 2))  # fit with second order polynomial
-        x0 = x[idx]; y0 = fit(x0);
 
-        if idx == 917:
+        x0 = x[idx]
+        if idx == 738 or idx == 691 or idx == 524:
             print("hey")
-        ffit = lambda xcoord : 2*fit[2]*xcoord + fit[1]           #derivative of a second order polynomial
-        dx = 1
-        dy = ffit(x0)  #ffit(x0)
-        normalisation = L / np.sqrt(1+dy**2)        #normalise by desired length vs length of vector
+        ft = np.polyfit(xarr, yarr, 2)
+        fit = np.poly1d(ft)  # fit with second order polynomial
+        y0 = fit(x0)
+        ffit = lambda xcoord: 2 * fit[2] * xcoord + fit[1]  # derivative of a second order polynomial
+        if xarr[0] == x0 and xarr[1] == x0 and xarr[3] == x0 and xarr[4] == x0: #if all the x'es are the same for variable y: with a line fit x = a
+            nx = - L
+            ny = 0
+            xrange = np.ones(100) * x0
+            yrange = np.linspace(yarr[0], yarr[-1], 100)
+        elif yarr[0] == yarr[2] and yarr[1] == yarr[2] and yarr[3] == yarr[2] and yarr[4] == yarr[2]:   #all y's are the same for variable x: fit y = a
+            nx = 0
+            ny = L
+            xrange = np.linspace(xarr[0], xarr[-1], 100)
+            yrange = np.ones(100) * y0
+            # fit = np.poly1d(np.polyfit(xarr, yarr, 1))  # fit with first order polynomial
+            # y0 = fit(x0)
+            # ffit = lambda xcoord: fit[1] * xcoord  # derivative of a first order polynomial
+        else:   #continue as normal
+            dx = 1
+            dy = ffit(x0)  #ffit(x0)
+            normalisation = L / np.sqrt(1+dy**2)        #normalise by desired length vs length of vector
 
-        nx = -dy*normalisation
-        ny = dx*normalisation
-        #x0dx = x0 + nx
-        #y0dy = y0 + ny
+            nx = -dy*normalisation
+            ny = dx*normalisation
+            if nx > 0:
+                nx = +dy * normalisation
+                ny = -dx * normalisation
 
-        # grad = [dx, dy]
-        # grad /= np.linalg.norm(grad, axis=0)  # normalizing to unit vector
-        # nx = (x0 - L / 2 * grad[0], x0 + L / 2 * grad[0])
-        # ny = (y0 - L / 2 * grad[1], y0 + L / 2 * grad[1])
-
-        #norm = math.hypot(nx, ny) * 1 / L
-        #nx /= norm
-        #ny /= norm
-        x0arr.append(x0);
+            xrange = np.linspace(xarr[0], xarr[-1], 100)
+            yrange = fit(xrange)
+        x0arr.append(x0)
         y0arr.append(round(y0))
         dxarr.append(round(x0+nx))
         dyarr.append(round(y0+ny))
         #Below: for plotting & showing of a few polynomial fits - to investigate how good the fit is
-        if idx == 3 or idx == len(x) - 4 or idx == round(len(x) / 2) or idx == round(len(x) * (1/4)) or idx == round(len(x) * (3/4)):
+        if idx == 738 or idx == 691 or idx == 524:
             plt.plot(xarr, yarr, '.')
-            xrange = np.linspace(xarr[0], xarr[-1], 100)
-            yrange = fit(xrange)
             plt.plot(xrange, yrange)
-            #plt.show()
-            #plt.close()
+            plt.plot([x0,x0+nx], [y0, y0+ny], '-')
+            plt.title(f"idx = {idx}")
+            plt.show()
+            plt.close()
             print(f"idx: {idx} - {fit}")
     return x0arr, dxarr, y0arr, dyarr  # return the normals
 
 def main():
-    imgPath = "G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\\Basler_a2A5328-15ucBAS__40087133__20230807_165508421_0132.tiff"
+    imgPath = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\\Basler_a2A5328-15ucBAS__40087133__20230807_165508421_0132.tiff"
     basePath = os.path.dirname(imgPath)
     analysisFolder = os.path.join(basePath,"Analysis CA Spatial")
 
