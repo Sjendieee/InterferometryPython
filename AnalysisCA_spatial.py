@@ -6,6 +6,119 @@ import shapely
 import math
 import time
 import warnings
+import logging
+
+#I'm pretty sure this does not work as it's completely supposed to:
+#The limits (right now) should be from [0 - some value], and does not work for e.g. [200 - 500]
+def intersection_imageedge(a, b, limits):
+    '''
+    For a given image dimension (limits) and linear line (y=ax+b) it determines which borders of the image the line
+    intersects and the length (in pixels) of the slice.
+    :param a: slope of the linear line (y=ax+b)
+    :param b: intersect with the y-axis of the linear line (y=ax+b)
+    :param limits: image dimensions (x0, width, y0, height)
+    :return: absolute length of slice (l) and border intersects booleans (top, bot, left, right).
+
+    Note: line MUST intersects the image edges, otherwise it throws an error.
+    '''
+    # define booleans for the 4 image limit intersections.
+    top, bot, left, right = False, False, False, False
+    w, h = limits[1] - limits[0], limits[3] - limits[2]  # w = width, h = height
+    '''
+    Determining the intersections (assuming x,y=0,0 is bottom right).
+    Bottom: for y=0: 0<=x<=w --> y=0, 0<=(y-b)/a<=w --> 0<=-b/a<=w
+    Top: for y=h: 0<=x<=w --> y=h, 0<=(y-b)/a<=w --> 0<=(y-h)/a<=w
+    Left: for x=0: 0<=y<=h --> x=0, 0<=ax+b<=h --> 0<=b<=h
+    Right: for x=w: 0<=y<=h --> x=0, 0<=ax+b<=h --> 0<=a*w+b<=h
+    '''
+    if -b / a >= 0 and -b / a <= w:
+        bot = True
+    if (h - b) / a >= 0 and (h - b) / a <= w:
+        top = True
+    if b >= 0 and b <= h:
+        left = True
+    if (a * w) + b >= 0 and (a * w) + b <= h:
+        right = True
+
+    if top + bot + left + right != 2:  # we must always have 2 intersects for a linear line
+        logging.error("The profile should always intersect 2 image edges.")
+        exit()
+
+    '''
+    Determining the slice length.
+    There are 6 possible intersections of the linear line with a rectangle.
+    '''
+    if top & bot:  # case 1
+        # l = imageheight / sin(theta), where theta = atan(a)
+        # == > l = (sqrt(a ^ 2 + 1) * imageheight) / a
+        l = np.round((np.sqrt(a ** 2 + 1) * h) / a)  # l = profile length (density=1px)
+    if left & right:  # case 2
+        # l = imagewidth / cos(theta), where theta=atan(a)
+        # ==> l = sqrt(a^2+1)*imagewidth
+        l = np.round(np.sqrt(a ** 2 + 1) * w)  # l = profile length (density=1px)
+    if left & top:  # case 3
+        # dx = x(y=h), dy = h-y(x=0) --> l = sqrt(dx^2+dy^2)
+        dx = (h - b) / a
+        dy = h - b
+        l = np.sqrt(dx**2 + dy**2)
+    if top & right:  # case 4
+        # dx = w-x(y=h), dy = h-y(x=0) --> l = sqrt(dx^2+dy^2)
+        dx = w - ((h - b) / a)
+        dy = h - b
+        l = np.sqrt(dx ** 2 + dy ** 2)
+    if bot & right:  # case 5
+        # dx = w-x(y=h), dy = y(x=0) --> l = sqrt(dx^2+dy^2)
+        dx = w - ((h - b) / a)
+        dy = b
+        l = np.sqrt(dx ** 2 + dy ** 2)
+    if bot & left:  # case 6
+        # dx = x(y=h), dy = y(x=0) --> l = sqrt(dx^2+dy^2)
+        dx = (h - b) / a
+        dy = b
+        l = np.sqrt(dx ** 2 + dy ** 2)
+
+    return np.abs(l), (top, bot, left, right)
+
+def coordinates_on_line(a, b, limits):
+    '''
+    For a given image, a slope 'a' and offset 'b', this function gives the coordinates of all points on this
+    linear line, bound by limits.
+    y = a * x + b
+
+    :param a: slope of line y=ax+b
+    :param b: intersection of line with y-axis y=ax+b
+    :param limits: (min x, max x, min y, max y)
+    :return: zipped list of (x, y) coordinates on this line
+    '''
+
+    # Determine the slice length of the linear line with the image edges. This is needed because we need to know how
+    # many x coordinates we need to generate
+    l, _ = intersection_imageedge(a, b, limits)
+
+    # generate x coordinates, keep as floats (we might have floats x-coordinates), we later look for the closest x value
+    # in the image. For now we keep them as floats to determine the exact y-value.
+    # x should have length l. x_start and x_end are determined by where the line intersects the image border. There are
+    # 4 options for the xbounds: x=limits[0], x=limits[1], x=x(y=limits[2]) --> (x=limits[2]-b)/a, x=x(y=limits[3]) -->
+    # (x=limits[3]-b)/a.
+    # we calculate all 4 possible bounds, then check whether they are valid (within image limits).
+    xbounds = np.array([limits[0], limits[1], (limits[2]-b)/a, (limits[3]-b)/a])
+    # filter so that 0<=x<=w and 0<=y(x)<=h. we round to prevent strange errors (27-10-22)
+    xbounds = np.delete(xbounds, (np.where(
+        (xbounds < limits[0]) |
+        (xbounds > limits[1]) |
+        (np.round(a * xbounds + b) < limits[2]) |
+        (np.round(a * xbounds + b) > limits[3])
+    )))
+    if len(xbounds) != 2:
+        logging.error(f"Something went wrong in determining the x-coordinates for the image slice. {xbounds=}")
+        exit()
+    x = np.linspace(np.min(xbounds)+1, np.max(xbounds)-1, int(l))
+
+    # calculate corresponding y coordinates based on y=ax+b, keep as floats
+    y = (a * x + b)
+
+    # return a zipped list of coordinates, thus integers
+    return list(zip(x.astype(int), y.astype(int))), l
 
 def get_normals(x, y, length=30):
     #from https://stackoverflow.com/questions/65310948/how-to-plot-normal-vectors-in-each-point-of-the-curve-with-a-given-length
@@ -61,11 +174,13 @@ def get_normalsV3(x, y, L=30):
         y0 = fit(x0)
         ffit = lambda xcoord: 2 * fit[2] * xcoord + fit[1]  # derivative of a second order polynomial
         if xarr[0] == x0 and xarr[1] == x0 and xarr[3] == x0 and xarr[4] == x0: #if all the x'es are the same for variable y: with a line fit x = a
+            #TODO make in such a way that the LEFT side of the droplet will also yield normal vectors pointing INTO the dorplet
             nx = - L
             ny = 0
             xrange = np.ones(100) * x0
             yrange = np.linspace(yarr[0], yarr[-1], 100)
         elif yarr[0] == yarr[2] and yarr[1] == yarr[2] and yarr[3] == yarr[2] and yarr[4] == yarr[2]:   #all y's are the same for variable x: fit y = a
+            # TODO make in such a way that the TOP side of the droplet will also yield normal vectors pointing INTO the dorplet
             nx = 0
             ny = L
             xrange = np.linspace(xarr[0], xarr[-1], 100)
@@ -78,6 +193,7 @@ def get_normalsV3(x, y, L=30):
             dy = ffit(x0)  #ffit(x0)
             normalisation = L / np.sqrt(1+dy**2)        #normalise by desired length vs length of vector
 
+            # TODO make in such a way that the LEFT side of the droplet will also yield normal vectors pointing INTO the dorplet
             nx = -dy*normalisation
             ny = dx*normalisation
             if nx > 0:
@@ -92,10 +208,13 @@ def get_normalsV3(x, y, L=30):
         dyarr.append(round(y0+ny))
         #Below: for plotting & showing of a few polynomial fits - to investigate how good the fit is
         if idx == 738 or idx == 691 or idx == 524:
-            plt.plot(xarr, yarr, '.')
-            plt.plot(xrange, yrange)
-            plt.plot([x0,x0+nx], [y0, y0+ny], '-')
-            plt.title(f"idx = {idx}")
+            plt.plot(xarr, np.array(yarr), '.', label="coordinates")
+            plt.plot(xrange, np.array(yrange), label="fit")
+            plt.plot([x0,x0+nx], np.array([y0, y0+ny]), '-', label="normal to contour")
+            plt.title(f"Zoomed-in coordinates of contour. idx = {idx}")
+            plt.xlabel("x - coords")
+            plt.ylabel("y - coords")
+            plt.legend()
             plt.show()
             plt.close()
             print(f"idx: {idx} - {fit}")
@@ -117,10 +236,10 @@ def main():
     img = cv2.imread(imgPath)
     #convert to greyscale
     grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    resizedimg = cv2.resize(grayImg, [round(5328/5), round(4608/5)], interpolation=cv2.INTER_AREA)
+    greyresizedimg = cv2.resize(grayImg, [round(5328/5), round(4608/5)], interpolation=cv2.INTER_AREA)
     # Apply adaptive thresholding to the blurred frame
-    thresh = cv2.adaptiveThreshold(resizedimg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-    resizedimg = cv2.cvtColor(resizedimg, cv2.COLOR_GRAY2RGB)
+    thresh = cv2.adaptiveThreshold(greyresizedimg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+    resizedimg = cv2.cvtColor(greyresizedimg, cv2.COLOR_GRAY2RGB)
     # cv2.imshow("Greyscaled image", thresh)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
@@ -175,16 +294,16 @@ def main():
             for k in range(0, len(x0arr)):
                 #TODO trying to get this to work: plotting normals obtained with above function get_normals
                 #resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
-                if k % 5 == 0:
-                    resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe
+                #if k % 5 == 0:
+                #    resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe
 
+                if k == 120:
+                    a = (dyarr[k] - y0arr[k])/(dxarr[k] - x0arr[k])
+                    b = y0arr[k] - a*x0arr[k]
+                    coords, l = coordinates_on_line(a, b, [x0arr[k], dxarr[k], y0arr[k], dyarr[k]])
+                    profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
 
-
-            #TODO attempt at lines for determining a normal
-            # line = shapely.linestrings([usableContour])
-            # right = line.parallel_offset(20, 'right')
-            # parralelPoint = right.boundary[1]
-
+                    plt.plot(profile)
 
             # Fit an ellipse around the contour
             #ellipse = cv2.fitEllipse(contour)
