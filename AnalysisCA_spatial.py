@@ -8,6 +8,7 @@ from datetime import datetime
 import warnings
 import logging
 import json
+import glob
 
 #I'm pretty sure this does not work as it's completely supposed to:
 #The limits (right now) should be from [0 - some value], and does not work for e.g. [200 - 500]
@@ -234,11 +235,12 @@ def get_normalsV3(x, y, L):
     return x0arr, dxarr, y0arr, dyarr  # return the normals
 
 def main():
-    imgPath = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\\Basler_a2A5328-15ucBAS__40087133__20230807_165508421_0132.tiff"
     procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    basePath = os.path.dirname(imgPath)
-    analysisFolder = os.path.join(basePath,"Analysis CA Spatial")
+    imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
+    imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
+    usedImages = [60, 90]
+    analysisFolder = os.path.join(imgFolderPath,"Analysis CA Spatial")
     resizeFactor = 5            #=5 makes the image fit in your screen, but also has less data points when analysing
     FLIPDATA = True
     if not os.path.exists(analysisFolder):
@@ -253,142 +255,148 @@ def main():
     unitXY = procStats["unitXY"]
     if unitZ != "nm" or unitXY != "mm":
         raise Exception("One of either units is not correct for good conversion. Fix manually or implement in code")
+    for n, img in enumerate(imgList):
+        if n in usedImages:
+            imgPath = img
+            # # Create a window to display the input video
+            # cv2.namedWindow('Input', cv2.WINDOW_NORMAL)
+            # cv2.resizeWindow('Input', 500, 500)
 
-    # # Create a window to display the input video
-    # cv2.namedWindow('Input', cv2.WINDOW_NORMAL)
-    # cv2.resizeWindow('Input', 500, 500)
+            img = cv2.imread(imgPath)
+            #convert to greyscale
+            grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            greyresizedimg = cv2.resize(grayImg, [round(5328/resizeFactor), round(4608/resizeFactor)], interpolation=cv2.INTER_AREA)
+            # Apply adaptive thresholding to the blurred frame
+            thresh = cv2.adaptiveThreshold(greyresizedimg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+            resizedimg = cv2.cvtColor(greyresizedimg, cv2.COLOR_GRAY2RGB)
+            #TODO temporary, to check if coordinates can be converted properly
+            greyresizedimg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            resizedimg = img
+            # Find contours in the thresholded frame
+            contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
-    img = cv2.imread(imgPath)
-    #convert to greyscale
-    grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    greyresizedimg = cv2.resize(grayImg, [round(5328/resizeFactor), round(4608/resizeFactor)], interpolation=cv2.INTER_AREA)
-    # Apply adaptive thresholding to the blurred frame
-    thresh = cv2.adaptiveThreshold(greyresizedimg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-    resizedimg = cv2.cvtColor(greyresizedimg, cv2.COLOR_GRAY2RGB)
-    #TODO temporary, to check if coordinates can be converted properly
-    greyresizedimg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    resizedimg = img
-    # Find contours in the thresholded frame
-    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            list_of_pts = []
+            contourList = []
+            i = 0
+            startEnd = [0]
+            # Iterate over the contours
+            for contour in contours:
+                # Calculate the area of the contour
+                area = cv2.contourArea(contour)
+                # Set a minimum threshold for contour area
+                if area > 2000:
+                    # Check if the contour has at least 5 points
+                    if len(contour) >= 5:
+                        list_of_pts += [pt[0] for pt in contour]
+                        print(f"length of contours={len(contour)}")
 
-    list_of_pts = []
-    contourList = []
-    i = 0
-    startEnd = [0]
-    # Iterate over the contours
-    for contour in contours:
-        # Calculate the area of the contour
-        area = cv2.contourArea(contour)
-        # Set a minimum threshold for contour area
-        if area > 2000:
-            # Check if the contour has at least 5 points
-            if len(contour) >= 5:
-                list_of_pts += [pt[0] for pt in contour]
-                print(f"length of contours={len(contour)}")
+                        startEnd.append([])
 
-                startEnd.append([])
+                        #contour = np.array(list_of_pts).reshape((-1, 1, 2)).astype(np.int32)
+                        contourList.append(contour)
+                        #contour = cv2.convexHull(contour)
+                        i =+ 1
 
-                #contour = np.array(list_of_pts).reshape((-1, 1, 2)).astype(np.int32)
-                contourList.append(contour)
-                #contour = cv2.convexHull(contour)
-                i =+ 1
+            for i, contour in enumerate(contourList):
+                if contour is not None and i == 2:
+                    #contour = [elem for elem in contour if not bool((np.isin(elem, contourList[i-1])).all())]
+                    #check per y value first, then compare x's to find largest x
+                    usableContour = []
+                    # ylist = np.array([elem[0][1] for elem in contour])
+                    # xlist = [elem[0][0] for elem in contour]
+                    #TODO temp to check coordinate conversion
+                    ylist = np.array([elem[0][1]*resizeFactor for elem in contour])
+                    xlist = [elem[0][0]*resizeFactor for elem in contour]
+                    for j in range(min(ylist), max(ylist)):
+                        indexesJ = np.where(ylist == j)[0]
+                        if len(indexesJ)>0:
+                            xListpery = [xlist[x] for x in indexesJ]
+                            usableContour.append([max(xListpery), j])
+                    useableylist = np.array([elem[1] for elem in usableContour])
+                    useablexlist = [elem[0] for elem in usableContour]
+                    try:
+                        #resizedimg = cv2.drawContours(resizedimg, np.array([usableContour]), -1, (0, 0, 255), 2)     #draws 1 good contour around the outer halo fringe - connects outer ends
+                        resizedimg = cv2.polylines(resizedimg, np.array([usableContour]), False, (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
 
-    for i, contour in enumerate(contourList):
-        if contour is not None and i == 2:
-            #contour = [elem for elem in contour if not bool((np.isin(elem, contourList[i-1])).all())]
-            #check per y value first, then compare x's to find largest x
-            usableContour = []
-            # ylist = np.array([elem[0][1] for elem in contour])
-            # xlist = [elem[0][0] for elem in contour]
-            #TODO temp to check coordinate conversion
-            ylist = np.array([elem[0][1]*resizeFactor for elem in contour])
-            xlist = [elem[0][0]*resizeFactor for elem in contour]
-            for j in range(min(ylist), max(ylist)):
-                indexesJ = np.where(ylist == j)[0]
-                if len(indexesJ)>0:
-                    xListpery = [xlist[x] for x in indexesJ]
-                    usableContour.append([max(xListpery), j])
-            useableylist = np.array([elem[1] for elem in usableContour])
-            useablexlist = [elem[0] for elem in usableContour]
-            #resizedimg = cv2.drawContours(resizedimg, np.array([usableContour]), -1, (0, 0, 255), 2)     #draws 1 good contour around the outer halo fringe - connects outer ends
-            resizedimg = cv2.polylines(resizedimg, np.array([usableContour]), False, (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
+                        #Should yield the normal for every point: output is original x&y, and corresponding normal x,y (defined as dx and dy) 30 points inwards
+                        x0arr, dxarr, y0arr, dyarr = get_normalsV3(useablexlist, useableylist, 225) #/resizeFactor
+                        angleDegArr = []
 
-            #Should yield the normal for every point: output is original x&y, and corresponding normal x,y (defined as dx and dy) 30 points inwards
-            x0arr, dxarr, y0arr, dyarr = get_normalsV3(useablexlist, useableylist, 225) #/resizeFactor
-            angleDegArr = []
-            for k in range(0, len(x0arr)):
-                #TODO trying to get this to work: plotting normals obtained with above function get_normals
-                #resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
-                if k % 5 == 0:
-                    resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe
+                        for k in range(0, len(x0arr)):
+                            #TODO trying to get this to work: plotting normals obtained with above function get_normals
+                            #resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
+                            if k % 5 == 0:
+                                resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe
 
-                a = (dyarr[k] - y0arr[k])/(dxarr[k] - x0arr[k])
-                b = y0arr[k] - a*x0arr[k]
-                coords, l = coordinates_on_line(a, b, [x0arr[k], dxarr[k], y0arr[k], dyarr[k]])
-                profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
-                # plt.plot(profile)
-                # print(f"Coords are: \n {coords}\nprofile values are: \n{profile}")
-                # plt.title(f"Profile with {len(profile)} datapoints")
-                # plt.show()
-                profile_fft = np.fft.fft(profile)  # transform to fourier space
-                mask = np.ones_like(profile).astype(float)
-                # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
-                lowpass = round(len(profile) / 2); highpass = 2;
-                mask[0:lowpass] = 0; mask[-highpass:] = 0
-                profile_fft = profile_fft * mask
-                profile_filtered = np.fft.ifft(profile_fft)
-                # plt.plot(profile_fft)
-                # plt.title("Fourier plot")
-                # plt.show()
+                            a = (dyarr[k] - y0arr[k])/(dxarr[k] - x0arr[k])
+                            b = y0arr[k] - a*x0arr[k]
+                            coords, l = coordinates_on_line(a, b, [x0arr[k], dxarr[k], y0arr[k], dyarr[k]])
+                            profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
+                            # plt.plot(profile)
+                            # print(f"Coords are: \n {coords}\nprofile values are: \n{profile}")
+                            # plt.title(f"Profile with {len(profile)} datapoints")
+                            # plt.show()
+                            profile_fft = np.fft.fft(profile)  # transform to fourier space
+                            mask = np.ones_like(profile).astype(float)
+                            # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
+                            lowpass = round(len(profile) / 2); highpass = 2;
+                            mask[0:lowpass] = 0; mask[-highpass:] = 0
+                            profile_fft = profile_fft * mask
+                            profile_filtered = np.fft.ifft(profile_fft)
+                            # plt.plot(profile_fft)
+                            # plt.title("Fourier plot")
+                            # plt.show()
 
-                # calculate the wrapped space
-                wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-                # plt.plot(wrapped)
-                # plt.title(f"Wrapped profile")
-                # plt.show()
-                unwrapped = np.unwrap(wrapped)
-                if FLIPDATA:
-                    unwrapped = -unwrapped + max(unwrapped)
-                unwrapped *= conversionZ / 1000         #if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
-                x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
-                coef1 = np.polyfit(x, unwrapped, 1)
+                            # calculate the wrapped space
+                            wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+                            # plt.plot(wrapped)
+                            # plt.title(f"Wrapped profile")
+                            # plt.show()
+                            unwrapped = np.unwrap(wrapped)
+                            if FLIPDATA:
+                                unwrapped = -unwrapped + max(unwrapped)
+                            unwrapped *= conversionZ / 1000         #if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
+                            x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
+                            coef1 = np.polyfit(x, unwrapped, 1)
 
-                # plt.plot(x, unwrapped)
-                # plt.title("Drop height vs distance (unwrapped profile)")
-                # plt.show()
-                a_horizontal = 0
-                angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
-                angleDeg = math.degrees(angleRad)
-                # Flip measured CA degree if higher than 45.
-                if angleDeg > 45:
-                    angleDeg = 90 - angleDeg
-                print(f"Length of studied array is= {len(unwrapped)}")
-                print(f"Calculated angle: {angleDeg} deg")
+                            # plt.plot(x, unwrapped)
+                            # plt.title("Drop height vs distance (unwrapped profile)")
+                            # plt.show()
+                            a_horizontal = 0
+                            angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
+                            angleDeg = math.degrees(angleRad)
+                            # Flip measured CA degree if higher than 45.
+                            if angleDeg > 45:
+                                angleDeg = 90 - angleDeg
+                            #print(f"Length of studied array is= {len(unwrapped)}")
+                            #print(f"Calculated angle: {angleDeg} deg")
 
-                angleDegArr.append(angleDeg)
+                            angleDegArr.append(angleDeg)
 
-            # Fit an ellipse around the contour
-            #ellipse = cv2.fitEllipse(contour)
-            # Draw the ellipse on the original frame
-            #resizedimg = cv2.ellipse(resizedimg, ellipse, (0, 255, 0), 2)                #draws an ellips, which fits poorly
-            # get the middlepoint of the contour and draw a circle in it
-            #M = cv2.moments(contour)
-            #cx = int(M["m10"] / M["m00"])
-            #cy = int(M["m01"] / M["m00"])
-            #resizedimg = cv2.circle(resizedimg, (cx, cy), 13, (255, 0, 0), -1)           #draws a white circle
-            #cx_save.append(cx)
-            #cy_save.append(cy)
+                        # Fit an ellipse around the contour
+                        #ellipse = cv2.fitEllipse(contour)
+                        # Draw the ellipse on the original frame
+                        #resizedimg = cv2.ellipse(resizedimg, ellipse, (0, 255, 0), 2)                #draws an ellips, which fits poorly
+                        # get the middlepoint of the contour and draw a circle in it
+                        #M = cv2.moments(contour)
+                        #cx = int(M["m10"] / M["m00"])
+                        #cy = int(M["m01"] / M["m00"])
+                        #resizedimg = cv2.circle(resizedimg, (cx, cy), 13, (255, 0, 0), -1)           #draws a white circle
+                        #cx_save.append(cx)
+                        #cy_save.append(cy)
 
-            # Display the input and output frames
-            #cv2.imshow('Input', resizedimg)
-            #cv2.imshow('Output', thresh)
-            #cv2.waitKey(0)
-            #cv2.destroyAllWindows()
-            plt.plot(y0arr, angleDegArr)
-            plt.xlabel("Y-coord"); plt.ylabel("Calculated Contact Angle (deg)"); plt.title("Calculated Contact angles"); plt.show()
-            tstring = str(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
-            cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine{tstring}.png") , resizedimg)
-            cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine{tstring}.png") , thresh)
+                        # Display the input and output frames
+                        #cv2.imshow('Input', resizedimg)
+                        #cv2.imshow('Output', thresh)
+                        #cv2.waitKey(0)
+                        #cv2.destroyAllWindows()
+                        plt.plot(y0arr, angleDegArr)
+                        plt.xlabel("Y-coord"); plt.ylabel("Calculated Contact Angle (deg)"); plt.title("Calculated Contact angles"); plt.show()
+                    except:
+                        print(f"Some error occured. Still plotting obtained contour")
+                    tstring = str(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+                    cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine{tstring}.png") , resizedimg)
+                    cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine{tstring}.png") , thresh)
 if __name__ == "__main__":
     main()
     exit()
