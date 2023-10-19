@@ -166,9 +166,7 @@ def main():
 
             a_horizontal = 0
 
-
             angleRad = math.atan((coef1[0]-a_horizontal)/(1+coef1[0]*a_horizontal))
-
             angleDeg = math.degrees(angleRad)
 
             #Flip measured CA degree if higher than 45.

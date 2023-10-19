@@ -472,9 +472,6 @@ def method_line(config, **kwargs):
     if SavingTemp:
         saveTempPlot(wrapped, os.path.join(config.get("SAVING", "OUTPUT_LOCATION", "8wrapped_norm.png")))
 
-    #TODO This needed fixing: was a static path. But seems not even necessary for the line method?
-    #np.savetxt(r"C:\Users\HOEKHJ\Dev\InterferometryPython\export\wrapped.csv", wrapped, delimiter=',', fmt='%f')
-
     unwrapped = np.unwrap(wrapped)
     # Saving temp
     if SavingTemp:
