@@ -276,34 +276,82 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
     contourList = [elem[1] for elem in FurthestRightContours]
 
     #If contour is not known yet from imported file:
-    # Generally, not the furthest one out (halo), but the one before that is the contour of the CL. i can be changed with a popup box
+    #Generally, not the furthest one out (halo), but the one before that is the contour of the CL. i can be changed with a popup box
     if contouri < 0:    #contour not known from file
         #TODO implement here: check current contours with good one of previous k iteration, and select the one that is
         # most similar. If big differences for all, select manually
+        # if not isinstance(contourCoords, int):  #if coord of previous iteration are given, they are an array, not an int. Check with those for best contour
+        #     ylistToCheckCoords = np.array([elem[1] for elem in contourCoords])
+        #     xlistToCheckCoords = [elem[0] for elem in contourCoords]
+        #     lenOfCoordinatesToCheck = 50 #only compare 50 values of y
+        #     ysToCheck = np.linspace(min(ylistToCheckCoords)+5, max(ylistToCheckCoords)-5, lenOfCoordinatesToCheck).round()
+        #     xsToCheck = []
+        #     for y in ysToCheck: #obtain corresponding x's of the to-be-investigated y's
+        #         xsToCheck.append(xlistToCheckCoords[np.where(ylistToCheckCoords == y)[0][0]])
+        #
+        #     bestCorrespondingContour = np.zeros(len(contourList))
+        #     absError = 0
+        #     for i, yToCheck in enumerate(ysToCheck):    #compare x-values at various y-heights
+        #         xlistPerY = []
+        #         for contour in contourList:
+        #             xAtyIndices = np.where([elem[0][1] for elem in contour] == yToCheck)
+        #             xaty = [contour[k][0][0] for k in xAtyIndices[0]]
+        #             xlistPerY.append(np.mean(xaty)) #TODO temp max() or np.mean : xaty are multiple values, and we only want to compare 1. But it is unknown which one would be 'best' to compare. For now try max()
+        #         absErrorArray = abs(np.subtract(xlistPerY, xsToCheck[i]))
+        #         bestCorrespondingCoordinateIndex = np.argmin(absErrorArray)  #find best corresponding x of xsToCheck[i] xlistPerY
+        #         absError += absErrorArray[bestCorrespondingCoordinateIndex]
+        #         bestCorrespondingContour[bestCorrespondingCoordinateIndex] += 1
+        #     i = np.argmax(bestCorrespondingContour)
+        #     contouri = i
+        #     contour = contourList[i]
+        #     print(f"BestCorrespondingContour list= {bestCorrespondingContour}")
+        #     if absError / lenOfCoordinatesToCheck > 100: #if error for every y-coord is large, probably the image was shifted. Therefore previous image should not be compared with this one, and a manual contour should be picked
+        #         goodContour = False
+        #         print(f"Manually picking contour because absulate error was determined to be: {absError}, meaning error per y = {absError / lenOfCoordinatesToCheck}")
+        #     else:
+        #         goodContour = True
+        #         print(f"Automatically picked contour looks good from error per y ({absError / lenOfCoordinatesToCheck}/ycoord)")
 
-        if len(contourCoords) > 1:  #if coord of previous iteration are given, check with those for best contour
+
+        #TODO attempting different way of checking which contour is the correct one.
+        #Maybe iterate for all contours, starting at the most outer one to obtain a few intensity profiles: determine if peak periodicity is very constant.
+        if not isinstance(contourCoords, int):
             ylistToCheckCoords = np.array([elem[1] for elem in contourCoords])
             xlistToCheckCoords = [elem[0] for elem in contourCoords]
-            ysToCheck = np.linspace(min(ylistToCheckCoords), max(ylistToCheckCoords), 50).round()    #only compare 50 values of y
+            lenOfCoordinatesToCheck = 50 # only compare 50 values of y
+            ysToCheck = np.linspace(min(ylistToCheckCoords) + 5, max(ylistToCheckCoords) - 5,
+                                    lenOfCoordinatesToCheck).round()
             xsToCheck = []
-            for y in ysToCheck: #obtain corresponding x's of the to-be-investigated y's
-                xsToCheck.append(np.where(ylistToCheckCoords == y))
+            for y in ysToCheck:  # obtain corresponding x's of the to-be-investigated y's
+                xsToCheck.append(xlistToCheckCoords[np.where(ylistToCheckCoords == y)[0][0]])
 
             bestCorrespondingContour = np.zeros(len(contourList))
-            for i, yToCheck in enumerate(ysToCheck):    #compare x-values at various y-heights
+            absError = 0
+            for i, yToCheck in enumerate(ysToCheck):  # compare x-values at various y-heights
                 xlistPerY = []
                 for contour in contourList:
                     xAtyIndices = np.where([elem[0][1] for elem in contour] == yToCheck)
-                    xaty = [contour[0][k][0] for k in xAtyIndices]
-                    #TODO blijkbaar hier iets aan het doen
-                    xlistPerY.append(xAty)
-                bestCorrespondingCoordinateIndex = np.argmin(abs(np.subtract(xlistPerY, xsToCheck[i])))  #find best corresponding x of xsToCheck[i] xlistPerY
+                    xaty = [contour[k][0][0] for k in xAtyIndices[0]]
+                    xlistPerY.append(np.mean(
+                        xaty))  # TODO temp max() or np.mean : xaty are multiple values, and we only want to compare 1. But it is unknown which one would be 'best' to compare. For now try max()
+                absErrorArray = abs(np.subtract(xlistPerY, xsToCheck[i]))
+                bestCorrespondingCoordinateIndex = np.argmin(
+                    absErrorArray)  # find best corresponding x of xsToCheck[i] xlistPerY
+                absError += absErrorArray[bestCorrespondingCoordinateIndex]
                 bestCorrespondingContour[bestCorrespondingCoordinateIndex] += 1
             i = np.argmax(bestCorrespondingContour)
             contouri = i
             contour = contourList[i]
             print(f"BestCorrespondingContour list= {bestCorrespondingContour}")
-            goodContour = True
+            if absError / lenOfCoordinatesToCheck > 100:  # if error for every y-coord is large, probably the image was shifted. Therefore previous image should not be compared with this one, and a manual contour should be picked
+                goodContour = False
+                print(
+                    f"Manually picking contour because absulate error was determined to be: {absError}, meaning error per y = {absError / lenOfCoordinatesToCheck}")
+            else:
+                goodContour = True
+                print(
+                    f"Automatically picked contour looks good from error per y ({absError / lenOfCoordinatesToCheck}/ycoord)")
+
 
         else: #else, give i a value & have the user manually check for contour correctness later on
             #if all big differences (or the img number is =0), set i manually to a value and allow user input to decide the contour
@@ -312,11 +360,12 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
             else:
                 i = 0
             goodContour = False
-
+            print(f"Picking manual contour, because no previous image (and therefore no contour) was given")
     else:   #if contouri has a value, it is an imported value, chosen in a previous iteration & should already be good
         i = contouri
         contour = contourList[i]
         goodContour = True
+        print(f"Using a contour which was determined in a previous iteration from .txt file. ")
 
     #show img w/ contour to check if it is the correct one
     #make popup box to show next contour (or previous) if desired
@@ -375,7 +424,7 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
 
             if abs(max(allXValuesMiddle) - min(allXValuesMiddle)) < minimalDifferenceValue: #X-values close together -> weird contour at only a part (primarily left or right) of the droplet
                 case = 1
-                for j in range(min(ylist), max(ylist)):     #iterate over all y-coordinates form lowest to highest
+                for j in range(min(ylist), max(ylist)):     #iterate over all y-coordinates from lowest to highest
                     indexesJ = np.where(ylist == j)[0]      #find all x-es at 1 y-coord
                     xListpery = [xlist[x] for x in indexesJ]
                     if len(indexesJ) > 2 and max(xListpery) - min(xListpery) > minimalDifferenceValue:  #if more than 2 x-coords at 1 y-coord, take the min & max as useable contour (contour is fish-hook shaped)
@@ -411,7 +460,7 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
                 # TODO not sure if this works properly: meant to concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
                 for ii in range(0, len(usableContour)-1):
                     if abs(usableContour[ii][1] - usableContour[ii+1][1]) > 200:       #if difference in y between 2 appending coords is large, a gap in the contour is formed
-                        usableContour = usableContour[ii:] + usableContour[0:ii]
+                        usableContour = usableContour[ii:] + usableContour[0:ii]        #shift coordinates in list such that the coordinates are sequential neighbouring
                 useableylist = np.array([elem[1] for elem in usableContour])
                 useablexlist = [elem[0] for elem in usableContour]
 
@@ -514,7 +563,7 @@ def main():
     #procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
     #procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     #imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
-    path = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
+    path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
     #path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
@@ -523,11 +572,15 @@ def main():
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-    usedImages = [200, 201]   #np.arange(10,len(imgList), 5)              #200 is the working one
+    everyHowManyImages = 5
+    #usedImages = np.arange(50,len(imgList), everyHowManyImages)              #200 is the working one
+    usedImages = [55]
     analysisFolder = os.path.join(imgFolderPath,"Analysis CA Spatial")
     resizeFactor = 1            #=5 makes the image fit in your screen, but also has less data points when analysing
     lengthVector = 200      #225 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
+    SHOWPLOTS_SHORT = True      #True = show images for only 2 seconds, False = click away manually
+
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
         print('created path: ', analysisFolder)
@@ -557,11 +610,12 @@ def main():
                 contouri = importedContourListData_i[importedContourListData_n.index(n)]
             else:
                 contouri = -1
-
+            print(f"Determining contour for image n = {n}")
             #One of the main functions: outputs the coordiates of the desired contour of current image
             if n == usedImages[0]:  #on first iteration, don't parse previous coords (because there are none)
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity)
-            elif n - usedImages[usedImages.index(n)-1] == 1:   #if using sequential images, use coordinates of previous image
+            #TODO doesn't work as desired: now finds contour at location of previous one, but not the aout CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
+            elif n - usedImages[list(usedImages).index(n)-1] == everyHowManyImages:   #if using sequential images, use coordinates of previous image
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, usableContour)
             else: #else, don't parse coordinates (let user define them themselves)
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity)
@@ -601,7 +655,7 @@ def main():
                 # df.to_csv(wrappedPath, index=False)
                 angleDegArr = []
 
-                for k in range(0, len(x0arr)):
+                for k in range(0, len(x0arr)):      #for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     # if k == 101:
                     #     print(f"at this k we break={k}")
                     #TODO trying to get this to work: plotting normals obtained with above function get_normals
@@ -635,9 +689,9 @@ def main():
                     mask[0:lowpass] = 0; mask[-highpass:] = 0
                     profile_fft = profile_fft * mask
                     profile_filtered = np.fft.ifft(profile_fft)
-                    # plt.plot(profile_fft)
-                    # plt.title("Fourier plot")
-                    # plt.show()
+                    plt.plot(profile_fft)
+                    plt.title("Fourier plot")
+                    plt.show()
 
                     # calculate the wrapped space
                     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
@@ -653,9 +707,6 @@ def main():
                     x = np.linspace(0, lineLengthPixels, len(unwrapped)) * conversionXY * 1000
                     coef1 = np.polyfit(x, unwrapped, 1)
 
-
-                    # plt.show()
-
                     # TODO temp, only to show the profile in a plot
                     if k == round(len(x0arr)/2):
                         fig1, ax1 = plt.subplots(2, 2)
@@ -663,8 +714,14 @@ def main():
                         ax1[0,0].set_title(f"Intensity profile"); ax1[1,0].set_title("Wrapped profile")
                         ax1[0,1].plot(x, unwrapped * 1000); ax1[0,1].set_title("Drop height vs distance (unwrapped profile)")
                         ax1[0,1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
-                        ax1[0, 1].set_xlabel("Distance (um)"); ax1[0, 1].set_ylabel("Height profile (nm)")
-                        plt.show()
+                        ax1[0,0].set_xlabel("Distance (nr.of datapoints)"); ax1[0,0].set_ylabel("Intensity (a.u.)")
+                        ax1[1,0].set_xlabel("Distance (nr.of datapoints)"); ax1[1,0].set_ylabel("Amplitude (a.u.)")
+                        ax1[0,1].set_xlabel("Distance (um)"); ax1[0,1].set_ylabel("Height profile (nm)")
+                        fig1.set_size_inches(12.8, 9.6)
+                        plt.show(block=False)
+                        if SHOWPLOTS_SHORT:
+                            plt.pause(2)
+                            plt.close()
 
                     a_horizontal = 0
                     angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
@@ -698,7 +755,10 @@ def main():
                 plt.xlabel("X-coord"); plt.ylabel("Y-Coord"); plt.title("Spatial Contact Angles Colormap")
                 plt.colorbar()
                 plt.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n}.png'), dpi=600)
-                plt.show()
+                plt.show(block=False)
+                if SHOWPLOTS_SHORT:
+                    plt.pause(2)
+                    plt.close()
 
                 #Export Contact Angles to a csv file
                 wrappedPath = os.path.join(analysisFolder, f"ContactAngleData {n}.csv")
