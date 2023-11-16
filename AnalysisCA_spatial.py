@@ -15,6 +15,7 @@ import easygui
 import matplotlib as mpl
 import git
 import statistics
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 #I'm pretty sure this does not work as it's completely supposed to:
 #The limits (right now) should be from [0 - some value], and does not work for e.g. [200 - 500]
@@ -237,7 +238,7 @@ def get_normalsV4(x, y, L):
 # Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
 # Parses all 'outer' coordinates, not only on right side of droplet
 #With working popup box for checking and changing contour
-def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, thresholdSensitivity, contourCoords = 0):
+def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING, contourCoords = 0):
     minimalDifferenceValue = 100    #Value of minimal difference in x1 and x2 at same y-coord to check for when differentiating between entire droplet & partial contour & fish-hook-like contour
     img = cv2.imread(imgPath)  # read in image
     grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
@@ -261,7 +262,7 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
         area = cv2.contourArea(contour)
 
         # Set a minimum threshold for contour area
-        if area > 10000:  # OG = 2000
+        if area > 5000:  # OG = 2000
             # Check if the contour has at least 5 points
             if len(contour) >= 5:
                 list_of_pts += [pt[0] for pt in contour]
@@ -275,6 +276,12 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
         nrOfContoursToShow = len(contourList)
     FurthestRightContours = sorted(zip(maxxlist, contourList), reverse=True)[:nrOfContoursToShow]  # Sort contours, and zip the ones of which the furthest right x coords are found
     contourList = [elem[1] for elem in FurthestRightContours]
+
+    if MANUALPICKING == 3:  #always use the second most outer halo, if available.
+        if len(contourList) > 1:
+            contouri = 1
+        else:
+            contouri = 0
 
     #If contour is not known yet from imported file:
     #Generally, not the furthest one out (halo), but the one before that is the contour of the CL. i can be changed with a popup box
@@ -589,29 +596,50 @@ def timeFormat(time):
             out.append(f"{round(t / 3600)}hrs")
     return out
 
+def linearFitLinearRegimeOnly(xarr, yarr):
+    minimalnNrOfDatapoints = round(len(yarr) * (2/4))
+    residualLastTime = 10000        #some arbitrary high value to have the first iteration work
+    for i in range(0, len(yarr)-minimalnNrOfDatapoints):    #iterate over the first 2/4 of the datapoints as a starting value
+        coef1, residuals, _, _, _ = np.polyfit(xarr[i:], yarr[i:], 1, full=True)
+        startLinRegimeIndex = i
+        if not (residualLastTime/(len(yarr)-i+1) - residuals[0]/(len(yarr)-i)) / (residuals[0]/(len(yarr)-i)) > 0.05:    #if difference between
+            break
+        residualLastTime = residuals
+
+    if i == (len(yarr)-minimalnNrOfDatapoints-1):
+        print(f"Apparently no the difference in squared sum differs a lot for all 1/4th first datapoints. "
+              f"\nTherefore the data is fitted from 2/4th of the data onwards.")
+#        np.poly1d(coef1)(x) * 1000
+    return startLinRegimeIndex, coef1
+
+
 def main():
     #procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
     #procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     #imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
-    path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
+    #path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
+    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
 
-    thresholdSensitivity = [11 * 3, 2 * 5]          #OG: 11 * 5, 2 * 5
+    thresholdSensitivity = [11 * 3, 3 * 5]          #OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
+
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-    everyHowManyImages = 5
-    usedImages = np.arange(5,255, everyHowManyImages)              #200 is the working one
+    everyHowManyImages = 3
+    usedImages = np.arange(1,len(imgList), everyHowManyImages)              #200 is the working one
     #usedImages = [5, 60, 200]
     analysisFolder = os.path.join(imgFolderPath,"Analysis CA Spatial")
     resizeFactor = 1            #=5 makes the image fit in your screen, but also has less data points when analysing
     lengthVector = 200      #225 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
-    SHOWPLOTS_SHORT = 0      #0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = click away manually
-    MANUALPICKING = 1        #0 = always pick manually. 1 = only manual picking if 'correct' contour has not beenicked & saved manually before. 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet)
+    SHOWPLOTS_SHORT = 1      #0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = click away manually
 
+    # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
+    #All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour if available, else use the second most outer contour
+    MANUALPICKING = 0
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
         print('created path: ', analysisFolder)
@@ -647,12 +675,12 @@ def main():
             print(f"Determining contour for image n = {n}")
             #One of the main functions: outputs the coordiates of the desired contour of current image
             if n == usedImages[0]:  #on first iteration, don't parse previous coords (because there are none)
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity)
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING)
             #TODO doesn't work as desired: now finds contour at location of previous one, but not the aout CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
-            elif n - usedImages[list(usedImages).index(n)-1] == everyHowManyImages and MANUALPICKING > 1:   #if using sequential images, use coordinates of previous image
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, usableContour)
+            elif n - usedImages[list(usedImages).index(n)-1] == everyHowManyImages and MANUALPICKING == 2:   #if using sequential images, use coordinates of previous image
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING, usableContour)
             else: #else, don't parse coordinates (let user define them themselves)
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity)
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING)
 
             if contouri < 0:    #Save which contour is used to a txt file for this n, for ease of further iterations
                 file = open(contourListFilePath, 'a')
@@ -719,8 +747,7 @@ def main():
 
                     profile_fft = np.fft.fft(profile)  # transform to fourier space
                     mask = np.ones_like(profile).astype(float)
-                    # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
-                    lowpass = round(len(profile) / 2); highpass = 2
+                    lowpass = round(len(profile) / 2); highpass = 2 # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
                     mask[0:lowpass] = 0; mask[-highpass:] = 0
                     profile_fft = profile_fft * mask
                     profile_filtered = np.fft.ifft(profile_fft)
@@ -736,29 +763,29 @@ def main():
                     if FLIPDATA:
                         unwrapped = -unwrapped + max(unwrapped)
 
-
+                    #TODO conversionZ generally in nm, so /1000 -> in um
                     unwrapped *= conversionZ / 1000         #if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
                     #x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
-                    x = np.linspace(0, lineLengthPixels, len(unwrapped)) * conversionXY * 1000
-                    coef1 = np.polyfit(x, unwrapped, 1)
+                    #TODO conversionXY generally in mm, so *1000 -> unit in um.
+                    x = np.linspace(0, lineLengthPixels, len(unwrapped)) * conversionXY * 1000      #converts pixels to desired unit (prob. um)
+                    #coef1 = np.polyfit(x, unwrapped, 1)    #linear fit over all data
+
+                    #finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
+                    startIndex, coef1 = linearFitLinearRegimeOnly(x, unwrapped)
+
 
                     # TODO temp, only to show the profile in a plot
                     if k == round(len(x0arr)/2):
                         fig1, ax1 = plt.subplots(2, 2)
                         ax1[0,0].plot(profile); ax1[1,0].plot(wrapped); ax1[1,0].plot(peaks, wrapped[peaks], '.')
                         ax1[0,0].set_title(f"Intensity profile"); ax1[1,0].set_title("Wrapped profile")
-                        ax1[0,1].plot(x, unwrapped * 1000); ax1[0,1].set_title("Drop height vs distance (unwrapped profile)")
+                        #TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+                        ax1[0,1].plot(x, unwrapped * 1000); ax1[0,1].plot(x[startIndex], unwrapped[startIndex]*1000, 'r.'); ax1[0,1].set_title("Drop height vs distance (unwrapped profile)")
                         ax1[0,1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
                         ax1[0,0].set_xlabel("Distance (nr.of datapoints)"); ax1[0,0].set_ylabel("Intensity (a.u.)")
                         ax1[1,0].set_xlabel("Distance (nr.of datapoints)"); ax1[1,0].set_ylabel("Amplitude (a.u.)")
                         ax1[0,1].set_xlabel("Distance (um)"); ax1[0,1].set_ylabel("Height profile (nm)")
                         fig1.set_size_inches(12.8, 9.6)
-                        if SHOWPLOTS_SHORT == 2:
-                            plt.show()
-                        elif SHOWPLOTS_SHORT == 1:
-                            plt.show(block=False)
-                            plt.pause(2)
-
                     a_horizontal = 0
                     angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
                     angleDeg = math.degrees(angleRad)
@@ -781,23 +808,40 @@ def main():
                 #resizedimg = cv2.circle(resizedimg, (cx, cy), 13, (255, 0, 0), -1)           #draws a white circle
                 #cx_save.append(cx)
                 #cy_save.append(cy)
-                plt.plot(y0arr, angleDegArr, '.')
-                plt.xlabel("Y-coord"); plt.ylabel("Calculated Contact Angle (deg)"); plt.title("Calculated Contact angles")
-                plt.savefig(os.path.join(analysisFolder, f'CA vs Ycoord {n}.png'), dpi=600)
+
+                # plt.plot(y0arr, angleDegArr, '.')
+                # plt.xlabel("Y-coord"); plt.ylabel("Calculated Contact Angle (deg)"); plt.title("Calculated Contact angles")
+                # plt.savefig(os.path.join(analysisFolder, f'CA vs Ycoord {n}.png'), dpi=600)
+                # plt.close()
+
+                fig3, ax3 = plt.subplots()
+                im3 = ax3.scatter(x0arr, abs(np.subtract(4608,y0arr)), c=angleDegArr, cmap='jet', vmin=min(angleDegArr), vmax=max(angleDegArr))
+                ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
+                ax3.legend([f"Median CA (deg): {statistics.median(angleDegArr):.2f}"], loc = 'center left')
+                fig3.colorbar(im3)
+                fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}.png'), dpi=600)
                 plt.close()
 
-                plt.scatter(x0arr, abs(np.subtract(4608,y0arr)), c=angleDegArr, cmap='jet', vmin=min(angleDegArr), vmax=max(angleDegArr))
-                #plt.scatter(x0arr, abs(np.subtract(4608, y0arr)), c=angleDegArr, cmap='jet', vmin=3, vmax=max(angleDegArr))
-                plt.xlabel("X-coord"); plt.ylabel("Y-Coord"); plt.title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
-                plt.legend([f"Median CA (deg): {statistics.median(angleDegArr):.2f}"], loc = 'center left')
-                plt.colorbar()
-                plt.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}.png'), dpi=600)
+                im1 = ax1[1,1].scatter(x0arr, abs(np.subtract(4608, y0arr)), c=angleDegArr, cmap='jet', vmin=min(angleDegArr), vmax=max(angleDegArr))
+                ax1[1,1].set_xlabel("X-coord"); ax1[1,1].set_ylabel("Y-Coord"); ax1[1,1].set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
+                ax1[1,1].legend([f"Median CA (deg): {statistics.median(angleDegArr):.2f}"], loc='center left')
+                fig1.colorbar(im1)
+                fig1.savefig(os.path.join(analysisFolder, f'Complete overview {n:04}.png'), dpi=600)
                 if SHOWPLOTS_SHORT == 1:
+                    print(f"We get here 1")
                     plt.show(block=False)
+                    print(f"We get here 2")
                     plt.pause(2)
+                    print(f"We get here 3")
+                    plt.close()
+                    # fig3.show(block=False)
+                    # fig3.pause(2)
+                    # fig3.close()
                 elif SHOWPLOTS_SHORT == 2:
-                    plt.show()
-                plt.close()
+                    fig1.show()
+                    fig1.close()
+                    fig3.show()
+                    fig3.close()
 
                 #Export Contact Angles to a csv file
                 wrappedPath = os.path.join(analysisFolder, f"ContactAngleData {n}.csv")
@@ -813,7 +857,7 @@ def main():
     ax2.plot(np.divide(usedDeltaTs, 60), angleDeg_afo_time)
     ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Median Contact Angle (deg)"); ax2.set_title("Median Contact Angle over Time")
     fig2.savefig(os.path.join(analysisFolder, f'MedianCA vs Time.png'), dpi=600)
-
+    plt.close()
 if __name__ == "__main__":
     main()
     exit()
