@@ -235,24 +235,11 @@ def get_normalsV4(x, y, L):
         #     print(f"idx: {idx} - {fit}")
     return x0arr, dxarr, y0arr, dyarr  # return the original data points x0&y0, and the coords of the normals dx&dy
 
-# Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
-# Parses all 'outer' coordinates, not only on right side of droplet
-#With working popup box for checking and changing contour
-def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING, contourCoords = 0):
-    minimalDifferenceValue = 100    #Value of minimal difference in x1 and x2 at same y-coord to check for when differentiating between entire droplet & partial contour & fish-hook-like contour
-    img = cv2.imread(imgPath)  # read in image
-    grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
-    # Apply adaptive thresholding to the blurred frame
+
+def getContourList(grayImg, thresholdSensitivity):
     thresh = cv2.adaptiveThreshold(grayImg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, thresholdSensitivity[0], thresholdSensitivity[1])
-    #cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine.png"), thresh)
-
-    # TODO not nice now, but for the code to work
-    greyresizedimg = grayImg
-    resizedimg = img
-
     # Find contours in the thresholded frame
     contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-
     list_of_pts = []
     contourList = []
     maxxlist = []
@@ -270,12 +257,36 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
 
                 maxxlist.append(max([elem[0][0] for elem in contour]))  # create a list with the max-x coord of a contour, to know which contour is the furthest right, 1 from furthest etc..
                 contourList.append(contour)
+
+
     if len(contourList) > 5:
-        nrOfContoursToShow = 5      #nr of contours allow to be to checked
+        nrOfContoursToShow = 5  # nr of contours allow to be to checked
     else:
         nrOfContoursToShow = len(contourList)
+
+    for i, val in enumerate(maxxlist):          #This function is required because maxxList must have unique values.
+        if maxxlist.count(val) > 1:             #Check for all values if it is unique
+            maxxlist[i] = val+0.1                 #if not, change the value to itself+0.1, in order
+
     FurthestRightContours = sorted(zip(maxxlist, contourList), reverse=True)[:nrOfContoursToShow]  # Sort contours, and zip the ones of which the furthest right x coords are found
-    contourList = [elem[1] for elem in FurthestRightContours]
+
+    #cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine{tstring}.png"), thresh)     #if you want to save the threshold image
+    return [elem[1] for elem in FurthestRightContours], nrOfContoursToShow
+
+# Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
+# Parses all 'outer' coordinates, not only on right side of droplet
+#With working popup box for checking and changing contour
+def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING, contourCoords = 0):
+    minimalDifferenceValue = 100    #Value of minimal difference in x1 and x2 at same y-coord to check for when differentiating between entire droplet & partial contour & fish-hook-like contour
+    img = cv2.imread(imgPath)  # read in image
+    grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
+    # Apply adaptive thresholding to the blurred frame
+    # TODO not nice now, but for the code to work
+    greyresizedimg = grayImg
+    resizedimg = img
+
+    contourList, nrOfContoursToShow = getContourList(grayImg, thresholdSensitivity)
+
 
     if MANUALPICKING == 3:  #always use the second most outer halo, if available.
         if len(contourList) > 1:
@@ -374,19 +385,23 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
         goodContour = True
         print(f"Using a contour which was determined in a previous iteration from .txt file. ")
 
+    combineMultipleContours = False
+    contour = []
     #show img w/ contour to check if it is the correct one
     #make popup box to show next contour (or previous) if desired
     while goodContour == False:
         tempimg = []
         copyImg = resizedimg.copy()
         tempimg = cv2.polylines(copyImg, np.array([contourList[i]]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+        if combineMultipleContours:
+            tempimg = cv2.polylines(tempimg, np.array([contour]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
         tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
 
         cv2.imshow(f"Contour img with current selection of contour {i+1} out of {nrOfContoursToShow}", tempimg)
-        choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)"]
+        choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)", "Stitch 2 contours together: first selection",
+                   "No good contours: Ajdust threshold sensitivities", "No good contours: quit programn"]
         myvar = easygui.choicebox("Is this a desired contour?", choices=choices)
         #cv2.waitKey(0)
-        cv2.destroyAllWindows()
 
         if myvar == choices[0]:
             if i == 0:
@@ -395,12 +410,38 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
                 i -= 1
         elif myvar == choices[1]:
             goodContour = True
-            contour = contourList[i]
+            if combineMultipleContours:
+                contour = list(contour)
+                for elem in contourList[i]:
+                    contour.append(list(elem))
+            else:
+                contour = contourList[i]
         elif myvar == choices[2]:
             if i == len(contourList)-1:
                 out = easygui.msgbox("i is already maximum value, cannot go further inwards")
             else:
                 i += 1
+        elif myvar == choices[3]:   #Stitch together 2 contours with current settings:
+            if combineMultipleContours:
+                contour = list(contour)
+                for elem in contourList[i]:
+                    contour.append(list(elem))
+            else:
+                contour = contourList[i]
+            combineMultipleContours = True
+        elif myvar == choices[4]:   #Redo entire loop with different sensitivity threshold
+            title = "New threshold input"
+            msg = f"Current threshold sensitivity is: {thresholdSensitivity}. Change to (comma seperated):"
+            out = easygui.enterbox(msg, title)
+            thresholdSensitivity = list(map(int, out.split(',')))
+            contourList, nrOfContoursToShow = getContourList(grayImg, thresholdSensitivity)         #obtain new contours with new thresholldSensitivity
+            i = 0
+            combineMultipleContours = False
+        elif myvar == choices[5]:   #Quit programn altogether
+            out = easygui.msgbox("Closing loop, the programn will probably break down")
+            break
+        contour = np.array(contour)
+        cv2.destroyAllWindows()
 
 
     if goodContour == True:     #i == 1  # generally, not the furthest one out (halo), but the one before that is the contour of the CL
@@ -491,10 +532,7 @@ def getContourCoordsV4(imgPath, resizeFactor, analysisFolder, contouri, threshol
 
 
 
-    return useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, i
-
-
-
+    return useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, i
 
 
 def importConversionFactors(procStatsJsonPath):
@@ -618,7 +656,7 @@ def main():
     #procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     #imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     #path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
@@ -629,13 +667,13 @@ def main():
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
-    usedImages = np.arange(1,len(imgList), everyHowManyImages)              #200 is the working one
+    usedImages = np.arange(16, len(imgList), everyHowManyImages)              #200 is the working one
     #usedImages = [5, 60, 200]
     analysisFolder = os.path.join(imgFolderPath,"Analysis CA Spatial")
     resizeFactor = 1            #=5 makes the image fit in your screen, but also has less data points when analysing
     lengthVector = 200      #225 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
-    SHOWPLOTS_SHORT = 1      #0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = click away manually
+    SHOWPLOTS_SHORT = 1      #0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
 
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     #All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour if available, else use the second most outer contour
@@ -675,12 +713,12 @@ def main():
             print(f"Determining contour for image n = {n}")
             #One of the main functions: outputs the coordiates of the desired contour of current image
             if n == usedImages[0]:  #on first iteration, don't parse previous coords (because there are none)
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING)
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING)
             #TODO doesn't work as desired: now finds contour at location of previous one, but not the aout CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
             elif n - usedImages[list(usedImages).index(n)-1] == everyHowManyImages and MANUALPICKING == 2:   #if using sequential images, use coordinates of previous image
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING, usableContour)
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING, usableContour)
             else: #else, don't parse coordinates (let user define them themselves)
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresh, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING)
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, outputi = getContourCoordsV4(img, resizeFactor, analysisFolder, contouri, thresholdSensitivity, MANUALPICKING)
 
             if contouri < 0:    #Save which contour is used to a txt file for this n, for ease of further iterations
                 file = open(contourListFilePath, 'a')
@@ -852,7 +890,6 @@ def main():
                 print(f"Some error occured. Still plotting obtained contour")
             tstring = str(datetime.now().strftime("%Y_%m_%d")) #day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png") , resizedimg)
-            #cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine{tstring}.png") , thresh)
     fig2, ax2 = plt.subplots()
     ax2.plot(np.divide(usedDeltaTs, 60), angleDeg_afo_time)
     ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Median Contact Angle (deg)"); ax2.set_title("Median Contact Angle over Time")
