@@ -661,13 +661,15 @@ def main():
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
 
-    thresholdSensitivity = [11 * 3, 3 * 5]          #OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
+    thresholdSensitivityStandard = [11 * 3, 3 * 5]          #OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
     usedImages = np.arange(16, len(imgList), everyHowManyImages)              #200 is the working one
+    threshList = [thresholdSensitivityStandard] * len(imgList)
+    #TODO import thresh sensitivities from contour file & use those, if availbale
     #usedImages = [5, 60, 200]
     analysisFolder = os.path.join(imgFolderPath,"Analysis CA Spatial")
     resizeFactor = 1            #=5 makes the image fit in your screen, but also has less data points when analysing
