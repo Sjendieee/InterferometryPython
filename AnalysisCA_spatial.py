@@ -237,7 +237,18 @@ def get_normalsV4(x, y, L):
 
 
 def getContourList(grayImg, thresholdSensitivity):
-    thresh = cv2.adaptiveThreshold(grayImg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, thresholdSensitivity[0], thresholdSensitivity[1])
+    WORKINGTRESH = False
+    while not WORKINGTRESH:
+        try:
+            thresh = cv2.adaptiveThreshold(grayImg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, thresholdSensitivity[0], thresholdSensitivity[1])
+            WORKINGTRESH = True
+        except:
+            print(f"Tresh didn't work. Choose different sensitivity")
+            title = "Inputted thresh didn't work: New threshold input"
+            msg = f"Inputted threshold sensitivity didn't work! Input new.\nCurrent threshold sensitivity is: {thresholdSensitivity}. Change to (comma seperated):"
+            out = easygui.enterbox(msg, title)
+            thresholdSensitivity = list(map(int, out.split(',')))
+
     # Find contours in the thresholded frame
     contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     list_of_pts = []
@@ -271,7 +282,7 @@ def getContourList(grayImg, thresholdSensitivity):
     FurthestRightContours = sorted(zip(maxxlist, contourList), reverse=True)[:nrOfContoursToShow]  # Sort contours, and zip the ones of which the furthest right x coords are found
 
     #cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine{tstring}.png"), thresh)     #if you want to save the threshold image
-    return [elem[1] for elem in FurthestRightContours], nrOfContoursToShow
+    return [elem[1] for elem in FurthestRightContours], nrOfContoursToShow, thresholdSensitivity
 
 # Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
 # Parses all 'outer' coordinates, not only on right side of droplet
@@ -285,7 +296,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
     greyresizedimg = grayImg
     resizedimg = img
 
-    contourList, nrOfContoursToShow = getContourList(grayImg, thresholdSensitivity)
+    contourList, nrOfContoursToShow, thresholdSensitivity = getContourList(grayImg, thresholdSensitivity)
 
 
     if MANUALPICKING == 3:  #always use the second most outer halo, if available.
@@ -445,7 +456,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             msg = f"Current threshold sensitivity is: {thresholdSensitivity}. Change to (comma seperated):"
             out = easygui.enterbox(msg, title)
             thresholdSensitivity = list(map(int, out.split(',')))
-            contourList, nrOfContoursToShow = getContourList(grayImg, thresholdSensitivity)         #obtain new contours with new thresholldSensitivity
+            contourList, nrOfContoursToShow, thresholdSensitivity = getContourList(grayImg, thresholdSensitivity)         #obtain new contours with new thresholldSensitivity
             i = 0
             iout = []       #reset previously chosen i values
             combineMultipleContours = False
@@ -657,12 +668,10 @@ def linearFitLinearRegimeOnly(xarr, yarr):
 #        np.poly1d(coef1)(x) * 1000
     return startLinRegimeIndex, coef1
 
-def extractNumbersFromFile(lines):
+def extractContourNumbersFromFile(lines):
     importedContourListData_n = []
     importedContourListData_i = []
     importedContourListData_thresh = []
-
-
     for line in lines[1:]:
         importedContourListData_n.append(int(line.split(';')[0]))
         idata = (line.split(';')[1])
@@ -671,8 +680,6 @@ def extractNumbersFromFile(lines):
             ilist.append(int(i))
         importedContourListData_i.append(ilist)
         importedContourListData_thresh.append([int(line.split(';')[2]), int(line.split(';')[3])])
-
-
     return importedContourListData_n, importedContourListData_i, importedContourListData_thresh
 
 
@@ -681,7 +688,7 @@ def main():
     #procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     #imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     #path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
     #path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
@@ -692,7 +699,7 @@ def main():
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
-    usedImages = np.arange(19, len(imgList), everyHowManyImages)              #200 is the working one
+    usedImages = np.arange(1, len(imgList), everyHowManyImages)              #200 is the working one
     #TODO import thresh sensitivities from contour file & use those, if availbale
     #usedImages = [5, 60, 200]
     analysisFolder = os.path.join(imgFolderPath,"Analysis CA Spatial")
@@ -708,10 +715,11 @@ def main():
         os.mkdir(analysisFolder)
         print('created path: ', analysisFolder)
     contourListFilePath = os.path.join(analysisFolder, "ContourListFile.txt")
+    contactAngleListFilePath = os.path.join(analysisFolder, "ContactAngle_MedianListFile.txt")
     if os.path.exists(contourListFilePath): #read in all contourline data from existing file (filenr ,+ i for obtaining contour location)
         f = open(contourListFilePath, 'r')
         lines = f.readlines()
-        importedContourListData_n, importedContourListData_i, importedContourListData_thresh = extractNumbersFromFile(lines)
+        importedContourListData_n, importedContourListData_i, importedContourListData_thresh = extractContourNumbersFromFile(lines)
         #importedContourListData = np.loadtxt(contourListFilePath, dtype='int', delimiter=',',  usecols=(0,1))
     else:
         f = open(contourListFilePath, 'w')
@@ -721,10 +729,24 @@ def main():
         importedContourListData_n = []
         importedContourListData_i = []
 
+    ndata = []
+    if not os.path.exists(contactAngleListFilePath): #Create a file for saving median contact angle, if not already existing
+        f = open(contactAngleListFilePath, 'w')
+        f.write(f"file number (n), delta time from 0 (s), median CA (def)\n")
+        f.close()
+        print("Created Median Contact Angle list file.txt")
+    else:
+        f = open(contactAngleListFilePath, 'r')
+        lines = f.readlines()
+        for line in lines:
+            data = line.split(',')
+            ndata.append(data[0])
+
+    angleDeg_afo_time = []  #for saving median CA's later
     timestamps, deltatseconds, deltatFromZeroSeconds = getTimeStamps(imgList)     #get the timestamps of ALL images in folder, and the delta time of ALL images w/ respect to the 1st image
     usedDeltaTs = [deltatFromZeroSeconds[t] for t in usedImages]    #array with delta t (IN SECONDS) for only the USED IMAGES
     deltat_formatted = timeFormat(deltatFromZeroSeconds)    #formatted delta t (seconds, minutes etc..) for ALL IMAGES in folder.
-    angleDeg_afo_time = []      #output array for the calculated median contact angle as a function of time (so for every used image)
+          #output array for the calculated median contact angle as a function of time (so for every used image)
     if unitZ != "nm" or unitXY != "mm":
         raise Exception("One of either units is not correct for good conversion. Fix manually or implement in code")
     for n, img in enumerate(imgList):
@@ -747,11 +769,6 @@ def main():
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, usableContour)
             else: #else, don't parse coordinates (let user define them themselves)
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING)
-
-            # if contouri < 0:    #Save which contour is used to a txt file for this n, for ease of further iterations
-            #     file = open(contourListFilePath, 'a')
-            #     file.write(f"{n}, {outputi}\n")
-            #     file.close()
 
             try:
                 resizedimg = cv2.polylines(resizedimg, np.array([usableContour]), False, (0, 0, 255), 2)  # draws 1 red good contour around the outer halo fringe
@@ -901,11 +918,17 @@ def main():
                     fig3.show()
                     fig3.close()
 
-                #Export Contact Angles to a csv file
+                #Export Contact Angles to a csv file & add median CA to txt file
                 wrappedPath = os.path.join(analysisFolder, f"ContactAngleData {n}.csv")
                 d = dict({'x-coords': x0arr, 'y-coords': y0arr, 'contactAngle' : angleDegArr})
                 df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in d.items()]))  # pad shorter colums with NaN's
                 df.to_csv(wrappedPath, index=False)
+
+                if n not in ndata:  #if not already saved median CA, save to txt file.
+                    CAfile = open(contactAngleListFilePath, 'a')
+                    CAfile.write(f"{n}, {usedDeltaTs[n]}, {angleDeg_afo_time[-1]}\n")
+                    CAfile.close()
+
             except:
                 print(f"Some error occured. Still plotting obtained contour")
             tstring = str(datetime.now().strftime("%Y_%m_%d")) #day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
@@ -915,6 +938,7 @@ def main():
     ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Median Contact Angle (deg)"); ax2.set_title("Median Contact Angle over Time")
     fig2.savefig(os.path.join(analysisFolder, f'MedianCA vs Time.png'), dpi=600)
     plt.close()
+
 if __name__ == "__main__":
     main()
     exit()
