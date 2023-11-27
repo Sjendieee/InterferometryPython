@@ -160,8 +160,6 @@ def get_normalsV4(x, y, L):
     middleCoordinate = [(max(x) + min(x))/2, (max(y) + min(y))/2]   #estimate for "middle coordinate" of contour. Will be used to direct normal vector to inside contour
 
     for idx in range(k, len(x) - k):
-        if idx == 8331:
-            print("we pausin")
         xarr = x[(idx-k):(idx+k)] # define x'es to use for polynomial fitting
         yarr = y[(idx-k):(idx+k)] # define y's ...
         switchedxy = False
@@ -233,7 +231,9 @@ def get_normalsV4(x, y, L):
         #     plt.show()
         #     plt.close()
         #     print(f"idx: {idx} - {fit}")
-    return x0arr, dxarr, y0arr, dyarr  # return the original data points x0&y0, and the coords of the normals dx&dy
+
+    vector = [[dxarr[i] - x0arr[i], dyarr[i] - y0arr[i]] for i in range(0, len(x0arr))]   #vector [dx, dy] for each coordinate
+    return x0arr, dxarr, y0arr, dyarr, vector  # return the original data points x0&y0, and the coords of the normals dx&dy
 
 
 def getContourList(grayImg, thresholdSensitivity):
@@ -653,6 +653,7 @@ def timeFormat(time):
     return out
 
 def linearFitLinearRegimeOnly(xarr, yarr):
+    #TODO: make it so that if error is too large for linear fit, a NaN is return instead of a completely bogus CA
     minimalnNrOfDatapoints = round(len(yarr) * (2/4))
     residualLastTime = 10000        #some arbitrary high value to have the first iteration work
     for i in range(0, len(yarr)-minimalnNrOfDatapoints):    #iterate over the first 2/4 of the datapoints as a starting value
@@ -683,15 +684,52 @@ def extractContourNumbersFromFile(lines):
     return importedContourListData_n, importedContourListData_i, importedContourListData_thresh
 
 
+def CA_And_Coords_To_Force(xcoords, ycoords, vectors, CAs, analysisFolderPath):
+    nettforces = []
+    tangentforces = []
+    for i in range(0, len(CAs)):
+        correction = 0
+        if vectors[i][0] > 0:    #correct angle by 180 deg or 1pi if dx of normal is positive (left side of droplet)
+            correction = np.pi
+        localForce = math.cos(CAs[i] * np.pi / 360)
+        localVector_dydx = vectors[i][1]/vectors[i][0]
+        localTangentAngle = math.atan(localVector_dydx) + correction                 #beta = tan-1 (dy/dx)
+        localTangentForce = localForce * math.cos(localTangentAngle)
+        nettforces.append(localForce)
+        tangentforces.append(localTangentForce)
+
+    fig1, ax1 = plt.subplots()
+    im1 = ax1.scatter(xcoords, ycoords, c=nettforces, cmap='jet', vmin=min(nettforces), vmax=max(nettforces))
+    ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord"); ax1.set_title(f"Spatial Nett Forces Colormap")
+    ax1.legend([f"Median Nett Force: {statistics.median(nettforces):.2f}"], loc='center left')
+    fig1.colorbar(im1)
+    plt.show()
+    plt.close()
+    fig1.savefig(os.path.join(analysisFolderPath, 'Spatial Nett Force.png'), dpi=600)
+
+    fig3, ax3 = plt.subplots()
+    im3 = ax3.scatter(xcoords, ycoords, c=tangentforces, cmap='jet', vmin=min(tangentforces), vmax=max(tangentforces))
+    ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Tangential Forces Colormap")
+    ax3.legend([f"Median Horizontal Tangential Force: {statistics.median(tangentforces):.2f}"], loc='center left')
+    fig3.colorbar(im3)
+    plt.show()
+    plt.close()
+    fig3.savefig(os.path.join(analysisFolderPath, 'Spatial Tangential Force.png'), dpi=600)
+
+
+    print(f"Sum of tangential forces = {sum(tangentforces)}")
+    return tangentforces
+
+
 def primaryObtainCARoutine():
     # procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
-    # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
+    # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
 
     thresholdSensitivityStandard = [11 * 3, 3 * 5]  # OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
 
@@ -699,8 +737,8 @@ def primaryObtainCARoutine():
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
-    usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
-    # usedImages = [5, 60, 200]
+    #usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
+    usedImages = [15]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     resizeFactor = 1  # =5 makes the image fit in your screen, but also has less data points when analysing
     lengthVector = 200  # 225 length of normal vector over which intensity profile data is taken
@@ -788,17 +826,17 @@ def primaryObtainCARoutine():
                                                                                                            n, contouri,
                                                                                                            thresholdSensitivity,
                                                                                                            MANUALPICKING)
-
+            print(f"Contour succesfully obtained. Next: obtaining the normals of contour.")
             try:
                 resizedimg = cv2.polylines(resizedimg, np.array([usableContour]), False, (0, 0, 255),
                                            2)  # draws 1 red good contour around the outer halo fringe
 
                 # One of the main functions:
                 # Should yield the normal for every point: output is original x&y, and corresponding normal x,y (defined as dx and dy)
-                x0arr, dxarr, y0arr, dyarr = get_normalsV4(useablexlist, useableylist, lengthVector)
-
+                x0arr, dxarr, y0arr, dyarr, vectors = get_normalsV4(useablexlist, useableylist, lengthVector)
+                print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                 tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
-                for k in x0arr:
+                for k in x0arr:     #Check for weird x or y values, THEY NEVER SHOULD BE NEGATIVE
                     if k < 0:
                         print(f"xval: {k}, index: {x0arr.index(k)}")
                 for k in y0arr:
@@ -811,22 +849,13 @@ def primaryObtainCARoutine():
                 tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)],
                                      interpolation=cv2.INTER_AREA)  # resize image
                 if SHOWPLOTS_SHORT > 0:
-                    cv2.imshow(
-                        f"Contour of img {np.where(usedImages == n)[0][0]} out of {len(usedImages)} with coordinates being used by get_normals",
-                        tempimg)
+                    cv2.imshow( f"Contour of img {np.where(np.array(usedImages) == n)[0][0]} out of {len(usedImages)} with coordinates being used by get_normals", tempimg)
                     cv2.waitKey(2000)
                     cv2.destroyAllWindows()
                 cv2.imwrite(os.path.join(analysisFolder, f"rawImage_x0y0Arr_blue{n}.png"), tempimg)
 
-                # #TODO, temp: export coordinates of contour to csv file
-                # wrappedPath = os.path.join(analysisFolder, f"ContourLineData.csv")
-                # d = dict({'x-coords': useablexlist, 'y-coords': useableylist})
-                # df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in d.items()]))  # pad shorter colums with NaN's
-                # df.to_csv(wrappedPath, index=False)
                 angleDegArr = []
-
-                for k in range(0,
-                               len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
+                for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     # if k == 101:
                     #     print(f"at this k we break={k}")
                     # TODO trying to get this to work: plotting normals obtained with above function get_normals
@@ -834,12 +863,6 @@ def primaryObtainCARoutine():
                     if k % 25 == 0:  # only plot 1/25th of the vectors to not overcrowd the image
                         resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0),
                                               2)  # draws 1 good contour around the outer halo fringe
-
-                    # if k == 101:  # TODO remove, only for plotting a k value which does not work at n=10
-                    #     resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0), 8)  # draws 1 good contour around the outer halo fringe
-                    #     cv2.imshow("Point of breaking", resizedimg)
-                    #     cv2.waitKey(0)
-                    #     cv2.destroyAllWindows()
 
                     if dxarr[k] - x0arr[k] == 0:  # constant x, variable y
                         xarr = np.ones(lengthVector) * x0arr[k]
@@ -863,9 +886,6 @@ def primaryObtainCARoutine():
                     mask[-highpass:] = 0
                     profile_fft = profile_fft * mask
                     profile_filtered = np.fft.ifft(profile_fft)
-                    # plt.plot(profile_fft)
-                    # plt.title("Fourier plot")
-                    # plt.show()
 
                     # calculate the wrapped space
                     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
@@ -881,7 +901,6 @@ def primaryObtainCARoutine():
                     # TODO conversionXY generally in mm, so *1000 -> unit in um.
                     x = np.linspace(0, lineLengthPixels,
                                     len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
-                    # coef1 = np.polyfit(x, unwrapped, 1)    #linear fit over all data
 
                     # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
                     startIndex, coef1 = linearFitLinearRegimeOnly(x, unwrapped)
@@ -889,22 +908,14 @@ def primaryObtainCARoutine():
                     if k == round(
                             len(x0arr) / 2):  # plot 1 profile of each image with intensity, wrapped, height & resulting CA
                         fig1, ax1 = plt.subplots(2, 2)
-                        ax1[0, 0].plot(profile);
-                        ax1[1, 0].plot(wrapped);
-                        ax1[1, 0].plot(peaks, wrapped[peaks], '.')
-                        ax1[0, 0].set_title(f"Intensity profile");
-                        ax1[1, 0].set_title("Wrapped profile")
+                        ax1[0, 0].plot(profile); ax1[1, 0].plot(wrapped); ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                        ax1[0, 0].set_title(f"Intensity profile"); ax1[1, 0].set_title("Wrapped profile")
                         # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                        ax1[0, 1].plot(x, unwrapped * 1000);
-                        ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.');
-                        ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
+                        ax1[0, 1].plot(x, unwrapped * 1000); ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.'); ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
                         ax1[0, 1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
-                        ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
-                        ax1[0, 0].set_ylabel("Intensity (a.u.)")
-                        ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
-                        ax1[1, 0].set_ylabel("Amplitude (a.u.)")
-                        ax1[0, 1].set_xlabel("Distance (um)");
-                        ax1[0, 1].set_ylabel("Height profile (nm)")
+                        ax1[0, 0].set_xlabel("Distance (nr.of datapoints)"); ax1[0, 0].set_ylabel("Intensity (a.u.)")
+                        ax1[1, 0].set_xlabel("Distance (nr.of datapoints)"); ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+                        ax1[0, 1].set_xlabel("Distance (um)"); ax1[0, 1].set_ylabel("Height profile (nm)")
                         fig1.set_size_inches(12.8, 9.6)
                     a_horizontal = 0
                     angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
@@ -914,6 +925,12 @@ def primaryObtainCARoutine():
                         angleDeg = 90 - angleDeg
 
                     angleDegArr.append(angleDeg)
+                print(f"Normals, intensities & Contact Angles Suceffuly obtained. Next: plotting overview of all data for 1 timestep")
+
+                #calculate the nett force over given CA en droplet range
+                forces = CA_And_Coords_To_Force(x0arr, abs(np.subtract(4608, y0arr)), vectors, angleDegArr, analysisFolder)
+
+
                 angleDeg_afo_time.append(statistics.median(angleDegArr))
                 usedDeltaTs.append(deltatFromZeroSeconds[n])    #list with delta t (IN SECONDS) for only the USED IMAGES
                 # Fit an ellipse around the contour
@@ -928,16 +945,10 @@ def primaryObtainCARoutine():
                 # cx_save.append(cx)
                 # cy_save.append(cy)
 
-                # plt.plot(y0arr, angleDegArr, '.')
-                # plt.xlabel("Y-coord"); plt.ylabel("Calculated Contact Angle (deg)"); plt.title("Calculated Contact angles")
-                # plt.savefig(os.path.join(analysisFolder, f'CA vs Ycoord {n}.png'), dpi=600)
-                # plt.close()
-
                 fig3, ax3 = plt.subplots()
                 im3 = ax3.scatter(x0arr, abs(np.subtract(4608, y0arr)), c=angleDegArr, cmap='jet',
                                   vmin=min(angleDegArr), vmax=max(angleDegArr))
-                ax3.set_xlabel("X-coord");
-                ax3.set_ylabel("Y-Coord");
+                ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord");
                 ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
                 ax3.legend([f"Median CA (deg): {statistics.median(angleDegArr):.2f}"], loc='center left')
                 fig3.colorbar(im3)
@@ -946,9 +957,7 @@ def primaryObtainCARoutine():
 
                 im1 = ax1[1, 1].scatter(x0arr, abs(np.subtract(4608, y0arr)), c=angleDegArr, cmap='jet',
                                         vmin=min(angleDegArr), vmax=max(angleDegArr))
-                ax1[1, 1].set_xlabel("X-coord");
-                ax1[1, 1].set_ylabel("Y-Coord");
-                ax1[1, 1].set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
+                ax1[1, 1].set_xlabel("X-coord"); ax1[1, 1].set_ylabel("Y-Coord"); ax1[1, 1].set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
                 ax1[1, 1].legend([f"Median CA (deg): {statistics.median(angleDegArr):.2f}"], loc='center left')
                 fig1.colorbar(im1)
                 fig1.savefig(os.path.join(analysisFolder, f'Complete overview {n:04}.png'), dpi=600)
@@ -980,9 +989,7 @@ def primaryObtainCARoutine():
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
     fig2, ax2 = plt.subplots()
     ax2.plot(np.divide(usedDeltaTs, 60), angleDeg_afo_time)
-    ax2.set_xlabel("Time (minutes)");
-    ax2.set_ylabel("Median Contact Angle (deg)");
-    ax2.set_title("Median Contact Angle over Time")
+    ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Median Contact Angle (deg)"); ax2.set_title("Median Contact Angle over Time")
     fig2.savefig(os.path.join(analysisFolder, f'MedianCA vs Time.png'), dpi=600)
     plt.close()
 
@@ -1009,8 +1016,8 @@ def CA_analysisRoutine():
     ax1.set_title('Evolution of median contact angle entire droplet')
     plt.show()
 def main():
-    #primaryObtainCARoutine()
-    CA_analysisRoutine()
+    primaryObtainCARoutine()
+    #CA_analysisRoutine()
 
 
 if __name__ == "__main__":
