@@ -16,6 +16,8 @@ import matplotlib as mpl
 import git
 import statistics
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy.interpolate import interpolate
+from sklearn.metrics import r2_score
 
 #I'm pretty sure this does not work as it's completely supposed to:
 #The limits (right now) should be from [0 - some value], and does not work for e.g. [200 - 500]
@@ -158,6 +160,10 @@ def get_normalsV4(x, y, L):
     k = round((window_size+1)/2)
 
     middleCoordinate = [(max(x) + min(x))/2, (max(y) + min(y))/2]   #estimate for "middle coordinate" of contour. Will be used to direct normal vector to inside contour
+
+    if abs(y[0]-y[-1]) < 10 and abs(x[0]-x[-1]) < 10:   #if ends of contours are connecting, allow all the points also from the other end to be used for fitting
+        x = x[-25:] + x + x[:25]
+        y = np.hstack((y[-25:], y, y[:25]))
 
     for idx in range(k, len(x) - k):
         xarr = x[(idx-k):(idx+k)] # define x'es to use for polynomial fitting
@@ -537,6 +543,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 useablexlist = [elem[0] for elem in usableContour]
 
 
+
         else:   #if only 1 value
             print(f"For now something seems to be weird. Either bad contour, or accidentally only 1 real Y at that level."
                   f"Might therefore be a min/max in image, or the contour at the other side somehow skipped 1 Y-value (if this happens, implement new code)")
@@ -652,7 +659,7 @@ def timeFormat(time):
             out.append(f"{round(t / 3600)}hrs")
     return out
 
-def linearFitLinearRegimeOnly(xarr, yarr):
+def linearFitLinearRegimeOnly(xarr, yarr, sensitivityR2, k):
     #TODO: make it so that if error is too large for linear fit, a NaN is return instead of a completely bogus CA
     minimalnNrOfDatapoints = round(len(yarr) * (2/4))
     residualLastTime = 10000        #some arbitrary high value to have the first iteration work
@@ -662,12 +669,13 @@ def linearFitLinearRegimeOnly(xarr, yarr):
         if not (residualLastTime/(len(yarr)-i+1) - residuals[0]/(len(yarr)-i)) / (residuals[0]/(len(yarr)-i)) > 0.05:    #if difference between
             break
         residualLastTime = residuals
-
     if i == (len(yarr)-minimalnNrOfDatapoints-1):
-        print(f"Apparently no the difference in squared sum differs a lot for all 1/4th first datapoints. "
+        print(f"Apparently no the difference in squared sum differs a lot for all 2/4th first datapoints. "
               f"\nTherefore the data is fitted from 2/4th of the data onwards.")
-#        np.poly1d(coef1)(x) * 1000
-    return startLinRegimeIndex, coef1
+    r2 = r2_score(yarr, np.poly1d(coef1)(xarr))
+    if r2 < sensitivityR2:
+        print(f"{k}: R^2 of fit is worse than {sensitivityR2}, namely: {r2:.4f}. This fit is not to be trusted")
+    return startLinRegimeIndex, coef1, r2
 
 def extractContourNumbersFromFile(lines):
     importedContourListData_n = []
@@ -684,53 +692,60 @@ def extractContourNumbersFromFile(lines):
     return importedContourListData_n, importedContourListData_i, importedContourListData_thresh
 
 
-def CA_And_Coords_To_Force(xcoords, ycoords, vectors, CAs, analysisFolderPath):
+def CA_And_Coords_To_Force(xcoords, ycoords, vectors, CAs, analysisFolderPath, surfaceTension):
+    unitST = "mN/m"
     nettforces = []
     tangentforces = []
     for i in range(0, len(CAs)):
         correction = 0
         if vectors[i][0] > 0:    #correct angle by 180 deg or 1pi if dx of normal is positive (left side of droplet)
             correction = np.pi
-        localForce = math.cos(CAs[i] * np.pi / 360)
+        nettforce = math.cos(CAs[i] * np.pi / 180) * surfaceTension  #horizontal projection of g-l surface tension for force balance
         localVector_dydx = vectors[i][1]/vectors[i][0]
         localTangentAngle = math.atan(localVector_dydx) + correction                 #beta = tan-1 (dy/dx)
-        localTangentForce = localForce * math.cos(localTangentAngle)
-        nettforces.append(localForce)
+        localTangentForce = nettforce * math.cos(localTangentAngle)
+        nettforces.append(nettforce)
         tangentforces.append(localTangentForce)
 
     fig1, ax1 = plt.subplots()
     im1 = ax1.scatter(xcoords, ycoords, c=nettforces, cmap='jet', vmin=min(nettforces), vmax=max(nettforces))
-    ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord"); ax1.set_title(f"Spatial Nett Forces Colormap")
-    ax1.legend([f"Median Nett Force: {statistics.median(nettforces):.2f}"], loc='center left')
-    fig1.colorbar(im1)
+    ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord"); ax1.set_title(f"Spatial Nett Forces ({unitST}) Colormap")
+    ax1.legend([f"Median Nett Force: {(statistics.median(nettforces)):.2f} {unitST}"], loc='center left')
+    fig1.colorbar(im1, format="%.5f")
     plt.show()
     plt.close()
     fig1.savefig(os.path.join(analysisFolderPath, 'Spatial Nett Force.png'), dpi=600)
 
     fig3, ax3 = plt.subplots()
     im3 = ax3.scatter(xcoords, ycoords, c=tangentforces, cmap='jet', vmin=min(tangentforces), vmax=max(tangentforces))
-    ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Tangential Forces Colormap")
-    ax3.legend([f"Median Horizontal Tangential Force: {statistics.median(tangentforces):.2f}"], loc='center left')
+    ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Tangential Forces ({unitST}) Colormap")
+    ax3.legend([f"Median Horizontal Component Force: {(statistics.median(tangentforces)):.2f} {unitST}"], loc='center left')
     fig3.colorbar(im3)
     plt.show()
     plt.close()
     fig3.savefig(os.path.join(analysisFolderPath, 'Spatial Tangential Force.png'), dpi=600)
 
-
-    print(f"Sum of tangential forces = {sum(tangentforces)}")
+    print(f"Sum of Horizontal Components forces = {sum(tangentforces)} (compare with total (abs horizontal) = {sum(abs(np.array(tangentforces)))}")
     return tangentforces
 
+
+#TODO get this to work? : fitting CA = (x,y) to interpolate for missing datapoints & get total contour length for good force calculation
+def givemeZ(xin,yin, zin, xout, yout):
+    #tck = interpolate.bisplrep(xin, yin, zin, s=0)
+    #f = scipy.interpolate.interp2d(xin, yin, zin, kind="cubic")
+    f = np.polyfit(xin, yin, z, 8)
+    return np.poly1d(f)(xout, yout)
 
 def primaryObtainCARoutine():
     # procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
     # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
-
+    # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
     thresholdSensitivityStandard = [11 * 3, 3 * 5]  # OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
@@ -738,16 +753,17 @@ def primaryObtainCARoutine():
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
     #usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [15]
+    usedImages = [13]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     resizeFactor = 1  # =5 makes the image fit in your screen, but also has less data points when analysing
-    lengthVector = 200  # 225 length of normal vector over which intensity profile data is taken
+    lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
-
+    sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour if available, else use the second most outer contour
     MANUALPICKING = 1
+    lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
         print('created path: ', analysisFolder)
@@ -855,6 +871,10 @@ def primaryObtainCARoutine():
                 cv2.imwrite(os.path.join(analysisFolder, f"rawImage_x0y0Arr_blue{n}.png"), tempimg)
 
                 angleDegArr = []
+                xArrFinal = []
+                yArrFinal = []
+                vectorsFinal = []
+                counter = 0
                 for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     # if k == 101:
                     #     print(f"at this k we break={k}")
@@ -903,33 +923,63 @@ def primaryObtainCARoutine():
                                     len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
 
                     # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
-                    startIndex, coef1 = linearFitLinearRegimeOnly(x, unwrapped)
+                    startIndex, coef1, r2 = linearFitLinearRegimeOnly(x, unwrapped, sensitivityR2, k)
+
+                    if r2 > sensitivityR2:      #R^2 should be very high, otherwise probably e.g. near pinning point
+                        a_horizontal = 0
+                        angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
+                        angleDeg = math.degrees(angleRad)
+                        if angleDeg > 45:  # Flip measured CA degree if higher than 45.
+                            angleDeg = 90 - angleDeg
+                        xArrFinal.append(x0arr[k])
+                        yArrFinal.append(y0arr[k])
+                        vectorsFinal.append(vectors[k])
+                        angleDegArr.append(angleDeg)
+                    else:
+                        counter += 1    #TEMP: to check how many vectors should not be taken into account because the r2 value is too low
 
                     if k == round(
                             len(x0arr) / 2):  # plot 1 profile of each image with intensity, wrapped, height & resulting CA
                         fig1, ax1 = plt.subplots(2, 2)
-                        ax1[0, 0].plot(profile); ax1[1, 0].plot(wrapped); ax1[1, 0].plot(peaks, wrapped[peaks], '.')
-                        ax1[0, 0].set_title(f"Intensity profile"); ax1[1, 0].set_title("Wrapped profile")
+                        ax1[0, 0].plot(profile);
+                        ax1[1, 0].plot(wrapped);
+                        ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                        ax1[0, 0].set_title(f"Intensity profile");
+                        ax1[1, 0].set_title("Wrapped profile")
                         # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                        ax1[0, 1].plot(x, unwrapped * 1000); ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.'); ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
-                        ax1[0, 1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
-                        ax1[0, 0].set_xlabel("Distance (nr.of datapoints)"); ax1[0, 0].set_ylabel("Intensity (a.u.)")
-                        ax1[1, 0].set_xlabel("Distance (nr.of datapoints)"); ax1[1, 0].set_ylabel("Amplitude (a.u.)")
-                        ax1[0, 1].set_xlabel("Distance (um)"); ax1[0, 1].set_ylabel("Height profile (nm)")
+                        ax1[0, 1].plot(x, unwrapped * 1000);
+                        ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.');
+                        ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
+                        ax1[0, 1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
+                        ax1[0, 1].legend(loc='best')
+                        ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+                        ax1[0, 0].set_ylabel("Intensity (a.u.)")
+                        ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+                        ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+                        ax1[0, 1].set_xlabel("Distance (um)");
+                        ax1[0, 1].set_ylabel("Height profile (nm)")
                         fig1.set_size_inches(12.8, 9.6)
-                    a_horizontal = 0
-                    angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
-                    angleDeg = math.degrees(angleRad)
 
-                    if angleDeg > 45:  # Flip measured CA degree if higher than 45.
-                        angleDeg = 90 - angleDeg
-
-                    angleDegArr.append(angleDeg)
+                    # if angleDeg < 1.8:
+                    #     print("we pausin'")
+                    #     plt.plot(x, unwrapped * 1000);
+                    #     plt.title("For deg< 1.8: Drop height vs distance (unwrapped profile)")
+                    #     plt.plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
+                    #     plt.legend([f'R2={r2}'])
+                    #     plt.show()
                 print(f"Normals, intensities & Contact Angles Suceffuly obtained. Next: plotting overview of all data for 1 timestep")
-
+                print(f"Out of {len(x0arr)}, {counter} number of vectors were omitted because the R^2 was too low.")
                 #calculate the nett force over given CA en droplet range
-                forces = CA_And_Coords_To_Force(x0arr, abs(np.subtract(4608, y0arr)), vectors, angleDegArr, analysisFolder)
+                #forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
 
+
+                #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
+                fittedCA = givemeZ(xArrFinal, yArrFinal, angleDegArr, x0arr, y0arr)
+                fig5 = plt.figure()
+                ax5 = fig5.add_subplot(1, 1, 1, projection='3d')
+                ax5.plot_surface(x0arr, y0arr, fittedCA, color='r')
+                ax5.set_xlabel("X-coords"); ax5.set_ylabel("Y_Coords"); ax5.set_zlabel("Contact Angle")
+                plt.show()
 
                 angleDeg_afo_time.append(statistics.median(angleDegArr))
                 usedDeltaTs.append(deltatFromZeroSeconds[n])    #list with delta t (IN SECONDS) for only the USED IMAGES
@@ -946,19 +996,18 @@ def primaryObtainCARoutine():
                 # cy_save.append(cy)
 
                 fig3, ax3 = plt.subplots()
-                im3 = ax3.scatter(x0arr, abs(np.subtract(4608, y0arr)), c=angleDegArr, cmap='jet',
+                im3 = ax3.scatter(xArrFinal, abs(np.subtract(4608, yArrFinal)), c=angleDegArr, cmap='jet',
                                   vmin=min(angleDegArr), vmax=max(angleDegArr))
-                ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord");
-                ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
-                ax3.legend([f"Median CA (deg): {statistics.median(angleDegArr):.2f}"], loc='center left')
+                ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
+                ax3.legend([f"Median CA (deg): {(statistics.median(angleDegArr)):.2f}"], loc='center left')
                 fig3.colorbar(im3)
                 fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}.png'), dpi=600)
                 plt.close()
 
-                im1 = ax1[1, 1].scatter(x0arr, abs(np.subtract(4608, y0arr)), c=angleDegArr, cmap='jet',
+                im1 = ax1[1, 1].scatter(xArrFinal, abs(np.subtract(4608, yArrFinal)), c=angleDegArr, cmap='jet',
                                         vmin=min(angleDegArr), vmax=max(angleDegArr))
                 ax1[1, 1].set_xlabel("X-coord"); ax1[1, 1].set_ylabel("Y-Coord"); ax1[1, 1].set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
-                ax1[1, 1].legend([f"Median CA (deg): {statistics.median(angleDegArr):.2f}"], loc='center left')
+                ax1[1, 1].legend([f"Median CA (deg): {(statistics.median(angleDegArr)):.2f}"], loc='center left')
                 fig1.colorbar(im1)
                 fig1.savefig(os.path.join(analysisFolder, f'Complete overview {n:04}.png'), dpi=600)
                 if SHOWPLOTS_SHORT == 1:
@@ -973,7 +1022,7 @@ def primaryObtainCARoutine():
 
                 # Export Contact Angles to a csv file & add median CA to txt file
                 wrappedPath = os.path.join(analysisFolder, f"ContactAngleData {n}.csv")
-                d = dict({'x-coords': x0arr, 'y-coords': y0arr, 'contactAngle': angleDegArr})
+                d = dict({'x-coords': xArrFinal, 'y-coords': yArrFinal, 'contactAngle': angleDegArr})
                 df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in d.items()]))  # pad shorter colums with NaN's
                 df.to_csv(wrappedPath, index=False)
 
