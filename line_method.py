@@ -278,13 +278,14 @@ def moving_average(x, w):
 right_clicks = list()
 def click_event(event, x, y, flags, params):
     '''
-    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordiantes.
+    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordinates.
     '''
     if event == cv2.EVENT_LBUTTONDOWN:
         global right_clicks
         right_clicks.append([x, y])
     if len(right_clicks) == 2:
         cv2.destroyAllWindows()
+
 
 def timeFormat(t):
     if t < 90:

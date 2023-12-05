@@ -1,3 +1,4 @@
+import itertools
 import os.path
 import cv2
 import numpy as np
@@ -17,6 +18,7 @@ import git
 import statistics
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import interpolate
+from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
 
 #I'm pretty sure this does not work as it's completely supposed to:
@@ -525,7 +527,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 useableylist = np.array([elem[1] for elem in usableContour])
                 useablexlist = [elem[0] for elem in usableContour]
 
-            else:   #far spaced x-values: probaly contour of an entire droplet: take the min & max at every y-coordinate
+            else:   #far spaced x-values: probably contour of an entire droplet: take the min & max at every y-coordinate
                 case = 2
                 for j in range(min(ylist), max(ylist)):  # iterate over all y-coordinates form lowest to highest
                     indexesJ = np.where(ylist == j)[0]  # find all x-es at 1 y-coord
@@ -673,8 +675,8 @@ def linearFitLinearRegimeOnly(xarr, yarr, sensitivityR2, k):
         print(f"Apparently no the difference in squared sum differs a lot for all 2/4th first datapoints. "
               f"\nTherefore the data is fitted from 2/4th of the data onwards.")
     r2 = r2_score(yarr, np.poly1d(coef1)(xarr))
-    if r2 < sensitivityR2:
-        print(f"{k}: R^2 of fit is worse than {sensitivityR2}, namely: {r2:.4f}. This fit is not to be trusted")
+    #if r2 < sensitivityR2:
+    #    print(f"{k}: R^2 of fit is worse than {sensitivityR2}, namely: {r2:.4f}. This fit is not to be trusted")
     return startLinRegimeIndex, coef1, r2
 
 def extractContourNumbersFromFile(lines):
@@ -693,48 +695,123 @@ def extractContourNumbersFromFile(lines):
 
 
 def CA_And_Coords_To_Force(xcoords, ycoords, vectors, CAs, analysisFolderPath, surfaceTension):
-    unitST = "mN/m"
+    unitST = "mN/m"     #units of the Surface Tension filled in
     nettforces = []
     tangentforces = []
     for i in range(0, len(CAs)):
         correction = 0
         if vectors[i][0] > 0:    #correct angle by 180 deg or 1pi if dx of normal is positive (left side of droplet)
             correction = np.pi
-        nettforce = math.cos(CAs[i] * np.pi / 180) * surfaceTension  #horizontal projection of g-l surface tension for force balance
+        nettforce = math.cos(CAs[i] * np.pi / 180) * surfaceTension #unit=unitST #horizontal projection of g-l surface tension for force balance
+        if vectors[i][0] == 0:          #if dx = 0
+            vectors[i][0]= 0.0001       #make dx arbitrary small, but non-zero  (otherwise next division breaks)
         localVector_dydx = vectors[i][1]/vectors[i][0]
         localTangentAngle = math.atan(localVector_dydx) + correction                 #beta = tan-1 (dy/dx)
-        localTangentForce = nettforce * math.cos(localTangentAngle)
+        localTangentForce = nettforce * math.cos(localTangentAngle) #unit=unitST
         nettforces.append(nettforce)
         tangentforces.append(localTangentForce)
 
-    fig1, ax1 = plt.subplots()
-    im1 = ax1.scatter(xcoords, ycoords, c=nettforces, cmap='jet', vmin=min(nettforces), vmax=max(nettforces))
-    ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord"); ax1.set_title(f"Spatial Nett Forces ({unitST}) Colormap")
-    ax1.legend([f"Median Nett Force: {(statistics.median(nettforces)):.2f} {unitST}"], loc='center left')
-    fig1.colorbar(im1, format="%.5f")
-    plt.show()
-    plt.close()
-    fig1.savefig(os.path.join(analysisFolderPath, 'Spatial Nett Force.png'), dpi=600)
+    fig10, ax10 = plt.subplots()
+    im10 = ax10.scatter(xcoords, ycoords, c=nettforces, cmap='jet', vmin=min(nettforces), vmax=max(nettforces), label=f'Line Force ({unitST})')
+    ax10.set_xlabel("X-coord"); ax10.set_ylabel("Y-Coord"); ax10.set_title(f"Spatial Nett Forces ({unitST}) Colormap")
+    ax10.legend([f"Median Nett Force: {(statistics.median(nettforces)):.2f} {unitST}"], loc='center left')
+    fig10.colorbar(im10, format="%.5f")
+    #plt.show()
+    fig10.savefig(os.path.join(analysisFolderPath, 'Spatial Nett Force.png'), dpi=600)
+    plt.close(fig10)
 
-    fig3, ax3 = plt.subplots()
-    im3 = ax3.scatter(xcoords, ycoords, c=tangentforces, cmap='jet', vmin=min(tangentforces), vmax=max(tangentforces))
-    ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Tangential Forces ({unitST}) Colormap")
-    ax3.legend([f"Median Horizontal Component Force: {(statistics.median(tangentforces)):.2f} {unitST}"], loc='center left')
-    fig3.colorbar(im3)
-    plt.show()
-    plt.close()
-    fig3.savefig(os.path.join(analysisFolderPath, 'Spatial Tangential Force.png'), dpi=600)
+    fig11, ax11 = plt.subplots()
+    im11 = ax11.scatter(xcoords, ycoords, c=tangentforces, cmap='jet', vmin=min(tangentforces), vmax=max(tangentforces), label=f'Horizontal Line Force ({unitST})')
+    ax11.set_xlabel("X-coord"); ax11.set_ylabel("Y-Coord"); ax11.set_title(f"Spatial Tangential Forces ({unitST}) Colormap")
+    ax11.legend([f"Median Horizontal Component Force: {(statistics.median(tangentforces)):.2f} {unitST}"], loc='center left')
+    fig11.colorbar(im11)
+    #plt.show()
+    fig11.savefig(os.path.join(analysisFolderPath, 'Spatial Tangential Force.png'), dpi=600)
+    plt.close(fig11)
 
     print(f"Sum of Horizontal Components forces = {sum(tangentforces)} (compare with total (abs horizontal) = {sum(abs(np.array(tangentforces)))}")
     return tangentforces
 
+#for 2 linear lines; y = ax + c & y= bx + d, their intersect is at (x,y) = {(d-c)/(a-b), (a*(d-c)/(a-b))+c}
+def approxMiddlePointDroplet(coords, vectors):
+    intersectCoordsX = []
+    intersectCoordsY = []
+    for i in itertools.chain(range(0, round(len(vectors)/4)), range(round(len(vectors)/2), round(len(vectors)*3/4))):
+        a = vectors[i][1] / vectors[i][0]           #a=dy/dx
+        b = vectors[i+round(len(vectors)/4)][1] / vectors[i+round(len(vectors)/4)][0]  # c=dy/dx    (of vector 1 quarter away from current one)
+        c = coords[i][1] - (coords[i][0] * a)
+        d = coords[i+round(len(vectors)/4)][1] - (coords[i+round(len(vectors)/4)][0] * b)
+        intersectCoordsX.append(round((d - c) / (a - b)))
+        intersectCoordsY.append(round((a * (d - c) / (a - b)) + c))
+    meanmiddleX = np.mean(intersectCoordsX)
+    meanmiddleY = np.mean(intersectCoordsY)
+    return intersectCoordsX, intersectCoordsY, meanmiddleX, meanmiddleY
 
 #TODO get this to work? : fitting CA = (x,y) to interpolate for missing datapoints & get total contour length for good force calculation
-def givemeZ(xin,yin, zin, xout, yout):
+#part of OG code: https://www.geeksforgeeks.org/3d-curve-fitting-with-python/
+def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n):
     #tck = interpolate.bisplrep(xin, yin, zin, s=0)
     #f = scipy.interpolate.interp2d(xin, yin, zin, kind="cubic")
-    f = np.polyfit(xin, yin, z, 8)
-    return np.poly1d(f)(xout, yout)
+    # Define mathematical function for curve fitting
+    yin = abs(np.subtract(4608, yin))       #flip y's for good plotting of data
+    yout = abs(np.subtract(4608, yout))
+    def func(xy, a, b, c, d, e, f):
+        x, y = xy
+        return a + b * x + c * y + d * x ** 2 + e * y ** 2 + f * x * y
+
+    popt, pcov = curve_fit(func, (xin, yin), zin)
+
+    #ret, thresh = cv2.threshold(imgray, 127, 255, 0)
+    #contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    #Below: attempt at interpolating between (x,y) cooridnates to make a 'full oval-oid'. Doesn't work because x must be strictly increasing.
+    #cs = scipy.interpolate.CubicSpline(xin, yin, bc_type='periodic')
+
+    localContourLength = [] #in pixels
+    totalContourLength = 0  #in pixels
+    for i in range(0,len(xout)-1):
+        localContourLength.append(np.sqrt((xout[i+1]-xout[i])**2 + (yout[i+1]-yout[i])**2))
+        totalContourLength += localContourLength[-1]
+    localContourLength.append(np.sqrt((xout[0] - xout[i+1]) ** 2 + (yout[0] - yout[i+1]) ** 2))
+    totalContourLength += localContourLength[-1]
+    print(f"Total contour length={totalContourLength} (in coordinates (i.e. pixel) units) (estimate from contour x&y coords, by pythagoras)")
+    print(f"Total contour length={totalContourLength*conversionXY} mm")
+    print(f"length of xmax-xmin & ymax-ymin (mm)= {(max(xout) - min(xout)) * conversionXY} & {(max(yout) - min(yout)) * conversionXY}")
+
+    #TODO split up droplet in upper & lower half, iterate over increasing x to interpolate for missing values
+    #for now: assume entire droplet is investigated. Code prob. doesn't work for partial droplets.
+    upperhalf=[]
+    lowerhalf=[]
+    n_xmin = (xin); n_xmax = max(xin)
+    yatminx = yin[np.argmin(xin)]; yatmaxx = yin[np.argmax(xin)]
+    #linearly interpolate y value between xmin & xmax for comparison above or below half droplet
+    # for xval in xin:
+
+    # x_arranged = np.arrange(min(xin), max(xin))
+    # fig1, ax1 = plt.subplots()
+    # ax1.plot(xin, yin, 'b')
+    # ax1.plot(x_arranged, cs(x_arranged), 'r')
+    # ax1.plot()
+    # plt.show()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(xin, yin, zin, color='blue', label='input data')
+    Z = func((xout, yout), *popt)
+    ax.scatter(xout, yout, Z, color='red', label='fit data')
+    ax.set_xlabel('X coords')
+    ax.set_ylabel('Y coords')
+    ax.set_zlabel('Horizontal component Force (mN)')
+    ax.legend(loc='best')
+    #plt.show()
+    fig.savefig(os.path.join(analysisFolder, f'Spatial CA with fit {n:04}.png'), dpi=600)
+    plt.close()
+
+    weighedZ = np.multiply(Z, localContourLength)   #multiply Z value with the length of the contour (pixels) at that coordinate to weigh the relevance.
+    #Also ^ basically converts Z (mN/m) to (mN * pixels/m), which can be converted to mN (below)
+    totalZ = sum(weighedZ) * (conversionXY/1000)   #in mN
+
+    print(f"meanTotalZ = {totalZ} mN ")
+    return Z, totalZ
 
 def primaryObtainCARoutine():
     # procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
@@ -752,10 +829,9 @@ def primaryObtainCARoutine():
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
-    #usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [13]
+    usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
+    #usedImages = [13]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
-    resizeFactor = 1  # =5 makes the image fit in your screen, but also has less data points when analysing
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -788,7 +864,7 @@ def primaryObtainCARoutine():
     if not os.path.exists(
             contactAngleListFilePath):  # Create a file for saving median contact angle, if not already existing
         f = open(contactAngleListFilePath, 'w')
-        f.write(f"file number (n), delta time from 0 (s), median CA (def)\n")
+        f.write(f"file number (n), delta time from 0 (s), median CA (deg), Horizontal component force (mN)\n")
         f.close()
         print("Created Median Contact Angle list file.txt")
     else:
@@ -799,6 +875,7 @@ def primaryObtainCARoutine():
             ndata.append(int(data[0]))
 
     angleDeg_afo_time = []  # for saving median CA's later
+    totalForce_afo_time = []
     usedDeltaTs = [] # for saving delta t (IN SECONDS) for only the USED IMAGES
     timestamps, deltatseconds, deltatFromZeroSeconds = getTimeStamps(
         imgList)  # get the timestamps of ALL images in folder, and the delta time of ALL images w/ respect to the 1st image
@@ -969,17 +1046,31 @@ def primaryObtainCARoutine():
                     #     plt.show()
                 print(f"Normals, intensities & Contact Angles Suceffuly obtained. Next: plotting overview of all data for 1 timestep")
                 print(f"Out of {len(x0arr)}, {counter} number of vectors were omitted because the R^2 was too low.")
-                #calculate the nett force over given CA en droplet range
-                #forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
 
+                #calculate the nett force over given CA en droplet range
+                forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
+
+                #determine middle of droplet & plot
+                middleX, middleY,meanmiddleX, meanmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
+                fig2, ax2 = plt.subplots()
+                ax2.plot(middleX, middleY, 'b.', label='intersects of normal vectors')
+                ax2.plot(xArrFinal, yArrFinal, 'r', label='contour of droplet')
+                ax2.plot(meanmiddleX, meanmiddleY, 'k.', markersize=20, label='average middle coordinate')
+                ax2.set_xlabel('X-coords'); ax2.set_ylabel('Y-coords')
+                ax2.legend(loc='best')
+                print(f"meanX = {meanmiddleX}, meanY:{meanmiddleY}")
+                fig2.savefig(os.path.join(analysisFolder, f'Middle of droplet {n:04}.png'), dpi=600)
+                #plt.show()
+                plt.close(fig2)
 
                 #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
-                fittedCA = givemeZ(xArrFinal, yArrFinal, angleDegArr, x0arr, y0arr)
-                fig5 = plt.figure()
-                ax5 = fig5.add_subplot(1, 1, 1, projection='3d')
-                ax5.plot_surface(x0arr, y0arr, fittedCA, color='r')
-                ax5.set_xlabel("X-coords"); ax5.set_ylabel("Y_Coords"); ax5.set_zlabel("Contact Angle")
-                plt.show()
+                Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
+                totalForce_afo_time.append(totalZ)
+                #fig5 = plt.figure()
+                #ax5 = fig5.add_subplot(1, 1, 1, projection='3d')
+                #ax5.plot_surface(x0arr, y0arr, fittedCA, color='r')
+                #ax5.set_xlabel("X-coords"); ax5.set_ylabel("Y_Coords"); ax5.set_zlabel("Contact Angle")
+                #plt.show()
 
                 angleDeg_afo_time.append(statistics.median(angleDegArr))
                 usedDeltaTs.append(deltatFromZeroSeconds[n])    #list with delta t (IN SECONDS) for only the USED IMAGES
@@ -1016,9 +1107,10 @@ def primaryObtainCARoutine():
                     plt.close()
                 elif SHOWPLOTS_SHORT == 2:
                     fig1.show()
-                    fig1.close()
+                    plt.close(fig1)
                     fig3.show()
-                    fig3.close()
+                    plt.close(fig3)
+
 
                 # Export Contact Angles to a csv file & add median CA to txt file
                 wrappedPath = os.path.join(analysisFolder, f"ContactAngleData {n}.csv")
@@ -1028,7 +1120,7 @@ def primaryObtainCARoutine():
 
                 if n not in ndata:  # if not already saved median CA, save to txt file.
                     CAfile = open(contactAngleListFilePath, 'a')
-                    CAfile.write(f"{n}, {usedDeltaTs[-1]}, {angleDeg_afo_time[-1]}\n")
+                    CAfile.write(f"{n}, {usedDeltaTs[-1]}, {angleDeg_afo_time[-1]}, {totalForce_afo_time[-1]}\n")
                     CAfile.close()
 
             except:
@@ -1037,19 +1129,19 @@ def primaryObtainCARoutine():
                 datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
     fig2, ax2 = plt.subplots()
-    ax2.plot(np.divide(usedDeltaTs, 60), angleDeg_afo_time)
-    ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Median Contact Angle (deg)"); ax2.set_title("Median Contact Angle over Time")
-    fig2.savefig(os.path.join(analysisFolder, f'MedianCA vs Time.png'), dpi=600)
+    ax2.plot(np.divide(usedDeltaTs, 60), totalForce_afo_time)
+    ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Horizontal component force (mN)"); ax2.set_title("Horizontal component force over Time")
+    fig2.savefig(os.path.join(analysisFolder, f'Horizontal component force vs Time.png'), dpi=600)
     plt.close()
 
 
 def CA_analysisRoutine():
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     contactAngleListFilePath = os.path.join(analysisFolder, "ContactAngle_MedianListFile.txt")
 
-    ndata= []; tdata=[]; CAdata= []
+    ndata= []; tdata=[]; CAdata= []; forcedata = []
     f = open(contactAngleListFilePath, 'r')
     lines = f.readlines()
     for line in lines[1:]:
@@ -1057,16 +1149,28 @@ def CA_analysisRoutine():
         ndata.append(int(data[0]))
         tdata.append(float(data[1])/60)
         CAdata.append(float(data[2]))
+        forcedata.append(float(data[3]))
 
     fig1, ax1 = plt.subplots()
     ax1.plot(tdata, CAdata, '.')
     ax1.set_ylabel('Median Contact Angle (deg)')
     ax1.set_xlabel('Time passed (min)')
     ax1.set_title('Evolution of median contact angle entire droplet')
+    fig1.savefig(os.path.join(analysisFolder, f'Median contact angle vs Time.png'), dpi=600)
     plt.show()
+    plt.close(fig1)
+
+    fig2, ax2 = plt.subplots()
+    ax2.plot(tdata, forcedata, '.')
+    ax2.set_ylabel('Total Horizontal component force (mN)')
+    ax2.set_xlabel('Time passed (min)')
+    ax2.set_title('Evolution of Total Horizontal component force entire droplet')
+    fig2.savefig(os.path.join(analysisFolder, f'Horizontal component force vs Time.png'), dpi=600)
+    plt.show()
+    plt.close(fig2)
 def main():
-    primaryObtainCARoutine()
-    #CA_analysisRoutine()
+    #primaryObtainCARoutine()
+    CA_analysisRoutine()
 
 
 if __name__ == "__main__":
