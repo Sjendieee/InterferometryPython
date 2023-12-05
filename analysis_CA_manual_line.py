@@ -68,16 +68,20 @@ def manual_line_chooser(imgpath, conversionFactorXY, conversionFactorZ, unitXY, 
     obtain an average slice. The slice is transformed to the Fourier domain where low and high frequencies are filtered
     out. Back in spatial domain the atan2 is taken from the imag and real part, to obtain the wrapped space
     distribution. The stepped line is then unwrapped to obtain the final height profile.
-
-    :param config: ConfigParser() config object with setting for the LINE_METHOD.
-    :param image: an image to select the points for the slice on.
-    :return: unwrapped line (non-converted)
+    :param: imgpath  full path to the image being investigated
+    :param: conversionFactorXY   conversion from pixel to desired unit in XY-plane
+    :param: conversionFactorZ    conversion from pixel to desired unit in Z-direction
+    :param: unitXY               unit of the XY-plane conversionfactor
+    :param: unitZ                unit of the Z-direction conversionFactor
+    :param: analysisFolder       Full path to the folder to dump analysis images
+    :param: timeElapsed          Time elapsed from 0 image (seconds)
+    :return: unwrapped line (non-converted!)
     :return: points A
     :return: points B
     '''
     SAVEIMAGES = True       #save [grey] images or not
-    SavingTemp = True       #Save intermediate plots (fourier, wrapped, etc)
-    SliceWidth = 5    # get number of extra slices on each side of the center slice from config
+    SavingTemp = False       #Save intermediate plots (fourier, wrapped, etc)
+    SliceWidth = 0    # get number of extra slices on each side of the center slice from config
     movmeanN = 1    #number of values which should be taken for the moving average of the profile (i.e. 1 for no averaging, or 3, or 100)
     highPass = 2
     lowPass = 2500
@@ -86,6 +90,9 @@ def manual_line_chooser(imgpath, conversionFactorXY, conversionFactorZ, unitXY, 
     savename = os.path.basename(os.path.normpath(imgpath))
     img_raw = cv2.imread(imgpath)
     im_gray = cv2.cvtColor(img_raw, cv2.COLOR_BGR2GRAY)
+    # clahe = cv2.createCLAHE()             #enhances contrast - only useable for CA analysis. Even then doesn't seem to work great sometimes
+    # im_gray = clahe.apply(im_gray)
+
     # Save gray image to desired output location
     if SAVEIMAGES:
         if not os.path.exists(os.path.join(analysisFolder, 'GreyImages')):
@@ -102,6 +109,7 @@ def manual_line_chooser(imgpath, conversionFactorXY, conversionFactorZ, unitXY, 
     cv2.setMouseCallback('image', click_event)
     cv2.waitKey(0)
     global right_clicks
+
     P1 = np.array(right_clicks[0]) / resize_factor
     P2 = np.array(right_clicks[1]) / resize_factor
     logging.info(f"Selected coordinates: {P1=}, {P2=}.")
@@ -248,13 +256,9 @@ def manual_line_chooser(imgpath, conversionFactorXY, conversionFactorZ, unitXY, 
         fig4.savefig(os.path.join(analysisFolder, f"unwrapped_{savename}.png"), dpi=600)
         logging.debug('PNG saving done.')
     logging.info(f"Saving done.")
-
+    #plt.close()
     return unwrapped, P1, P2
 
-
-# TODO GOAL: make file similar to OG analysis_contactangle.py, but allow for manual line choosing from image (and not through a pre-chosen .json file)
-# 1 slice: Contact angle = -1.6494950309356011 degrees.
-# 11 slices: -1.650786783947852 degrees.
 '''
 20 periods = 226 pix = 134um
 1pi = lambda / 4n = 532 / (4*1.434) = 92.74 um
@@ -264,15 +268,19 @@ def manual_line_chooser(imgpath, conversionFactorXY, conversionFactorZ, unitXY, 
 237pix = 237/1687 = 0.1405 mm
 '''
 def main():
+    """
+    This functions allows for Contact Angle (CA) analysis of an (series of) image(s) along a hand-draw line. Both the
+    drawing of the line, and the consecutive CA-analysis happens in this single function (as opposed to the original
+    analysis_contactangle.py file).
+    """
     path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-
-    flipData = False
-
     everyHowManyImages = 3
     #usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
     usedImages = [46]
+
+    flipData = False
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Manual Line")
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
@@ -295,13 +303,14 @@ def main():
                 counter += 1
                 print(f'Analyzing image {counter}/{len(usedImages)}.')
 
-                y, P1, P2 = manual_line_chooser(imgList[n], conversionXY, conversionZ, unitXY, unitZ, analysisFolder, deltatseconds[n])
+                y, P1, P2 = manual_line_chooser(imgList[n], conversionXY, conversionZ, unitXY, unitZ, analysisFolder, [deltatseconds[n]])
 
                 #TODO here the height data is already present.
                 #y = np.loadtxt(csvList[imageNumber], delimiter=",") * conversionZ / 1000  # y is in um
                 if flipData:
                     y = -y + max(y)
 
+                y *= (conversionZ / 1000)           #height (y) is now in um
                 x = np.arange(0, len(y)) * conversionXY * 1000  # x is now in um
 
                 ##TODO: removed first datapoint because for whatever reason it was spuerfar outside the range, making it hard to select the good range in the plot
@@ -311,21 +320,19 @@ def main():
                 ax.scatter(x, y)
                 highlighter = Highlighter(ax, x, y)
                 plt.show()
+                plt.close()
                 selected_regions = highlighter.mask
                 xrange1, yrange1 = x[selected_regions], y[selected_regions]
                 print(f"x ranges from: [{xrange1[0]} - {xrange1[-1]}]\n"
                       f"y ranges from: [{yrange1[0]} - {yrange1[-1]}]\n"
                       f"Therefore dy/dx = {yrange1[-1] - yrange1[0]} / {xrange1[-1] - xrange1[0]} = {(yrange1[-1] - yrange1[0]) / (xrange1[-1] - xrange1[0])}")
 
-
                 coef1 = np.polyfit(xrange1, yrange1, 1)
                 poly1d_fn1 = np.poly1d(coef1)
-
                 a_horizontal = 0
-
                 angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
                 angleDeg = math.degrees(angleRad)
-
+                print(f"angledeg = {angleDeg}")
                 # Flip measured CA degree if higher than 45.
                 if angleDeg > 45:
                     angleDeg = 90 - angleDeg
