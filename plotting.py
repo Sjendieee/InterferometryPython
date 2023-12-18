@@ -72,6 +72,7 @@ def plot_surface(im_unwrapped, config, conversionFactorXY, unitXY, unitZ, overla
     ax.set_xlabel(f'[{unitXY}]')
     ax.set_ylabel(f'[{unitXY}]')
     fig.tight_layout()
+    plt.show()
 
     return fig
 

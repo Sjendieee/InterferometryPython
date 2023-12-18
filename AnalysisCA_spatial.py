@@ -16,10 +16,48 @@ import easygui
 import matplotlib as mpl
 import git
 import statistics
+
+from matplotlib.widgets import RectangleSelector
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import interpolate
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
+
+right_clicks = list()
+def click_event(event, x, y, flags, params):
+    '''
+    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordinates.
+    '''
+    if event == cv2.EVENT_LBUTTONDOWN:
+        global right_clicks
+        right_clicks.append([x, y])
+    if len(right_clicks) == 2:
+        cv2.destroyAllWindows()
+class Highlighter(object):
+    def __init__(self, ax, x, y):
+        self.ax = ax
+        self.canvas = ax.figure.canvas
+        self.x, self.y = x, y
+        self.mask = np.zeros(x.shape, dtype=bool)
+        self._highlight = ax.scatter([], [], s=200, color='yellow', zorder=10)
+        self.selector = RectangleSelector(ax, self, useblit=True)
+
+    def __call__(self, event1, event2):
+        self.mask |= self.inside(event1, event2)
+        xy = np.column_stack([self.x[self.mask], self.y[self.mask]])
+        self._highlight.set_offsets(xy)
+        self.canvas.draw()
+
+    def inside(self, event1, event2):
+        """Returns a boolean mask of the points inside the rectangle defined by
+        event1 and event2."""
+        # Note: Could use points_inside_poly, as well
+        x0, x1 = sorted([event1.xdata, event2.xdata])
+        y0, y1 = sorted([event1.ydata, event2.ydata])
+        mask = ((self.x > x0) & (self.x < x1) &
+                (self.y > y0) & (self.y < y1))
+        return mask
+
 
 #I'm pretty sure this does not work as it's completely supposed to:
 #The limits (right now) should be from [0 - some value], and does not work for e.g. [200 - 500]
@@ -163,7 +201,8 @@ def get_normalsV4(x, y, L):
 
     middleCoordinate = [(max(x) + min(x))/2, (max(y) + min(y))/2]   #estimate for "middle coordinate" of contour. Will be used to direct normal vector to inside contour
 
-    if abs(y[0]-y[-1]) < 10 and abs(x[0]-x[-1]) < 10:   #if ends of contours are connecting, allow all the points also from the other end to be used for fitting
+    connectingCoordinatesDyDx = 30  #if coordinates are within 30 pixels of each other, probably they were connecting
+    if abs(y[0]-y[-1]) < connectingCoordinatesDyDx and abs(x[0]-x[-1]) < connectingCoordinatesDyDx:   #if ends of contours are connecting, allow all the points also from the other end to be used for fitting
         x = x[-25:] + x + x[:25]
         y = np.hstack((y[-25:], y, y[:25]))
 
@@ -245,6 +284,7 @@ def get_normalsV4(x, y, L):
 
 
 def getContourList(grayImg, thresholdSensitivity):
+    contourArea = 3000  #usually 5000
     WORKINGTRESH = False
     while not WORKINGTRESH:
         try:
@@ -268,29 +308,70 @@ def getContourList(grayImg, thresholdSensitivity):
         area = cv2.contourArea(contour)
 
         # Set a minimum threshold for contour area
-        if area > 5000:  # OG = 2000
+        if area > contourArea:  # OG = 2000
             # Check if the contour has at least 5 points
             if len(contour) >= 5:
-                list_of_pts += [pt[0] for pt in contour]
+                list_of_pts.append(len(contour))     #list_of_pts += [pt[0] for pt in contour]
                 print(f"length of contours={len(contour)}")
 
                 maxxlist.append(max([elem[0][0] for elem in contour]))  # create a list with the max-x coord of a contour, to know which contour is the furthest right, 1 from furthest etc..
                 contourList.append(contour)
 
-
-    if len(contourList) > 5:
-        nrOfContoursToShow = 5  # nr of contours allow to be to checked
-    else:
+    nrOfContoursToShow = 20
+    if len(contourList) < nrOfContoursToShow:# nr of contours allow to be to checked
         nrOfContoursToShow = len(contourList)
 
-    for i, val in enumerate(maxxlist):          #This function is required because maxxList must have unique values.
-        if maxxlist.count(val) > 1:             #Check for all values if it is unique
-            maxxlist[i] = val+0.1                 #if not, change the value to itself+0.1, in order
+    unfinished = True       #while loop below = for making sure the code doesn't break when multiple x's have same value.
+    # while unfinished:
+    #     changedList = False
+    #     for i, val in enumerate(maxxlist):          #This function is required because maxxList must have unique values.
+    #         if maxxlist.count(val) > 1:             #Check for all values if it is unique
+    #             maxxlist[i] = val+0.1                 #if not, change the value to itself+0.1, in order
+    #             changedList = True
+    #     if not changedList:
+    #         unfinished = False
+    while unfinished:
+        changedList = False
+        for i, val in enumerate(list_of_pts):          #This function is required because maxxList must have unique values.
+            if list_of_pts.count(val) > 1:             #Check for all values if it is unique
+                list_of_pts[i] = val+0.1                 #if not, change the value to itself+0.1, in order
+                changedList = True
+        if not changedList:
+            unfinished = False
 
-    FurthestRightContours = sorted(zip(maxxlist, contourList), reverse=True)[:nrOfContoursToShow]  # Sort contours, and zip the ones of which the furthest right x coords are found
+    #FurthestRightContours = sorted(zip(maxxlist, contourList), reverse=True)[:nrOfContoursToShow]  # Sort contours, and zip the ones of which the furthest right x coords are found
+    FurthestRightContours = sorted(zip(list_of_pts, contourList), reverse=True)[:nrOfContoursToShow]  # Sort contours, and zip the ones of which the furthest right x coords are found
 
     #cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine{tstring}.png"), thresh)     #if you want to save the threshold image
     return [elem[1] for elem in FurthestRightContours], nrOfContoursToShow, thresholdSensitivity
+
+def selectAreaAndFindContour(resizedimg, thresholdSensitivity):
+    tempimg = []
+    copyImg = resizedimg.copy()
+    #tempimg = cv2.polylines(copyImg, np.array([contourList[i]]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+    #if combineMultipleContours:
+    #    tempimg = cv2.polylines(tempimg, np.array([contour]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+    resizeFactor = [round(5328 / 5), round(4608 / 5)]
+    tempimg = cv2.resize(copyImg, resizeFactor, interpolation=cv2.INTER_AREA)  # resize image
+    cv2.imshow('Grey image', tempimg)
+    cv2.setWindowTitle("Grey image", "Square selection window. Click 2 times to select box in which contour is to be found.")
+    cv2.setMouseCallback('Grey image', click_event)
+    cv2.waitKey(0)
+    global right_clicks
+
+    P1 = np.array(right_clicks[0]) * 5      #point 1 [x,y]
+    P2 = np.array(right_clicks[1]) * 5
+    selectionOfInterest = copyImg[P1[1]:P2[1], P1[0]:P2[0]]     #img[y1:y2, x1:x2]
+    tempimg2 = cv2.resize(selectionOfInterest, [round(selectionOfInterest.shape[0]/5), round(selectionOfInterest.shape[1]/5)], interpolation=cv2.INTER_AREA)  # resize image
+    cv2.imshow('Partial image', tempimg2)
+    cv2.waitKey(0)
+    contourList, nrOfContoursToShow, thresholdSensitivity = getContourList(selectionOfInterest, thresholdSensitivity)  # obtain new contours with new thresholldSensitivity
+    adjustedContourList = []
+    for contour in contourList:
+        adjustedContourList.append([np.array([[elem[0][0] + P1[0], elem[0][1]+P1[1]]]) for elem in contour])
+
+    return adjustedContourList
+
 
 # Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
 # Parses all 'outer' coordinates, not only on right side of droplet
@@ -306,50 +387,16 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
     contourList, nrOfContoursToShow, thresholdSensitivity = getContourList(grayImg, thresholdSensitivity)
 
-
-    if MANUALPICKING == 3:  #always use the second most outer halo, if available.
+    if MANUALPICKING == 0 or (MANUALPICKING == 1 and contouri[0] < 0):
+        i = 0
+        goodContour = False
+        combineMultipleContours = False
+        contour = []
+    elif MANUALPICKING == 3:  #always use the second most outer halo, if available.
         if len(contourList) > 1:
-            contouri = 1
+            contouri = [1]
         else:
-            contouri = 0
-
-    #If contour is not known yet from imported file:
-    #Generally, not the furthest one out (halo), but the one before that is the contour of the CL. i can be changed with a popup box
-    if contouri[0] < 0:    #any ocntour value negative number = contour not known from file
-        #TODO implement here: check current contours with good one of previous k iteration, and select the one that is
-        # most similar. If big differences for all, select manually
-        # if not isinstance(contourCoords, int):  #if coord of previous iteration are given, they are an array, not an int. Check with those for best contour
-        #     ylistToCheckCoords = np.array([elem[1] for elem in contourCoords])
-        #     xlistToCheckCoords = [elem[0] for elem in contourCoords]
-        #     lenOfCoordinatesToCheck = 50 #only compare 50 values of y
-        #     ysToCheck = np.linspace(min(ylistToCheckCoords)+5, max(ylistToCheckCoords)-5, lenOfCoordinatesToCheck).round()
-        #     xsToCheck = []
-        #     for y in ysToCheck: #obtain corresponding x's of the to-be-investigated y's
-        #         xsToCheck.append(xlistToCheckCoords[np.where(ylistToCheckCoords == y)[0][0]])
-        #
-        #     bestCorrespondingContour = np.zeros(len(contourList))
-        #     absError = 0
-        #     for i, yToCheck in enumerate(ysToCheck):    #compare x-values at various y-heights
-        #         xlistPerY = []
-        #         for contour in contourList:
-        #             xAtyIndices = np.where([elem[0][1] for elem in contour] == yToCheck)
-        #             xaty = [contour[k][0][0] for k in xAtyIndices[0]]
-        #             xlistPerY.append(np.mean(xaty)) #TODO temp max() or np.mean : xaty are multiple values, and we only want to compare 1. But it is unknown which one would be 'best' to compare. For now try max()
-        #         absErrorArray = abs(np.subtract(xlistPerY, xsToCheck[i]))
-        #         bestCorrespondingCoordinateIndex = np.argmin(absErrorArray)  #find best corresponding x of xsToCheck[i] xlistPerY
-        #         absError += absErrorArray[bestCorrespondingCoordinateIndex]
-        #         bestCorrespondingContour[bestCorrespondingCoordinateIndex] += 1
-        #     i = np.argmax(bestCorrespondingContour)
-        #     contouri = i
-        #     contour = contourList[i]
-        #     print(f"BestCorrespondingContour list= {bestCorrespondingContour}")
-        #     if absError / lenOfCoordinatesToCheck > 100: #if error for every y-coord is large, probably the image was shifted. Therefore previous image should not be compared with this one, and a manual contour should be picked
-        #         goodContour = False
-        #         print(f"Manually picking contour because absulate error was determined to be: {absError}, meaning error per y = {absError / lenOfCoordinatesToCheck}")
-        #     else:
-        #         goodContour = True
-        #         print(f"Automatically picked contour looks good from error per y ({absError / lenOfCoordinatesToCheck}/ycoord)")
-
+            contouri = [0]
 
         #TODO attempting different way of checking which contour is the correct one.
         #Maybe iterate for all contours, starting at the most outer one to obtain a few intensity profiles: determine if peak periodicity is very constant.
@@ -377,13 +424,13 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 absError += absErrorArray[bestCorrespondingCoordinateIndex]
                 bestCorrespondingContour[bestCorrespondingCoordinateIndex] += 1
             i = np.argmax(bestCorrespondingContour)
-            contouri = i
+            contouri = [i]
             contour = contourList[i]
             print(f"BestCorrespondingContour list= {bestCorrespondingContour}")
             if absError / lenOfCoordinatesToCheck > 100:  # if error for every y-coord is large, probably the image was shifted. Therefore previous image should not be compared with this one, and a manual contour should be picked
                 goodContour = False
                 print(
-                    f"Manually picking contour because absulate error was determined to be: {absError}, meaning error per y = {absError / lenOfCoordinatesToCheck}")
+                    f"Manually picking contour because absolute error was determined to be: {absError}, meaning error per y = {absError / lenOfCoordinatesToCheck}")
                 combineMultipleContours = False
                 contour = []
             else:
@@ -402,8 +449,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             print(f"Picking manual contour, because no previous image (and therefore no contour) was given")
             combineMultipleContours = False
             contour = []
-
-    else:   #if contouri has a value, it is an imported value, chosen in a previous iteration & should already be good
+    elif MANUALPICKING == 1:   #if contouri has a value, it is an imported value, chosen in a previous iteration & should already be good
         if len(contouri) > 1:
             contour = []
             for ii in contouri:
@@ -414,21 +460,31 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
         goodContour = True
         print(f"Using a contour which was determined in a previous iteration from .txt file. ")
 
+
+
     iout = []
     #show img w/ contour to check if it is the correct one
     #make popup box to show next contour (or previous) if desired
     while goodContour == False:
-        tempimg = []
-        copyImg = resizedimg.copy()
-        tempimg = cv2.polylines(copyImg, np.array([contourList[i]]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
-        if combineMultipleContours:
-            tempimg = cv2.polylines(tempimg, np.array([contour]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
-        tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
-
-        cv2.imshow(f"Contour img with current selection of contour {i+1} out of {nrOfContoursToShow}", tempimg)
-        choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)", "Stitch 2 contours together: first selection",
-                   "No good contours: Ajdust threshold sensitivities", "No good contours: quit programn"]
-        myvar = easygui.choicebox("Is this a desired contour?", choices=choices)
+        if len(contourList) > 0:
+            tempimg = []
+            copyImg = resizedimg.copy()
+            tempimg = cv2.polylines(copyImg, np.array([contourList[i]]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+            if combineMultipleContours:
+                tempimg = cv2.polylines(tempimg, np.array([contour]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+            tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
+            cv2.imshow(f"Contour img with current selection of contour {i+1} out of {nrOfContoursToShow}", tempimg)
+            choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)",
+                       "Stitch multiple contours together: first selection",
+                       "No good contours: Ajdust threshold sensitivities", "No good contours: quit programn",
+                       "EXPERIMENTAL: Drawing box in which contour MUST be found (in case it never finds it there)"]
+            myvar = easygui.choicebox("Is this a desired contour?", choices=choices)
+        else:
+            choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)",
+                       "Stitch multiple contours together: first selection",
+                       "No good contours: Ajdust threshold sensitivities", "No good contours: quit programn",
+                       "EXPERIMENTAL: Drawing box in which contour MUST be found (in case it never finds it there)"]
+            myvar = easygui.choicebox("From the get-go, no contours were obtained with this threshold sensitivity. Choose option 5 to change this.", choices=choices)
         #cv2.waitKey(0)
 
         if myvar == choices[0]: #picks different i-1, if possible
@@ -450,7 +506,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 out = easygui.msgbox("i is already maximum value, cannot go further inwards")
             else:
                 i += 1
-        elif myvar == choices[3]:   #Stitch together 2 contours with current settings:
+        elif myvar == choices[3]:   #Stitch together multiple contours with current settings:
             if combineMultipleContours:
                 contour = list(contour)
                 for elem in contourList[i]:
@@ -471,6 +527,9 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
         elif myvar == choices[5]:   #Quit programn altogether
             out = easygui.msgbox("Closing loop, the programn will probably break down")
             break
+        #TODO select box for finding contour
+        elif myvar == choices[6]:   #experimental: drawing a box in which the contour MUST be found
+            contourList = selectAreaAndFindContour(grayImg, thresholdSensitivity)
         contour = np.array(contour)
         cv2.destroyAllWindows()
 
@@ -569,6 +628,7 @@ def importConversionFactors(procStatsJsonPath):
     conversionXY = procStats["conversionFactorXY"]
     unitZ = procStats["unitZ"]
     unitXY = procStats["unitXY"]
+    #lensUsed = procStats['UsedLens']
     return conversionZ, conversionXY, unitZ, unitXY
 
 def filePathsFunction(path):
@@ -621,6 +681,7 @@ def determineLensPresets(imgFolderPath, wavelength_laser=520, refr_index=1.434):
     stats['About']['repo'] = str(git.Repo(search_parent_directories=True))
     stats['About']['sha'] = git.Repo(search_parent_directories=True).head.object.hexsha
     stats['startDateTime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f %z')
+    stats['UsedLens'] = answer
     stats['conversionFactorXY'] = conversionFactorXY
     stats['conversionFactorZ'] = conversionFactorZ
     stats['unitXY'] = unitXY
@@ -704,7 +765,7 @@ def CA_And_Coords_To_Force(xcoords, ycoords, vectors, CAs, analysisFolderPath, s
             correction = np.pi
         nettforce = math.cos(CAs[i] * np.pi / 180) * surfaceTension #unit=unitST #horizontal projection of g-l surface tension for force balance
         if vectors[i][0] == 0:          #if dx = 0
-            vectors[i][0]= 0.0001       #make dx arbitrary small, but non-zero  (otherwise next division breaks)
+            vectors[i][0] = 0.0001       #make dx arbitrary small, but non-zero  (otherwise next division breaks)
         localVector_dydx = vectors[i][1]/vectors[i][0]
         localTangentAngle = math.atan(localVector_dydx) + correction                 #beta = tan-1 (dy/dx)
         localTangentForce = nettforce * math.cos(localTangentAngle) #unit=unitST
@@ -813,32 +874,25 @@ def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n):
     print(f"meanTotalZ = {totalZ} mN ")
     return Z, totalZ
 
-def primaryObtainCARoutine():
-    # procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
-    # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
-    # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
-    # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
-    # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
-    # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
-    # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
-    thresholdSensitivityStandard = [11 * 3, 3 * 5]  # OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
+def primaryObtainCARoutine(path):
+    #blockSize	Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on.
+    #C Constant subtracted from the mean or weighted mean.
+    thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-    everyHowManyImages = 3
-    usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
-    #usedImages = [13]
+    everyHowManyImages = 10
+    usedImages = np.arange(10, len(imgList), everyHowManyImages)  # 200 is the working one
+    #usedImages = [30]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
     sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
-    # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour if available, else use the second most outer contour
-    MANUALPICKING = 1
+    # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
+    MANUALPICKING = 0
     lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
@@ -849,8 +903,7 @@ def primaryObtainCARoutine():
             contourListFilePath):  # read in all contourline data from existing file (filenr ,+ i for obtaining contour location)
         f = open(contourListFilePath, 'r')
         lines = f.readlines()
-        importedContourListData_n, importedContourListData_i, importedContourListData_thresh = extractContourNumbersFromFile(
-            lines)
+        importedContourListData_n, importedContourListData_i, importedContourListData_thresh = extractContourNumbersFromFile(lines)
         # importedContourListData = np.loadtxt(contourListFilePath, dtype='int', delimiter=',',  usecols=(0,1))
     else:
         f = open(contourListFilePath, 'w')
@@ -896,9 +949,9 @@ def primaryObtainCARoutine():
             else:
                 contouri = [-1]
                 thresholdSensitivity = thresholdSensitivityStandard
-            print(f"Determining contour for image n = {n}")
-            # One of the main functions: outputs the coordiates of the desired contour of current image
-            if n == usedImages[0]:  # on first iteration, don't parse previous coords (because there are none)
+            print(f"Determining contour for image n = {n}/{len(imgList)}, or nr {list(usedImages).index(n)+1} out of {len(usedImages)}")
+            # One of the main functions: outputs the coordinates of the desired contour of current image
+            if n == usedImages[0] and MANUALPICKING != 0:  # on first iteration, don't parse previous coords (because there are none)
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
                                                                                                            contourListFilePath,
                                                                                                            n, contouri,
@@ -952,99 +1005,103 @@ def primaryObtainCARoutine():
                 yArrFinal = []
                 vectorsFinal = []
                 counter = 0
+
                 for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
-                    # if k == 101:
-                    #     print(f"at this k we break={k}")
-                    # TODO trying to get this to work: plotting normals obtained with above function get_normals
-                    # resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
-                    if k % 25 == 0:  # only plot 1/25th of the vectors to not overcrowd the image
-                        resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0),
-                                              2)  # draws 1 good contour around the outer halo fringe
+                    try:
+                        # if k == 101:
+                        #     print(f"at this k we break={k}")
+                        # TODO trying to get this to work: plotting normals obtained with above function get_normals
+                        # resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
+                        if k % 25 == 0:  # only plot 1/25th of the vectors to not overcrowd the image
+                            resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0),
+                                                  2)  # draws 1 good contour around the outer halo fringe
 
-                    if dxarr[k] - x0arr[k] == 0:  # constant x, variable y
-                        xarr = np.ones(lengthVector) * x0arr[k]
-                        if y0arr[k] > dyarr[k]:
-                            yarr = np.arange(dyarr[k], y0arr[k] + 1)
+                        if dxarr[k] - x0arr[k] == 0:  # constant x, variable y
+                            xarr = np.ones(lengthVector) * x0arr[k]
+                            if y0arr[k] > dyarr[k]:
+                                yarr = np.arange(dyarr[k], y0arr[k] + 1)
+                            else:
+                                yarr = np.arange(y0arr[k], dyarr[k] + 1)
+                            coords = list(zip(xarr.astype(int), yarr.astype(int)))
                         else:
-                            yarr = np.arange(y0arr[k], dyarr[k] + 1)
-                        coords = list(zip(xarr.astype(int), yarr.astype(int)))
-                    else:
-                        a = (dyarr[k] - y0arr[k]) / (dxarr[k] - x0arr[k])
-                        b = y0arr[k] - a * x0arr[k]
-                        coords, lineLengthPixels = coordinates_on_line(a, b,
-                                                                       [x0arr[k], dxarr[k], y0arr[k], dyarr[k]])  #
-                    profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
+                            a = (dyarr[k] - y0arr[k]) / (dxarr[k] - x0arr[k])
+                            b = y0arr[k] - a * x0arr[k]
+                            coords, lineLengthPixels = coordinates_on_line(a, b,
+                                                                           [x0arr[k], dxarr[k], y0arr[k], dyarr[k]])  #
+                        profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
 
-                    profile_fft = np.fft.fft(profile)  # transform to fourier space
-                    mask = np.ones_like(profile).astype(float)
-                    lowpass = round(len(profile) / 2);
-                    highpass = 2  # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
-                    mask[0:lowpass] = 0;
-                    mask[-highpass:] = 0
-                    profile_fft = profile_fft * mask
-                    profile_filtered = np.fft.ifft(profile_fft)
+                        profile_fft = np.fft.fft(profile)  # transform to fourier space
+                        mask = np.ones_like(profile).astype(float)
+                        lowpass = round(len(profile) / 2);
+                        highpass = 2  # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
+                        mask[0:lowpass] = 0;
+                        mask[-highpass:] = 0
+                        profile_fft = profile_fft * mask
+                        profile_filtered = np.fft.ifft(profile_fft)
 
-                    # calculate the wrapped space
-                    wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-                    peaks, _ = scipy.signal.find_peaks(wrapped, height=0.4)  # obtain indeces om maxima
+                        # calculate the wrapped space
+                        wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+                        peaks, _ = scipy.signal.find_peaks(wrapped, height=0.4)  # obtain indeces om maxima
 
-                    unwrapped = np.unwrap(wrapped)
-                    if FLIPDATA:
-                        unwrapped = -unwrapped + max(unwrapped)
+                        unwrapped = np.unwrap(wrapped)
+                        if FLIPDATA:
+                            unwrapped = -unwrapped + max(unwrapped)
 
-                    # TODO conversionZ generally in nm, so /1000 -> in um
-                    unwrapped *= conversionZ / 1000  # if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
-                    # x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
-                    # TODO conversionXY generally in mm, so *1000 -> unit in um.
-                    x = np.linspace(0, lineLengthPixels,
-                                    len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
+                        # TODO conversionZ generally in nm, so /1000 -> in um
+                        unwrapped *= conversionZ / 1000  # if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
+                        # x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
+                        # TODO conversionXY generally in mm, so *1000 -> unit in um.
+                        x = np.linspace(0, lineLengthPixels,
+                                        len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
 
-                    # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
-                    startIndex, coef1, r2 = linearFitLinearRegimeOnly(x, unwrapped, sensitivityR2, k)
+                        # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
+                        startIndex, coef1, r2 = linearFitLinearRegimeOnly(x, unwrapped, sensitivityR2, k)
 
-                    if r2 > sensitivityR2:      #R^2 should be very high, otherwise probably e.g. near pinning point
-                        a_horizontal = 0
-                        angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
-                        angleDeg = math.degrees(angleRad)
-                        if angleDeg > 45:  # Flip measured CA degree if higher than 45.
-                            angleDeg = 90 - angleDeg
-                        xArrFinal.append(x0arr[k])
-                        yArrFinal.append(y0arr[k])
-                        vectorsFinal.append(vectors[k])
-                        angleDegArr.append(angleDeg)
-                    else:
-                        counter += 1    #TEMP: to check how many vectors should not be taken into account because the r2 value is too low
+                        if r2 > sensitivityR2:      #R^2 should be very high, otherwise probably e.g. near pinning point
+                            a_horizontal = 0
+                            angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
+                            angleDeg = math.degrees(angleRad)
+                            if angleDeg > 45:  # Flip measured CA degree if higher than 45.
+                                angleDeg = 90 - angleDeg
+                            xArrFinal.append(x0arr[k])
+                            yArrFinal.append(y0arr[k])
+                            vectorsFinal.append(vectors[k])
+                            angleDegArr.append(angleDeg)
+                        else:
+                            counter += 1    #TEMP: to check how many vectors should not be taken into account because the r2 value is too low
 
-                    if k == round(
-                            len(x0arr) / 2):  # plot 1 profile of each image with intensity, wrapped, height & resulting CA
-                        fig1, ax1 = plt.subplots(2, 2)
-                        ax1[0, 0].plot(profile);
-                        ax1[1, 0].plot(wrapped);
-                        ax1[1, 0].plot(peaks, wrapped[peaks], '.')
-                        ax1[0, 0].set_title(f"Intensity profile");
-                        ax1[1, 0].set_title("Wrapped profile")
-                        # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                        ax1[0, 1].plot(x, unwrapped * 1000);
-                        ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.');
-                        ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
-                        ax1[0, 1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
-                        ax1[0, 1].legend(loc='best')
-                        ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
-                        ax1[0, 0].set_ylabel("Intensity (a.u.)")
-                        ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
-                        ax1[1, 0].set_ylabel("Amplitude (a.u.)")
-                        ax1[0, 1].set_xlabel("Distance (um)");
-                        ax1[0, 1].set_ylabel("Height profile (nm)")
-                        fig1.set_size_inches(12.8, 9.6)
+                        if k == round(
+                                len(x0arr) / 2):  # plot 1 profile of each image with intensity, wrapped, height & resulting CA
+                            fig1, ax1 = plt.subplots(2, 2)
+                            ax1[0, 0].plot(profile);
+                            ax1[1, 0].plot(wrapped);
+                            ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                            ax1[0, 0].set_title(f"Intensity profile");
+                            ax1[1, 0].set_title("Wrapped profile")
+                            # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+                            ax1[0, 1].plot(x, unwrapped * 1000);
+                            ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.');
+                            ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
+                            ax1[0, 1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
+                            ax1[0, 1].legend(loc='best')
+                            ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+                            ax1[0, 0].set_ylabel("Intensity (a.u.)")
+                            ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+                            ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+                            ax1[0, 1].set_xlabel("Distance (um)");
+                            ax1[0, 1].set_ylabel("Height profile (nm)")
+                            fig1.set_size_inches(12.8, 9.6)
 
-                    # if angleDeg < 1.8:
-                    #     print("we pausin'")
-                    #     plt.plot(x, unwrapped * 1000);
-                    #     plt.title("For deg< 1.8: Drop height vs distance (unwrapped profile)")
-                    #     plt.plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
-                    #     plt.legend([f'R2={r2}'])
-                    #     plt.show()
-                print(f"Normals, intensities & Contact Angles Suceffuly obtained. Next: plotting overview of all data for 1 timestep")
+                        # if angleDeg < 1.8:
+                        #     print("we pausin'")
+                        #     plt.plot(x, unwrapped * 1000);
+                        #     plt.title("For deg< 1.8: Drop height vs distance (unwrapped profile)")
+                        #     plt.plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
+                        #     plt.legend([f'R2={r2}'])
+                        #     plt.show()
+                    except:
+                        logging.info(f"!{k}: Analysing each coordinate & normal vector broke!")
+                print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
                 print(f"Out of {len(x0arr)}, {counter} number of vectors were omitted because the R^2 was too low.")
 
                 #calculate the nett force over given CA en droplet range
@@ -1135,8 +1192,7 @@ def primaryObtainCARoutine():
     plt.close()
 
 
-def CA_analysisRoutine():
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+def CA_analysisRoutine(path):
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     contactAngleListFilePath = os.path.join(analysisFolder, "ContactAngle_MedianListFile.txt")
@@ -1169,8 +1225,25 @@ def CA_analysisRoutine():
     plt.show()
     plt.close(fig2)
 def main():
-    #primaryObtainCARoutine()
-    CA_analysisRoutine()
+    # procStatsJsonPath = os.path.join("D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
+    # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
+    # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
+    # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
+    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
+    #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
+    #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
+    #path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
+    path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
+
+    # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
+    # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
+    # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
+    # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
+
+
+    primaryObtainCARoutine(path)
+    #CA_analysisRoutine(path)
 
 
 if __name__ == "__main__":
