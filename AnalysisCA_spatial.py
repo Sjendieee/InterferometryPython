@@ -883,8 +883,8 @@ def primaryObtainCARoutine(path):
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 10
-    usedImages = np.arange(10, len(imgList), everyHowManyImages)  # 200 is the working one
-    #usedImages = [30]
+    #usedImages = np.arange(10, len(imgList), everyHowManyImages)  # 200 is the working one
+    usedImages = [120]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
@@ -892,7 +892,7 @@ def primaryObtainCARoutine(path):
     sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
-    MANUALPICKING = 0
+    MANUALPICKING = 1
     lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
@@ -1120,6 +1120,25 @@ def primaryObtainCARoutine(path):
                 #plt.show()
                 plt.close(fig2)
 
+                ##TODO Plot CA vs. radial angle
+                dx = np.subtract(xArrFinal, meanmiddleX)
+                dy = np.subtract(yArrFinal, meanmiddleY)
+                phi = np.arctan2(dy, dx)      #angle of contour coordinate w/ respect to 12o'clock (radians)
+                phi = 0.5 * np.pi - phi
+                phi = np.mod(phi, (2.0 * np.pi))    #converting atan2 to normal radians: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
+                fig4, ax4 = plt.subplots()
+
+                azimuthalX = np.sin(phi)
+                rightFromMiddle = azimuthalX[np.where(phi < np.pi)]
+                leftFromMiddle = azimuthalX[np.invert(np.where(phi < np.pi)[0])]
+                ax4.plot(rightFromMiddle, np.array(angleDegArr)[np.where(phi < np.pi)], '.', label='right side')
+                ax4.plot(leftFromMiddle, np.array(angleDegArr)[np.invert(np.where(phi < np.pi)[0])], '.', label='left side')
+
+                ax4.set_xlabel('sin(\phi)'); ax4.set_ylabel('contact angle (deg)')
+                ax4.legend(loc='best')
+                fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
+                plt.close(fig4)
+
                 #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
                 Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
                 totalForce_afo_time.append(totalZ)
@@ -1234,7 +1253,7 @@ def main():
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
     #path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
-    path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
+    path = "G:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
