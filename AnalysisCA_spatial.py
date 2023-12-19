@@ -806,7 +806,9 @@ def approxMiddlePointDroplet(coords, vectors):
         intersectCoordsY.append(round((a * (d - c) / (a - b)) + c))
     meanmiddleX = np.mean(intersectCoordsX)
     meanmiddleY = np.mean(intersectCoordsY)
-    return intersectCoordsX, intersectCoordsY, meanmiddleX, meanmiddleY
+    medianmiddleX = np.median(intersectCoordsX)
+    medianmiddleY = np.median(intersectCoordsY)
+    return intersectCoordsX, intersectCoordsY, meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY
 
 #TODO get this to work? : fitting CA = (x,y) to interpolate for missing datapoints & get total contour length for good force calculation
 #part of OG code: https://www.geeksforgeeks.org/3d-curve-fitting-with-python/
@@ -884,7 +886,7 @@ def primaryObtainCARoutine(path):
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 10
     #usedImages = np.arange(10, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [120]
+    usedImages = [46]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
@@ -1108,31 +1110,33 @@ def primaryObtainCARoutine(path):
                 forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
 
                 #determine middle of droplet & plot
-                middleX, middleY,meanmiddleX, meanmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
+                middleX, middleY,meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
                 fig2, ax2 = plt.subplots()
-                ax2.plot(middleX, middleY, 'b.', label='intersects of normal vectors')
-                ax2.plot(xArrFinal, yArrFinal, 'r', label='contour of droplet')
-                ax2.plot(meanmiddleX, meanmiddleY, 'k.', markersize=20, label='average middle coordinate')
+                ax2.plot(middleX, abs(np.subtract(4608, middleY)), 'b.', label='intersects of normal vectors')
+                ax2.plot(xArrFinal, abs(np.subtract(4608, yArrFinal)), 'r', label='contour of droplet')
+                ax2.plot(medianmiddleX, abs(np.subtract(4608, medianmiddleY)), 'k.', markersize=20, label='median middle coordinate')
                 ax2.set_xlabel('X-coords'); ax2.set_ylabel('Y-coords')
                 ax2.legend(loc='best')
-                print(f"meanX = {meanmiddleX}, meanY:{meanmiddleY}")
+                print(f"meanX = {meanmiddleX}, meanY:{meanmiddleY}, medianX = {medianmiddleX}, medianY = {medianmiddleY}")
                 fig2.savefig(os.path.join(analysisFolder, f'Middle of droplet {n:04}.png'), dpi=600)
                 #plt.show()
                 plt.close(fig2)
 
                 ##TODO Plot CA vs. radial angle
-                dx = np.subtract(xArrFinal, meanmiddleX)
-                dy = np.subtract(yArrFinal, meanmiddleY)
+                #TODO: middle point is not working too well yet, so left& right side are a bit skewed
+                dx = np.subtract(xArrFinal, medianmiddleX)
+                dy = np.subtract(abs(np.subtract(4608, yArrFinal)), abs(np.subtract(4608, medianmiddleY)))
                 phi = np.arctan2(dy, dx)      #angle of contour coordinate w/ respect to 12o'clock (radians)
                 phi = 0.5 * np.pi - phi
                 phi = np.mod(phi, (2.0 * np.pi))    #converting atan2 to normal radians: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
                 fig4, ax4 = plt.subplots()
 
                 azimuthalX = np.sin(phi)
-                rightFromMiddle = azimuthalX[np.where(phi < np.pi)]
-                leftFromMiddle = azimuthalX[np.invert(np.where(phi < np.pi)[0])]
-                ax4.plot(rightFromMiddle, np.array(angleDegArr)[np.where(phi < np.pi)], '.', label='right side')
-                ax4.plot(leftFromMiddle, np.array(angleDegArr)[np.invert(np.where(phi < np.pi)[0])], '.', label='left side')
+                condition = [(elem < (np.pi * (1/2)) or elem > (np.pi * (3/2))) for elem in phi]    #condition for top half of sphere
+                rightFromMiddle = azimuthalX[condition]
+                leftFromMiddle = azimuthalX[np.invert(condition)]
+                ax4.plot(rightFromMiddle, np.array(angleDegArr)[condition], '.', label='top side')
+                ax4.plot(leftFromMiddle, np.array(angleDegArr)[np.invert(condition)], '.', label='bottom side')
 
                 ax4.set_xlabel('sin(\phi)'); ax4.set_ylabel('contact angle (deg)')
                 ax4.legend(loc='best')
@@ -1248,12 +1252,12 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
-    #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
-    #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
+    #path = "G:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
+    #path = "G:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
     #path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
-    path = "G:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
+    #path = "G:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
