@@ -657,7 +657,7 @@ def determineLensPresets(imgFolderPath, wavelength_laser=520, refr_index=1.434):
     conversionsXY = [1e6, 1e3, 1, 1e-3, 1]  # standard unit is um
     conversionsZ = [1, 1e-3, 1e-6, 1e-9, 1]  # standard unit is nm
 
-    choices = ["ZEISS_OLYMPUSX2", "ZEISS_ZEISSX5", "ZEISS_ZEISSX10"]
+    choices = ["ZEISS_OLYMPUSX2", "ZEISS_ZEISSX5", "ZEISS_ZEISSX10", "SR_NIKON_NIKONX10_PIEZO"]
     answer = easygui.choicebox("What lens preset was used?", choices=choices)
     if answer == choices[0]:
         preset = 672
@@ -665,6 +665,8 @@ def determineLensPresets(imgFolderPath, wavelength_laser=520, refr_index=1.434):
         preset = 1836
     elif answer == choices[2]:
         preset = 3695
+    elif answer == choices[3]:
+        preset = 3662
     choices_outputUnits = ['nm', 'um', 'mm', 'm', 'pixels']
     unitZ = easygui.choicebox("What output z-unit (nm recommended)?", choices=choices_outputUnits)
     unitXY = easygui.choicebox("What output xy-unit (mm recommended)?", choices=choices_outputUnits)
@@ -882,17 +884,17 @@ def primaryObtainCARoutine(path):
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-    everyHowManyImages = 10
-    usedImages = np.arange(10, len(imgList), everyHowManyImages)  # 200 is the working one
-    #usedImages = [30]
+    everyHowManyImages = 3
+    usedImages = np.arange(0, len(imgList), everyHowManyImages)  # 200 is the working one
+    #usedImages = [11]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
-    lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken
+    lengthVector = 400  # 200 length of normal vector over which intensity profile data is taken
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
     sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
-    MANUALPICKING = 0
+    MANUALPICKING = 1
     lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
@@ -1234,13 +1236,15 @@ def main():
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
     #path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
-    path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
+    #path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
     # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
+    #PODMA on heating stage:
+    path = "D:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
 
     primaryObtainCARoutine(path)
     #CA_analysisRoutine(path)
