@@ -192,10 +192,10 @@ x = xcoords of contour
 y = ycoords of contour
 L = desired length of normal vector (determines how many fringes will be accounted for later on)
 """
-def get_normalsV4(x, y, L):
+def get_normalsV4(x, y, L, L2 = 0):
     # For each coordinate, fit with nearby points to a polynomial to better estimate the dx dy -> tangent
     # Take derivative of the polynomial to obtain tangent and use that one.
-    x0arr = []; dyarr = []; y0arr = []; dxarr = []
+    x0arr = []; dyarr = []; y0arr = []; dxarr = []; dxnegarr = []; dynegarr = []
     window_size = 25            #!!! window size to use. 17 seems to be good for most normal vectors
     k = round((window_size+1)/2)
 
@@ -266,6 +266,12 @@ def get_normalsV4(x, y, L):
         y0arr.append(round(y0))
         dxarr.append(round(x0+nx))
         dyarr.append(round(y0+ny))
+
+        if L2 != 0:
+            dxnegarr.append(round(x0 - (L2*(nx/L))))   #for normals pointing outwards of the droplet
+            dynegarr.append(round(y0 - (L2*(ny/L))))
+
+
         #Below: for plotting & showing of a few polynomial fits - to investigate how good the fit is
         # if idx - k == 101:
         #     plt.plot(xarr, np.array(yarr), '.', label="coordinates")
@@ -280,7 +286,7 @@ def get_normalsV4(x, y, L):
         #     print(f"idx: {idx} - {fit}")
 
     vector = [[dxarr[i] - x0arr[i], dyarr[i] - y0arr[i]] for i in range(0, len(x0arr))]   #vector [dx, dy] for each coordinate
-    return x0arr, dxarr, y0arr, dyarr, vector  # return the original data points x0&y0, and the coords of the normals dx&dy
+    return x0arr, dxarr, y0arr, dyarr, vector, dxnegarr, dynegarr  # return the original data points x0&y0, and the coords of the inwards normals dx&dy, and the outwards normals dxneg&dyneg
 
 
 def getContourList(grayImg, thresholdSensitivity):
@@ -631,7 +637,7 @@ def importConversionFactors(procStatsJsonPath):
     #lensUsed = procStats['UsedLens']
     return conversionZ, conversionXY, unitZ, unitXY
 
-def filePathsFunction(path):
+def filePathsFunction(path, wavelength_laser=520, refr_index=1.434):
     if "json" in path:
         procStatsJsonPath = path
         imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
@@ -642,7 +648,7 @@ def filePathsFunction(path):
         conversionZ, conversionXY, unitZ, unitXY = importConversionFactors(procStatsJsonPath)
     else:   #make a json file with correct measurement conversion factors
         imgFolderPath = path
-        conversionZ, conversionXY, unitZ, unitXY = determineLensPresets(path)
+        conversionZ, conversionXY, unitZ, unitXY = determineLensPresets(path, wavelength_laser, refr_index)
     return imgFolderPath, conversionZ, conversionXY, unitZ, unitXY
 
 def convertunitsToEqual(unit):
@@ -652,7 +658,7 @@ def convertunitsToEqual(unit):
 
     return units.index(unit)
 
-def determineLensPresets(imgFolderPath, wavelength_laser=520, refr_index=1.434):
+def determineLensPresets(imgFolderPath, wavelength_laser, refr_index):
     units = ['nm', 'um', 'mm', 'm', 'pixels']
     conversionsXY = [1e6, 1e3, 1, 1e-3, 1]  # standard unit is um
     conversionsZ = [1, 1e-3, 1e-6, 1e-9, 1]  # standard unit is nm
@@ -878,19 +884,76 @@ def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n):
     print(f"meanTotalZ = {totalZ} mN ")
     return Z, totalZ
 
-def primaryObtainCARoutine(path):
+def swellingRatioNearCL(xdata, ydata):
+    print("temp")
+    return
+
+#TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
+def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, lengthVector, greyresizedimg):
+    """
+    :param x0arrcoord:
+    :param y0arrcoord:
+    :param dxarrcoord:
+    :param dyarrcoord:
+    :param lengthVector:
+    :param greyresizedimg:
+    :return profile: intensity profile over pixels in image between 2 coordinates
+    """
+    if dxarrcoord - x0arrcoord == 0:  # constant x, variable y
+        xarr = np.ones(lengthVector) * x0arrcoord
+        if y0arrcoord > dyarrcoord:
+            yarr = np.arange(dyarrcoord, y0arrcoord + 1)
+        else:
+            yarr = np.arange(y0arrcoord, dyarrcoord + 1)
+        coords = list(zip(xarr.astype(int), yarr.astype(int)))
+    else:
+        a = (dyarrcoord - y0arrcoord) / (dxarrcoord - x0arrcoord)
+        b = y0arrcoord - a * x0arrcoord
+        coords, lineLengthPixels = coordinates_on_line(a, b, [x0arrcoord, dxarrcoord, y0arrcoord, dyarrcoord])
+    profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
+    return profile, lineLengthPixels
+
+def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversionZ, FLIPDATA):
+    profile_fft = np.fft.fft(profile)  # transform to fourier space
+    mask = np.ones_like(profile).astype(float)
+    lowpass = round(len(profile) / 2);
+    highpass = 2  # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
+    mask[0:lowpass] = 0;
+    mask[-highpass:] = 0
+    profile_fft = profile_fft * mask
+    profile_filtered = np.fft.ifft(profile_fft)
+
+    # calculate the wrapped space
+    wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
+    peaks, _ = scipy.signal.find_peaks(wrapped, height=0.4)  # obtain indeces om maxima
+
+    unwrapped = np.unwrap(wrapped)
+    if FLIPDATA:
+        unwrapped = -unwrapped + max(unwrapped)
+
+    # TODO conversionZ generally in nm, so /1000 -> in um
+    unwrapped *= conversionZ / 1000  # if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
+    # x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
+    # TODO conversionXY generally in mm, so *1000 -> unit in um.
+    x = np.linspace(0, lineLengthPixels, len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
+    return unwrapped, x, wrapped, peaks
+
+
+def primaryObtainCARoutine(path, wavelength_laser=520):
     #blockSize	Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on.
     #C Constant subtracted from the mean or weighted mean.
     thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
 
-    imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
+    imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
-    usedImages = np.arange(0, len(imgList), everyHowManyImages)  # 200 is the working one
-    #usedImages = [11]
+    #usedImages = np.arange(0, len(imgList), everyHowManyImages)  # 200 is the working one
+    usedImages = [46]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
-    lengthVector = 400  # 200 length of normal vector over which intensity profile data is taken
+    lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
+    outwardsLengthVector = 400 # length of normal vector over which intensity profile data is taken    (pointing OUTWARDS of droplet, so for swelling ratio analysis)
+
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
     sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
@@ -982,8 +1045,10 @@ def primaryObtainCARoutine(path):
                                            2)  # draws 1 red good contour around the outer halo fringe
 
                 # One of the main functions:
-                # Should yield the normal for every point: output is original x&y, and corresponding normal x,y (defined as dx and dy)
-                x0arr, dxarr, y0arr, dyarr, vectors = get_normalsV4(useablexlist, useableylist, lengthVector)
+                # Should yield the normal for every point: output is original x&y coords (x0,y0)
+                # corresponding normal coordinate inwards to droplet x,y (defined as dx and dy)
+                # and normal x,y coordinate outwards of droplet (dxneg & dyneg)
+                x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector)
                 print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                 tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
                 for k in x0arr:     #Check for weird x or y values, THEY NEVER SHOULD BE NEGATIVE
@@ -1019,48 +1084,22 @@ def primaryObtainCARoutine(path):
                         if k % 25 == 0:  # only plot 1/25th of the vectors to not overcrowd the image
                             resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0),
                                                   2)  # draws 1 good contour around the outer halo fringe
+                            if outwardsLengthVector != 0:   #if a swelling profile is desired, also plot it in the image
+                                resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxnegarr[k], dynegarr[k]]), (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
 
-                        if dxarr[k] - x0arr[k] == 0:  # constant x, variable y
-                            xarr = np.ones(lengthVector) * x0arr[k]
-                            if y0arr[k] > dyarr[k]:
-                                yarr = np.arange(dyarr[k], y0arr[k] + 1)
-                            else:
-                                yarr = np.arange(y0arr[k], dyarr[k] + 1)
-                            coords = list(zip(xarr.astype(int), yarr.astype(int)))
-                        else:
-                            a = (dyarr[k] - y0arr[k]) / (dxarr[k] - x0arr[k])
-                            b = y0arr[k] - a * x0arr[k]
-                            coords, lineLengthPixels = coordinates_on_line(a, b,
-                                                                           [x0arr[k], dxarr[k], y0arr[k], dyarr[k]])  #
-                        profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
+                        #intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
+                        profile, lineLengthPixels = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k], lengthVector, greyresizedimg)
+                        profileOutwards = []
+                        lineLengthPixelsOutwards = 0
+                        if outwardsLengthVector != 0:
+                            profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k], dynegarr[k], outwardsLengthVector, greyresizedimg)
 
-                        profile_fft = np.fft.fft(profile)  # transform to fourier space
-                        mask = np.ones_like(profile).astype(float)
-                        lowpass = round(len(profile) / 2);
-                        highpass = 2  # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
-                        mask[0:lowpass] = 0;
-                        mask[-highpass:] = 0
-                        profile_fft = profile_fft * mask
-                        profile_filtered = np.fft.ifft(profile_fft)
-
-                        # calculate the wrapped space
-                        wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-                        peaks, _ = scipy.signal.find_peaks(wrapped, height=0.4)  # obtain indeces om maxima
-
-                        unwrapped = np.unwrap(wrapped)
-                        if FLIPDATA:
-                            unwrapped = -unwrapped + max(unwrapped)
-
-                        # TODO conversionZ generally in nm, so /1000 -> in um
-                        unwrapped *= conversionZ / 1000  # if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
-                        # x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
-                        # TODO conversionXY generally in mm, so *1000 -> unit in um.
-                        x = np.linspace(0, lineLengthPixels,
-                                        len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
+                        # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
+                        unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileOutwards + profile, lineLengthPixelsOutwards + lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
 
                         # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
-                        startIndex, coef1, r2 = linearFitLinearRegimeOnly(x, unwrapped, sensitivityR2, k)
-
+                        startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
+                        startIndex += len(profileOutwards)
                         if r2 > sensitivityR2:      #R^2 should be very high, otherwise probably e.g. near pinning point
                             a_horizontal = 0
                             angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
@@ -1077,7 +1116,7 @@ def primaryObtainCARoutine(path):
                         if k == round(
                                 len(x0arr) / 2):  # plot 1 profile of each image with intensity, wrapped, height & resulting CA
                             fig1, ax1 = plt.subplots(2, 2)
-                            ax1[0, 0].plot(profile);
+                            ax1[0, 0].plot(profileOutwards + profile);
                             ax1[1, 0].plot(wrapped);
                             ax1[1, 0].plot(peaks, wrapped[peaks], '.')
                             ax1[0, 0].set_title(f"Intensity profile");
@@ -1205,11 +1244,16 @@ def primaryObtainCARoutine(path):
                     CAfile.write(f"{n}, {usedDeltaTs[-1]}, {angleDeg_afo_time[-1]}, {totalForce_afo_time[-1]}\n")
                     CAfile.close()
 
+                print("------------------------------------Succesfully finished--------------------------------------------\n"
+                      "------------------------------------   previous image  --------------------------------------------")
+
             except:
                 print(f"Some error occured. Still plotting obtained contour")
-            tstring = str(
-                datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
+
+            tstring = str(datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
+
+    #once all images are analysed, plot obtained data together. Can also be done seperately afterwards with the "CA_analysisRoutine()" in this file
     fig2, ax2 = plt.subplots()
     ax2.plot(np.divide(usedDeltaTs, 60), totalForce_afo_time)
     ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Horizontal component force (mN)"); ax2.set_title("Horizontal component force over Time")
@@ -1217,8 +1261,8 @@ def primaryObtainCARoutine(path):
     plt.close()
 
 
-def CA_analysisRoutine(path):
-    imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
+def CA_analysisRoutine(path, wavelength_laser=520):
+    imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     contactAngleListFilePath = os.path.join(analysisFolder, "ContactAngle_MedianListFile.txt")
 
@@ -1254,12 +1298,12 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
     #path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
-    path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
+    #path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
     # path = "E:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_28_S5_WEDGE"
@@ -1267,10 +1311,10 @@ def main():
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
     #PODMA on heating stage:
-    path = "D:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
+    #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
 
-    primaryObtainCARoutine(path)
-    #CA_analysisRoutine(path)
+    primaryObtainCARoutine(path, wavelength_laser=520)
+    #CA_analysisRoutine(path, wavelength_laser = 533)
 
 
 if __name__ == "__main__":

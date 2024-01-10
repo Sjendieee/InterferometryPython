@@ -274,7 +274,7 @@ def main():
     analysis_contactangle.py file).
     """
     path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
-    imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path)
+    imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser=520)
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
     #usedImages = np.arange(1, len(imgList), everyHowManyImages)  # 200 is the working one
