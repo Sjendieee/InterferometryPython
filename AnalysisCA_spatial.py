@@ -22,6 +22,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import interpolate
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
+from SwellingFromAbsoluteIntensity import heightFromIntensityProfileV2
 
 right_clicks = list()
 def click_event(event, x, y, flags, params):
@@ -884,9 +885,36 @@ def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n):
     print(f"meanTotalZ = {totalZ} mN ")
     return Z, totalZ
 
-def swellingRatioNearCL(xdata, ydata):
+#TODO probably the path is not working as intended
+def swellingRatioNearCL(xdata, ydata, time, path):
+    FLIP = False
+    MANUALPEAKSELECTION = True
+    PLOTSWELLINGRATIO = False
+    SAVEFIG = True
+    SEPERATEPLOTTING = True
+    USESAVEDPEAKS = False
+    fig0, ax0 = plt.subplots()
+    fig1, ax1, = plt.subplots()
+    knownHeightArr = [80, 80]
+    colorscheme = 'plasma'; cmap = plt.get_cmap(colorscheme); colorGradient = np.linspace(0, 1, len(knownHeightArr))
+    dryBrushThickness = 80
+    elapsedtime = time
+    idx = 1
+    idxx = 0
+    intensityProfileZoomConverted = ydata
+    knownPixelPosition = 30     #TODO random pixel for now, just to test if entire funciton works
+    normalizeFactor = 1
+    range1 = 0
+    range2 = len(ydata)
+    source = path
+    xshifted = xdata
+
+    height = heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
+                                 ax0, ax1, cmap, colorGradient, dryBrushThickness, elapsedtime, fig0, fig1, idx, idxx,
+                                 intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
+                                 range1, range2, source, xshifted)
     print("temp")
-    return
+    return height
 
 #TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
 def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, lengthVector, greyresizedimg):
@@ -930,16 +958,42 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     unwrapped = np.unwrap(wrapped)
     if FLIPDATA:
         unwrapped = -unwrapped + max(unwrapped)
-
     # TODO conversionZ generally in nm, so /1000 -> in um
     unwrapped *= conversionZ / 1000  # if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
     # x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
     # TODO conversionXY generally in mm, so *1000 -> unit in um.
     x = np.linspace(0, lineLengthPixels, len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
+
+    # fig1, ax1 = plt.subplots(2, 2)
+    # ax1[0, 0].plot(profile);
+    # ax1[1, 0].plot(wrapped);
+    # ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+    # ax1[0, 0].set_title(f"Intensity profile with TEMP = {temp}, meaning LOWPASS = {lowpass}");
+    # ax1[1, 0].set_title("Wrapped profile")
+    # # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+    # ax1[0, 1].plot(x, unwrapped * 1000);
+    # ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
+    # ax1[0, 1].legend(loc='best')
+    # ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+    # ax1[0, 0].set_ylabel("Intensity (a.u.)")
+    # ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+    # ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+    # ax1[0, 1].set_xlabel("Distance (um)");
+    # ax1[0, 1].set_ylabel("Height profile (nm)")
+    # fig1.set_size_inches(12.8, 9.6)
+    # plt.show()
+
     return unwrapped, x, wrapped, peaks
 
 
 def primaryObtainCARoutine(path, wavelength_laser=520):
+    """
+    Main routine to analyse the contact angle around the entire contour of a droplet.
+    Optionally, also the swelling ratio around the contour can be determined by changing the "outwardsLengthVector" from 0 to e.g. 400
+
+    :param path: Complete path to the folder with images to be analysed.
+    :param wavelength_laser: wavelength of used light (unit=nm)
+    """
     #blockSize	Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on.
     #C Constant subtracted from the mean or weighted mean.
     thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
@@ -957,6 +1011,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
     sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
+
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
     MANUALPICKING = 1
@@ -971,7 +1026,6 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
         f = open(contourListFilePath, 'r')
         lines = f.readlines()
         importedContourListData_n, importedContourListData_i, importedContourListData_thresh = extractContourNumbersFromFile(lines)
-        # importedContourListData = np.loadtxt(contourListFilePath, dtype='int', delimiter=',',  usecols=(0,1))
     else:
         f = open(contourListFilePath, 'w')
         f.write(f"file number (n); outputi; thresholdSensitivity a; thresholdSensitivity b\n")
@@ -1113,8 +1167,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                         else:
                             counter += 1    #TEMP: to check how many vectors should not be taken into account because the r2 value is too low
 
-                        if k == round(
-                                len(x0arr) / 2):  # plot 1 profile of each image with intensity, wrapped, height & resulting CA
+                        if k == round(len(x0arr) / 2): # plot 1 profile of each image with intensity, wrapped, height & resulting CA
+                            # TODO WIP: swelling or height profile outside droplet
+                            heightNearCL = swellingRatioNearCL(np.arrange(0, len(profileOutwards)), profileOutwards, f"{n}", path)
+
                             fig1, ax1 = plt.subplots(2, 2)
                             ax1[0, 0].plot(profileOutwards + profile);
                             ax1[1, 0].plot(wrapped);
