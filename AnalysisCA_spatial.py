@@ -23,6 +23,7 @@ from scipy.interpolate import interpolate
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
 from SwellingFromAbsoluteIntensity import heightFromIntensityProfileV2
+import traceback
 
 right_clicks = list()
 def click_event(event, x, y, flags, params):
@@ -887,34 +888,39 @@ def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n):
 
 #TODO probably the path is not working as intended
 def swellingRatioNearCL(xdata, ydata, time, path):
-    FLIP = False
+    EVALUATERIGHTTOLEFT = True         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
+    if EVALUATERIGHTTOLEFT:
+        list(xdata).reverse()
+        list(ydata).reverse()
+
+    FLIP = False                 #True=flip data after h analysis to have the height increase at the left
     MANUALPEAKSELECTION = True
     PLOTSWELLINGRATIO = False
     SAVEFIG = True
     SEPERATEPLOTTING = True
-    USESAVEDPEAKS = False
-    fig0, ax0 = plt.subplots()
-    fig1, ax1, = plt.subplots()
-    knownHeightArr = [80, 80]
+    USESAVEDPEAKS = True
+    figswel0, axswel0 = plt.subplots()
+    figswel1, axswel1, = plt.subplots()
+    knownHeightArr = [300, 300]
     colorscheme = 'plasma'; cmap = plt.get_cmap(colorscheme); colorGradient = np.linspace(0, 1, len(knownHeightArr))
-    dryBrushThickness = 80
+    dryBrushThickness = 200
     elapsedtime = time
     idx = 1
     idxx = 0
     intensityProfileZoomConverted = ydata
-    knownPixelPosition = 30     #TODO random pixel for now, just to test if entire funciton works
+    knownPixelPosition = 30     #TODO random pixel for now, just to test if entire function works
     normalizeFactor = 1
     range1 = 0
     range2 = len(ydata)
     source = path
     xshifted = xdata
 
-    height = heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
-                                 ax0, ax1, cmap, colorGradient, dryBrushThickness, elapsedtime, fig0, fig1, idx, idxx,
+    height, h_ratio = heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
+                                 axswel0, axswel1, cmap, colorGradient, dryBrushThickness, elapsedtime, figswel0, figswel1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
                                  range1, range2, source, xshifted)
     print("temp")
-    return height
+    return height, h_ratio
 
 #TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
 def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, lengthVector, greyresizedimg):
@@ -1127,7 +1133,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 xArrFinal = []
                 yArrFinal = []
                 vectorsFinal = []
-                counter = 0
+                omittedVectorCounter = 0
 
                 for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     try:
@@ -1140,13 +1146,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                                                   2)  # draws 1 good contour around the outer halo fringe
                             if outwardsLengthVector != 0:   #if a swelling profile is desired, also plot it in the image
                                 resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxnegarr[k], dynegarr[k]]), (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
-
                         #intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
                         profile, lineLengthPixels = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k], lengthVector, greyresizedimg)
                         profileOutwards = []
                         lineLengthPixelsOutwards = 0
                         if outwardsLengthVector != 0:
                             profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k], dynegarr[k], outwardsLengthVector, greyresizedimg)
+                            profileOutwards.reverse()   #correct stitching of in-&outwards profiles requires reversing of the outwards profile
 
                         # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
                         unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileOutwards + profile, lineLengthPixelsOutwards + lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
@@ -1165,11 +1171,15 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             vectorsFinal.append(vectors[k])
                             angleDegArr.append(angleDeg)
                         else:
-                            counter += 1    #TEMP: to check how many vectors should not be taken into account because the r2 value is too low
+                            omittedVectorCounter += 1    #TEMP: to check how many vectors should not be taken into account because the r2 value is too low
 
                         if k == round(len(x0arr) / 2): # plot 1 profile of each image with intensity, wrapped, height & resulting CA
                             # TODO WIP: swelling or height profile outside droplet
-                            heightNearCL = swellingRatioNearCL(np.arrange(0, len(profileOutwards)), profileOutwards, f"{n}", path)
+
+                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards)), profileOutwards, f"{n}", path)
+                            #heightNearCL = np.flip(heightNearCL)
+                            #Stitching together swelling height & droplet CA height
+                            heightNearCL = heightNearCL - (heightNearCL[-1] - (unwrapped[len(profileOutwards)] * 1000))
 
                             fig1, ax1 = plt.subplots(2, 2)
                             ax1[0, 0].plot(profileOutwards + profile);
@@ -1178,10 +1188,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             ax1[0, 0].set_title(f"Intensity profile");
                             ax1[1, 0].set_title("Wrapped profile")
                             # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                            ax1[0, 1].plot(x, unwrapped * 1000);
+                            ax1[0, 1].plot(x[len(heightNearCL):], unwrapped[len(heightNearCL):] * 1000, label="drop height profile");
                             ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.');
+                            ax1[0, 1].plot(x[0:len(heightNearCL)], heightNearCL, label="PB height profile");               #plot the swelling ratio outside droplet
+
                             ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
-                            ax1[0, 1].plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
+                            ax1[0, 1].plot(x[len(heightNearCL):], np.poly1d(coef1)(x[len(heightNearCL):]) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
                             ax1[0, 1].legend(loc='best')
                             ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
                             ax1[0, 0].set_ylabel("Intensity (a.u.)")
@@ -1201,7 +1213,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                     except:
                         logging.info(f"!{k}: Analysing each coordinate & normal vector broke!")
                 print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
-                print(f"Out of {len(x0arr)}, {counter} number of vectors were omitted because the R^2 was too low.")
+                print(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
 
                 #calculate the nett force over given CA en droplet range
                 forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
@@ -1305,7 +1317,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
             except:
                 print(f"Some error occured. Still plotting obtained contour")
-
+                print(traceback.format_exc())
             tstring = str(datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
 
@@ -1354,7 +1366,7 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"

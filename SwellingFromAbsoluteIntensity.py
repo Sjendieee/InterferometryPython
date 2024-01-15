@@ -186,16 +186,19 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
                                  ax0, ax1, cmap, colorGradient, dryBrushThickness, elapsedtime, fig0, fig1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
                                  range1, range2, source, xshifted):
+    if not os.path.exists(os.path.join(source, f"Swellingimages")):
+        os.mkdir(os.path.join(source, f"Swellingimages"))
+    np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})  # print arrays later with only 2 decimals
+
+    ax0.plot(xshifted, intensityProfileZoomConverted, '.', label=f'Time={timeFormat(int(elapsedtime))}', color=cmap(colorGradient[idxx]))    #plot the intensity profile
 
     # TODO prominances etc have to be adjusted manually it seems in order to have proper peakfinding
     peaks, _ = scipy.signal.find_peaks(np.divide(intensityProfileZoomConverted, normalizeFactor), height=0.5,
                                        distance=40, prominence=0.05)  # obtain indeces om maxima
     minima, _ = scipy.signal.find_peaks(np.divide(-np.array(intensityProfileZoomConverted), normalizeFactor),
                                         height=-0.35, distance=40, prominence=0.05)  # obtain indices of minima
-    print(
-        f"\n\nT = {timeFormat(int(elapsedtime))}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}")
-    print(
-        f"T = {timeFormat(elapsedtime)}\nMinima at index: {minima} \nAt x position: {np.array(xshifted)[minima]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[minima]}\n")
+    print(f"\n\nT = {timeFormat(int(elapsedtime))}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}")
+    print(f"T = {timeFormat(int(elapsedtime))}\nMinima at index: {minima} \nAt x position: {np.array(xshifted)[minima]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[minima]}\n")
     # for showing/plotting automatically picked peaks
     # ax0.plot(np.array(xshifted)[peaks], np.array(intensityProfileZoomConverted)[peaks], "x")
     # ax0.plot(np.array(xshifted)[minima], np.array(intensityProfileZoomConverted)[minima], "x")
@@ -356,14 +359,14 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
         ax1.set_xlabel("Distance of chosen range (mm)")
         if PLOTSWELLINGRATIO:
             ax1.set_ylabel("Swelling ratio (h/h$_{0}$)")
-            ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(elapsedtime)}', color=cmap(colorGradient[idxx]))
+            ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(int(elapsedtime))}', color=cmap(colorGradient[idxx]))
             ax1.set_title(f"Swelling profiles in pixelrange {range1}:{range2}")
             ax1.set_title(f"Calibrated swelling profiles")
             ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'ok', markersize=9)
             ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'o', color=cmap(colorGradient[idxx]))
         else:
             ax1.set_ylabel("Film thickness (nm)")
-            ax1.plot(xrange, h, label=f'Time={timeFormat(elapsedtime)}', color=cmap(colorGradient[idxx]))
+            ax1.plot(xrange, h, label=f'Time={timeFormat(int(elapsedtime))}', color=cmap(colorGradient[idxx]))
             # ax1.set_title(f"Height profile at time: {timeFormat(elapsedtime)} in pixelrange {range1}:{range2}")
             ax1.set_title(f"Calibrated height profiles")
             ax1.plot(xrange[knownPixelPosition], h[knownPixelPosition], 'ok', markersize=9)
@@ -372,7 +375,7 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
 
         # Saves data in time vs height profile plot so a csv file.
         wrappedPath = os.path.join(source,
-                                   f"Swellingimages\\data{timeFormat(elapsedtime)}_anchor{knownPixelPosition}_PureIntensity.csv")
+                                   f"Swellingimages\\data{timeFormat(int(elapsedtime))}_anchor{knownPixelPosition}_PureIntensity.csv")
         d = dict(
             {'xshifted (mm)': xshifted, 'Insensity converted (-)': intensityProfileZoomConverted, 'xrange (mm)': xrange,
              'height (nm)': h, 'Swelling ratio (-)': h_ratio})
@@ -393,7 +396,7 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
         ax1.autoscale(enable=True, axis='x', tight=True)
         ax1.autoscale(enable=True, axis='y', tight=True)
         ax1.set_ylim(bottom=0.9)
-        fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{timeFormat(elapsedtime)}.png"), dpi=300)
+        fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{timeFormat(int(elapsedtime))}.png"), dpi=300)
     if SEPERATEPLOTTING:
         plt.close(fig1)
         plt.close(fig0)
