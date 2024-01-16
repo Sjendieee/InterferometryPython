@@ -8,7 +8,10 @@ Adapted from SwellingRatioAnalysisv2_testing.py
 """
 
 import csv
+import logging
 import os
+import traceback
+
 import matplotlib.pyplot as plt
 import glob
 import cv2
@@ -157,6 +160,8 @@ def selectMinimaAndMaxima(y, idx):
             else:
                 tempPosition = np.argmin(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of minimum
             outputExtrema.append(tempPosition)
+    else:
+        logging.critical("Not enough extrema selected!")
     return outputExtrema
 def flipData(data):
     datamax = max(data)
@@ -257,7 +262,11 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
                 print(f"No saved peaks yet. Select them now:")
                 minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
         else:  # select new peaks now
-            minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
+            try:
+                minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
+            except:
+                logging.error("Some error occured while trying to manually select peaks!")
+                print(traceback.format_exc())
         print(f"Handpicked extrema at: \n"
               f"Indices: {[minAndMaxOrdered]}\n"
               f"Distance: {np.array(xshifted)[minAndMaxOrdered]}")
@@ -349,11 +358,11 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
         if FLIP:
             # first plot the data upside down, to have the height more swollen on the left
             h = -np.subtract(h, max(h))
-            # then, correct height with a 'known' height somewhere. Can be dry height in dry region, or from a known height vs. time curve at a pixellocation
-            diffh = knownHeightArr[idxx] - h[knownPixelPosition]
-            print(
-                f"Correcting height with {diffh} nm, because known height= {knownHeightArr[idxx]}, and calculated height= {h[knownPixelPosition]}")
-            h = np.add(h, diffh)
+        # then, correct height with a 'known' height somewhere. Can be dry height in dry region, or from a known height vs. time curve at a pixellocation
+        diffh = knownHeightArr[idxx] - h[knownPixelPosition]
+        print(
+            f"Correcting height with {diffh} nm, because known height= {knownHeightArr[idxx]}, and calculated height= {h[knownPixelPosition]}")
+        h = np.add(h, diffh)
 
         h_ratio = np.divide(h, hdry)
         ax1.set_xlabel("Distance of chosen range (mm)")

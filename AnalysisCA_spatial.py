@@ -901,9 +901,9 @@ def swellingRatioNearCL(xdata, ydata, time, path):
     USESAVEDPEAKS = True
     figswel0, axswel0 = plt.subplots()
     figswel1, axswel1, = plt.subplots()
-    knownHeightArr = [300, 300]
+    knownHeightArr = [165, 165]
     colorscheme = 'plasma'; cmap = plt.get_cmap(colorscheme); colorGradient = np.linspace(0, 1, len(knownHeightArr))
-    dryBrushThickness = 200
+    dryBrushThickness = 160
     elapsedtime = time
     idx = 1
     idxx = 0
@@ -919,7 +919,6 @@ def swellingRatioNearCL(xdata, ydata, time, path):
                                  axswel0, axswel1, cmap, colorGradient, dryBrushThickness, elapsedtime, figswel0, figswel1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
                                  range1, range2, source, xshifted)
-    print("temp")
     return height, h_ratio
 
 #TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
@@ -1175,25 +1174,26 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
                         if k == round(len(x0arr) / 2): # plot 1 profile of each image with intensity, wrapped, height & resulting CA
                             # TODO WIP: swelling or height profile outside droplet
-
-                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards)), profileOutwards, f"{n}", path)
+                            extraPartIndroplet = 50
+                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], f"{n}", path)
                             #heightNearCL = np.flip(heightNearCL)
                             #Stitching together swelling height & droplet CA height
-                            heightNearCL = heightNearCL - (heightNearCL[-1] - (unwrapped[len(profileOutwards)] * 1000))
+                            heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
 
                             fig1, ax1 = plt.subplots(2, 2)
                             ax1[0, 0].plot(profileOutwards + profile);
+                            ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
                             ax1[1, 0].plot(wrapped);
-                            ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                            ax1[1, 0].plot(peaks[peaks>len(profileOutwards)], wrapped[peaks[peaks>len(profileOutwards)]], '.')
                             ax1[0, 0].set_title(f"Intensity profile");
                             ax1[1, 0].set_title("Wrapped profile")
-                            # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                            ax1[0, 1].plot(x[len(heightNearCL):], unwrapped[len(heightNearCL):] * 1000, label="drop height profile");
-                            ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.');
-                            ax1[0, 1].plot(x[0:len(heightNearCL)], heightNearCL, label="PB height profile");               #plot the swelling ratio outside droplet
 
+                            ax1[0, 1].plot(x[0:len(heightNearCL)], heightNearCL, label="Swelling fringe calculation");               #plot the swelling ratio outside droplet
+                            # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+                            ax1[0, 1].plot(x[len(heightNearCL)-extraPartIndroplet:], unwrapped[len(heightNearCL)-extraPartIndroplet:] * 1000, '-', label="Interference fringe calculation");
+                            ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='start linear regime droplet');
                             ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
-                            ax1[0, 1].plot(x[len(heightNearCL):], np.poly1d(coef1)(x[len(heightNearCL):]) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
+                            ax1[0, 1].plot(x[len(heightNearCL)-extraPartIndroplet:], np.poly1d(coef1)(x[len(heightNearCL)-extraPartIndroplet:]) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
                             ax1[0, 1].legend(loc='best')
                             ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
                             ax1[0, 0].set_ylabel("Intensity (a.u.)")
@@ -1211,7 +1211,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                         #     plt.legend([f'R2={r2}'])
                         #     plt.show()
                     except:
-                        logging.info(f"!{k}: Analysing each coordinate & normal vector broke!")
+                        logging.error(f"!{k}: Analysing each coordinate & normal vector broke!")
+                        print(traceback.format_exc())
                 print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
                 print(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
 
@@ -1366,7 +1367,7 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
