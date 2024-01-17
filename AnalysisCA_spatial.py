@@ -3,6 +3,7 @@ import os.path
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import shapely
 import math
 from datetime import datetime
@@ -13,7 +14,6 @@ import glob
 import scipy.signal
 import pandas as pd
 import easygui
-import matplotlib as mpl
 import git
 import statistics
 
@@ -198,15 +198,15 @@ def get_normalsV4(x, y, L, L2 = 0):
     # For each coordinate, fit with nearby points to a polynomial to better estimate the dx dy -> tangent
     # Take derivative of the polynomial to obtain tangent and use that one.
     x0arr = []; dyarr = []; y0arr = []; dxarr = []; dxnegarr = []; dynegarr = []
-    window_size = 25            #!!! window size to use. 17 seems to be good for most normal vectors
+    window_size = round(len(x) / 100)            #!!! window size to use. 25 seems to be good for most normal vectors
     k = round((window_size+1)/2)
 
     middleCoordinate = [(max(x) + min(x))/2, (max(y) + min(y))/2]   #estimate for "middle coordinate" of contour. Will be used to direct normal vector to inside contour
 
     connectingCoordinatesDyDx = 30  #if coordinates are within 30 pixels of each other, probably they were connecting
     if abs(y[0]-y[-1]) < connectingCoordinatesDyDx and abs(x[0]-x[-1]) < connectingCoordinatesDyDx:   #if ends of contours are connecting, allow all the points also from the other end to be used for fitting
-        x = x[-25:] + x + x[:25]
-        y = np.hstack((y[-25:], y, y[:25]))
+        x = x[-k:] + x + x[:k]
+        y = np.hstack((y[-k:], y, y[:k]))
 
     for idx in range(k, len(x) - k):
         xarr = x[(idx-k):(idx+k)] # define x'es to use for polynomial fitting
@@ -931,6 +931,7 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     :param lengthVector:
     :param greyresizedimg:
     :return profile: intensity profile over pixels in image between 2 coordinates
+    :reutn lineLengthPixels: amount of pixels the vector spans. Can be used to calculate the length of the vector in e.g. mm
     """
     if dxarrcoord - x0arrcoord == 0:  # constant x, variable y
         xarr = np.ones(lengthVector) * x0arrcoord
@@ -947,7 +948,8 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     return profile, lineLengthPixels
 
 def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversionZ, FLIPDATA):
-    profile_fft = np.fft.fft(profile)  # transform to fourier space
+    # transform to fourier space
+    profile_fft = np.fft.fft(profile)
     mask = np.ones_like(profile).astype(float)
     lowpass = round(len(profile) / 2);
     highpass = 2  # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
@@ -990,6 +992,122 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
 
     return unwrapped, x, wrapped, peaks
 
+
+def non_uniform_savgol(x, y, window, polynom):
+    """
+    Applies a Savitzky-Golay filter to y with non-uniform spacing
+    as defined in x
+
+    This is based on https://dsp.stackexchange.com/questions/1676/savitzky-golay-smoothing-filter-for-not-equally-spaced-data
+    The borders are interpolated like scipy.signal.savgol_filter would do
+
+    Parameters
+    ----------
+    x : array_like
+        List of floats representing the x values of the data
+    y : array_like
+        List of floats representing the y values. Must have same length
+        as x
+    window : int (odd)
+        Window length of datapoints. Must be odd and smaller than x
+    polynom : int
+        The order of polynom used. Must be smaller than the window size
+
+    Returns
+    -------
+    np.array of float
+        The smoothed y values
+    """
+    if len(x) != len(y):
+        raise ValueError('"x" and "y" must be of the same size')
+
+    if len(x) < window:
+        raise ValueError('The data size must be larger than the window size')
+
+    if type(window) is not int:
+        raise TypeError('"window" must be an integer')
+
+    if window % 2 == 0:
+        raise ValueError('The "window" must be an odd integer')
+
+    if type(polynom) is not int:
+        raise TypeError('"polynom" must be an integer')
+
+    if polynom >= window:
+        raise ValueError('"polynom" must be less than "window"')
+
+    half_window = window // 2
+    polynom += 1
+
+    # Initialize variables
+    A = np.empty((window, polynom))     # Matrix
+    tA = np.empty((polynom, window))    # Transposed matrix
+    t = np.empty(window)                # Local x variables
+    y_smoothed = np.full(len(y), np.nan)
+
+    # Start smoothing
+    for i in range(half_window, len(x) - half_window, 1):
+        # Center a window of x values on x[i]
+        for j in range(0, window, 1):
+            t[j] = x[i + j - half_window] - x[i]
+
+        # Create the initial matrix A and its transposed form tA
+        for j in range(0, window, 1):
+            r = 1.0
+            for k in range(0, polynom, 1):
+                A[j, k] = r
+                tA[k, j] = r
+                r *= t[j]
+
+        # Multiply the two matrices
+        tAA = np.matmul(tA, A)
+
+        # Invert the product of the matrices
+        tAA = np.linalg.inv(tAA)
+
+        # Calculate the pseudoinverse of the design matrix
+        coeffs = np.matmul(tAA, tA)
+
+        # Calculate c0 which is also the y value for y[i]
+        y_smoothed[i] = 0
+        for j in range(0, window, 1):
+            y_smoothed[i] += coeffs[0, j] * y[i + j - half_window]
+
+        # If at the end or beginning, store all coefficients for the polynom
+        if i == half_window:
+            first_coeffs = np.zeros(polynom)
+            for j in range(0, window, 1):
+                for k in range(polynom):
+                    first_coeffs[k] += coeffs[k, j] * y[j]
+        elif i == len(x) - half_window - 1:
+            last_coeffs = np.zeros(polynom)
+            for j in range(0, window, 1):
+                for k in range(polynom):
+                    last_coeffs[k] += coeffs[k, j] * y[len(y) - window + j]
+
+    # Interpolate the result at the left border
+    for i in range(0, half_window, 1):
+        y_smoothed[i] = 0
+        x_i = 1
+        for j in range(0, polynom, 1):
+            y_smoothed[i] += first_coeffs[j] * x_i
+            x_i *= x[i] - x[half_window]
+
+    # Interpolate the result at the right border
+    for i in range(len(x) - half_window, len(x), 1):
+        y_smoothed[i] = 0
+        x_i = 1
+        for j in range(0, polynom, 1):
+            y_smoothed[i] += last_coeffs[j] * x_i
+            x_i *= x[i] - x[-half_window - 1]
+
+    return y_smoothed
+
+
+def convertPhiToazimuthal(phi):
+    phi1 = 0.5 * np.pi - phi
+    phi2 = np.mod(phi1, (2.0 * np.pi))  # converting atan2 to normal radians: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-system
+    return np.sin(phi2)
 
 def primaryObtainCARoutine(path, wavelength_laser=520):
     """
@@ -1151,14 +1269,19 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                         lineLengthPixelsOutwards = 0
                         if outwardsLengthVector != 0:
                             profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k], dynegarr[k], outwardsLengthVector, greyresizedimg)
+                            xOutwards = np.linspace(0, lineLengthPixelsOutwards, len(profileOutwards)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
                             profileOutwards.reverse()   #correct stitching of in-&outwards profiles requires reversing of the outwards profile
 
                         # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
-                        unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileOutwards + profile, lineLengthPixelsOutwards + lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
-
+                        #
+                        #unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileOutwards + profile, lineLengthPixelsOutwards + lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
+                        unwrapped, x, wrapped, peaks = intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
+                        x += xOutwards[-1]
                         # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
-                        startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
-                        startIndex += len(profileOutwards)
+                        #startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
+                        startIndex, coef1, r2 = linearFitLinearRegimeOnly(x, unwrapped, sensitivityR2, k)
+                        #startIndex += len(profileOutwards)
+
                         if r2 > sensitivityR2:      #R^2 should be very high, otherwise probably e.g. near pinning point
                             a_horizontal = 0
                             angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
@@ -1174,27 +1297,35 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
                         if k == round(len(x0arr) / 2): # plot 1 profile of each image with intensity, wrapped, height & resulting CA
                             # TODO WIP: swelling or height profile outside droplet
-                            extraPartIndroplet = 50
+                            extraPartIndroplet = 50 #extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
                             heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], f"{n}", path)
-                            #heightNearCL = np.flip(heightNearCL)
+
                             #Stitching together swelling height & droplet CA height
-                            heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
+                            #heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
+                            #heightNearCL = heightNearCL - (heightNearCL[(- 1 - extraPartIndroplet)] - (unwrapped[0] * 1000))
+                            offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000 #height at start of droplet, in relation to the swollen height of PB
+                            unwrapped = offsetDropHeight + unwrapped
 
                             fig1, ax1 = plt.subplots(2, 2)
                             ax1[0, 0].plot(profileOutwards + profile);
                             ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
-                            ax1[1, 0].plot(wrapped);
-                            ax1[1, 0].plot(peaks[peaks>len(profileOutwards)], wrapped[peaks[peaks>len(profileOutwards)]], '.')
+                            ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5)
+                            ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5)
+                            ax1[0, 0].legend(loc='best')
                             ax1[0, 0].set_title(f"Intensity profile");
-                            ax1[1, 0].set_title("Wrapped profile")
 
-                            ax1[0, 1].plot(x[0:len(heightNearCL)], heightNearCL, label="Swelling fringe calculation");               #plot the swelling ratio outside droplet
+                            ax1[1, 0].plot(wrapped);
+                            ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                            ax1[1, 0].set_title("Wrapped profile (drop only)")
+
                             # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                            ax1[0, 1].plot(x[len(heightNearCL)-extraPartIndroplet:], unwrapped[len(heightNearCL)-extraPartIndroplet:] * 1000, '-', label="Interference fringe calculation");
-                            ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='start linear regime droplet');
-                            ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
-                            ax1[0, 1].plot(x[len(heightNearCL)-extraPartIndroplet:], np.poly1d(coef1)(x[len(heightNearCL)-extraPartIndroplet:]) * 1000, linewidth=0.5, label=f'R2={r2:.3f}\nCA={angleDeg:.2f} deg');
+                            ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation"), 'C1';               #plot the swelling ratio outside droplet
+                            ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation"),'C0';
+                            ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
+                            ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}\nCA={angleDeg:.2f} deg');
                             ax1[0, 1].legend(loc='best')
+                            ax1[0, 1].set_title("Brush & drop height vs distance")
+
                             ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
                             ax1[0, 0].set_ylabel("Intensity (a.u.)")
                             ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
@@ -1236,22 +1367,53 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 #TODO: middle point is not working too well yet, so left& right side are a bit skewed
                 dx = np.subtract(xArrFinal, medianmiddleX)
                 dy = np.subtract(abs(np.subtract(4608, yArrFinal)), abs(np.subtract(4608, medianmiddleY)))
-                phi = np.arctan2(dy, dx)      #angle of contour coordinate w/ respect to 12o'clock (radians)
-                phi = 0.5 * np.pi - phi
-                phi = np.mod(phi, (2.0 * np.pi))    #converting atan2 to normal radians: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
-                fig4, ax4 = plt.subplots()
 
-                azimuthalX = np.sin(phi)
+
+                phi = np.arctan2(dy, dx)  # angle of contour coordinate w/ respect to 12o'clock (radians)
+                azimuthalX = convertPhiToazimuthal(phi)
+                fig4, ax4 = plt.subplots()
                 condition = [(elem < (np.pi * (1/2)) or elem > (np.pi * (3/2))) for elem in phi]    #condition for top half of sphere
                 rightFromMiddle = azimuthalX[condition]
                 leftFromMiddle = azimuthalX[np.invert(condition)]
                 ax4.plot(rightFromMiddle, np.array(angleDegArr)[condition], '.', label='top side')
                 ax4.plot(leftFromMiddle, np.array(angleDegArr)[np.invert(condition)], '.', label='bottom side')
+                sovgol_windowSize = round(len(angleDegArr)/10); savgol_order = 3
+                #azimuthal_savgol = scipy.signal.savgol_filter(angleDegArr, sovgol_windowSize, savgol_order, mode='wrap')
+                #ax4.plot(azimuthalX, azimuthal_savgol, '--', label=f'savitsky golay filtered. Wsize = {sovgol_windowSize}, order = {savgol_order}')
+                aziCA_savgol_nonuniformed = non_uniform_savgol(azimuthalX, angleDegArr, sovgol_windowSize, savgol_order)
+                ax4.plot(azimuthalX, aziCA_savgol_nonuniformed, '--', label=f'savgol filter, nonuniform')
+                phi_sorted, aziCA_savgol_sorted = [list(a) for a in zip(*sorted(zip(phi, aziCA_savgol_nonuniformed)))]  #TODO, check dit goed; snelle fix voor altijd increasing x, maar is misschien heel fout
+                for i in range(1, len(phi_sorted)):
+                    if phi_sorted[i] <= phi_sorted[i - 1]:
+                        phi_sorted[i] = phi_sorted[i - 1] + 1e-5
 
-                ax4.set_xlabel('sin(\phi)'); ax4.set_ylabel('contact angle (deg)')
+                #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
+                azimuthal_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], aziCA_savgol_sorted + [aziCA_savgol_sorted[0]], bc_type='not-a-knot')
+                phi_range = np.arange(min(phi), max(phi), 0.01)
+                aziCA_cubesplined = azimuthal_savgol_cs(phi_range)
+
+                ax4.plot(convertPhiToazimuthal(phi_range), aziCA_cubesplined, '--', label=f'CubicSpline fit')
+
+                ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
                 fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
                 plt.close(fig4)
+
+                # #ANIMATION of azimuthal CA
+                # figtemp, axtemp = plt.subplots()
+                # linetemp = axtemp.plot(azimuthalX, angleDegArr, '.')[0]
+                # linetemp2 = axtemp.plot(azimuthalX, azimuthal_savgol_nonuniformed, '--', label=f'savgol filter, nonuniform')[0]
+                # axtemp.set(xlabel='sin(\phi)', ylabel ='contact angle (deg)', title='Azimuthal contact angle movie')
+                # def update(frame):
+                #     # update the line plot:
+                #     linetemp.set_xdata(azimuthalX[:frame])
+                #     linetemp.set_ydata(angleDegArr[:frame])
+                #     linetemp2.set_xdata(azimuthalX[:frame])
+                #     linetemp2.set_ydata(azimuthal_savgol_nonuniformed[:frame])
+                #     return (linetemp, linetemp2)
+                # ani = animation.FuncAnimation(fig=figtemp, func=update, frames=200, interval=20) #round(len(azimuthalX)/20)
+                # #plt.show()
+                # ani.save(filename=os.path.join(analysisFolder, f'Azimuthal_CA_movie.gif'), writer="pillow")
 
                 #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
                 Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
