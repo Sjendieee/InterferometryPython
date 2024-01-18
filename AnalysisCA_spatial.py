@@ -1039,6 +1039,11 @@ def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
     half_window = window // 2
     polynom += 1
 
+    startLenghtX = len(x)
+    if mode == 'periodic':
+        x = np.concatenate((x[-half_window:], x, x[0:half_window]))
+        y = np.concatenate((y[-half_window:], y, y[0:half_window]))
+
     # Initialize variables
     A = np.empty((window, polynom))     # Matrix
     tA = np.empty((polynom, window))    # Transposed matrix
@@ -1084,7 +1089,6 @@ def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
             for j in range(0, window, 1):
                 for k in range(polynom):
                     last_coeffs[k] += coeffs[k, j] * y[len(y) - window + j]
-
     if mode == 'interp':
         # Interpolate the result at the left border
         for i in range(0, half_window, 1):
@@ -1102,7 +1106,12 @@ def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
                 y_smoothed[i] += last_coeffs[j] * x_i
                 x_i *= x[i] - x[-half_window - 1]
     elif mode == 'periodic':
-        #TODO
+        #by extending the x & y manually in beginning, the periodic boundary condition is already fulfilled
+        y_smoothed = y_smoothed[half_window:-half_window]
+        if startLenghtX == len(y_smoothed):
+            logging.info("nice, everything went well")
+        else:
+            logging.error("help, something is wrong")
     return y_smoothed
 
 
@@ -1110,6 +1119,48 @@ def convertPhiToazimuthal(phi):
     phi1 = 0.5 * np.pi - phi
     phi2 = np.mod(phi1, (2.0 * np.pi))  # converting atan2 to normal radians: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-system
     return np.sin(phi2)
+
+
+def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr, dxarr, dyarr
+    """"
+    :param x0arr: input array with x coordinate values
+    :param y0arr: input array with y coordinate values
+    :param dxarr: input array with x coordinate values, at end of vector
+    :param dyarr: input array with y coordinate values, at end of vector
+    :return coords: [x, y] values of coordinates at inflection point at bottom and top of droplet
+    """
+    #previously I defined the dx as dxarr-x0arr, so i'm flipping the sign here. Same for dy
+    dx = np.array([i[0] for i in vectors])
+    dy = np.array([i[1] for i in vectors])
+    #calculate all the vectors if they are pointing left or right
+    x0arr = np.array(x0arr)
+    #dxarr = np.array(dxarr)
+    y0arr = np.array(y0arr)
+    # dyarr = np.array(dyarr)
+
+    #dx = x0arr - dxarr      #if dx<0, they are pointing right, so on left side of droplet
+    negative_dx_indices = np.where(dx < 0)[0]
+
+    #For those values, check their dy value
+    #dy = y0arr - dyarr
+
+    # if dy<0, the vector is pointing downwards = top of droplet
+    negative_dy_indices = np.where(dy < 0)[0]
+    # if dy>0, the vector is pointing upwards = bottom of droplet
+    positive_dy_indices = np.where(dy > 0)[0]
+
+    upwards_vecIndices = set(negative_dx_indices).intersection(negative_dy_indices)
+    downwards_vecIndices = set(negative_dx_indices).intersection(positive_dy_indices)
+
+    #upwards_Index = np.argmax(y0arr[list(upwards_vecIndices)])
+    #downwards_Index = np.argmin(y0arr[list(downwards_vecIndices)])
+
+    upwards_Index = np.where(y0arr == max(y0arr[list(upwards_vecIndices)]))[0][0]
+    downwards_Index = np.where(y0arr == min(y0arr[list(downwards_vecIndices)]))[0][0]
+
+    #return x and y at the bottom & top respectively as seperate lists
+    return [x0arr[upwards_Index], y0arr[upwards_Index]], [x0arr[downwards_Index], y0arr[downwards_Index]]
+
 
 def primaryObtainCARoutine(path, wavelength_laser=520):
     """
@@ -1230,12 +1281,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector)
                 print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                 tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
-                for k in x0arr:     #Check for weird x or y values, THEY NEVER SHOULD BE NEGATIVE
-                    if k < 0:
-                        print(f"xval: {k}, index: {x0arr.index(k)}")
-                for k in y0arr:
-                    if k < 0:
-                        print(f"yval {k}, index: {y0arr.index(k)}")
+
+                if any(t < 0 for t in x0arr) or any(p < 0 for p in y0arr):#Check for weird x or y values, THEY NEVER SHOULD BE NEGATIVE
+                    logging.critical("Either an x or y coordinate was found to be negative!\n This should not be possible.")
 
                 tempimg = []
                 tempimg = cv2.polylines(resizedimg, np.array([tempcoords]), False, (0, 255, 0),
@@ -1349,6 +1397,15 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
                 print(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
 
+                #coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords(x0arr, y0arr, dxarr, dyarr)
+                coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords(vectorsFinal, xArrFinal, yArrFinal)
+                print(f"Calculated top and bottom coordinates of the droplet to be:\n"
+                      f"Top: x={coordsTop[0]}, y={coordsTop[1]}\n"
+                      f"Bottom: x={coordsBottom[0]}, y={coordsBottom[1]}")
+
+                resizedimg = cv2.circle(resizedimg, (coordsBottom), 30, (255, 0, 0), -1)    #draw blue circle at calculated bottom/inflection point of droplet
+                resizedimg = cv2.circle(resizedimg, (coordsTop), 30, (0, 255, 0), -1)       #green
+
                 #calculate the nett force over given CA en droplet range
                 forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
 
@@ -1395,7 +1452,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 phi_range = np.arange(min(phi), max(phi), 0.01)
                 aziCA_cubesplined = azimuthal_savgol_cs(phi_range[:-1])
 
-#                ax4.plot(convertPhiToazimuthal(phi_range[:-1]), aziCA_cubesplined, '--', label=f'CubicSpline fit')
+                ax4.plot(convertPhiToazimuthal(phi_range[:-1]), aziCA_cubesplined, '--', label=f'CubicSpline fit')
 
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
@@ -1485,6 +1542,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 print(f"Some error occured. Still plotting obtained contour")
                 print(traceback.format_exc())
             tstring = str(datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
+            resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 63, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(4608, medianmiddleY))
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
 
     #once all images are analysed, plot obtained data together. Can also be done seperately afterwards with the "CA_analysisRoutine()" in this file
@@ -1532,7 +1590,7 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
