@@ -1161,6 +1161,11 @@ def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr,
     #return x and y at the bottom & top respectively as seperate lists
     return [x0arr[upwards_Index], y0arr[upwards_Index]], [x0arr[downwards_Index], y0arr[downwards_Index]]
 
+def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
+    dx = np.subtract(xArrFinal, medianmiddleX)
+    dy = np.subtract(yArrFinal, medianmiddleY)
+    phi = np.arctan2(dy, dx)  # angle of contour coordinate w/ respect to 12o'clock (radians)
+    return phi
 
 def primaryObtainCARoutine(path, wavelength_laser=520):
     """
@@ -1422,13 +1427,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 #plt.show()
                 plt.close(fig2)
 
-                ##TODO Plot CA vs. radial angle
                 #TODO: middle point is not working too well yet, so left& right side are a bit skewed
-                dx = np.subtract(xArrFinal, medianmiddleX)
-                dy = np.subtract(abs(np.subtract(4608, yArrFinal)), abs(np.subtract(4608, medianmiddleY)))
+                phi = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                phiTop = coordsToPhi(coordsTop[0], abs(np.subtract(4608, coordsTop[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                phiBottom = coordsToPhi(coordsBottom[0], abs(np.subtract(4608, coordsBottom[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
 
-
-                phi = np.arctan2(dy, dx)  # angle of contour coordinate w/ respect to 12o'clock (radians)
                 azimuthalX = convertPhiToazimuthal(phi)
                 fig4, ax4 = plt.subplots()
                 condition = [(elem < (np.pi * (1/2)) or elem > (np.pi * (3/2))) for elem in phi]    #condition for top half of sphere
@@ -1436,6 +1439,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 leftFromMiddle = azimuthalX[np.invert(condition)]
                 ax4.plot(rightFromMiddle, np.array(angleDegArr)[condition], '.', label='top side')
                 ax4.plot(leftFromMiddle, np.array(angleDegArr)[np.invert(condition)], '.', label='bottom side')
+
+                halfDropletCondition = np.invert((phi>phiBottom) & (phi<phiTop))
+                phi_leftside = phi[halfDropletCondition]
+                ax4.plot(convertPhiToazimuthal(phi_leftside), np.array(angleDegArr)[halfDropletCondition], '.', label='left side')
+
                 sovgol_windowSize = round(len(angleDegArr)/10); savgol_order = 3
                 #azimuthal_savgol = scipy.signal.savgol_filter(angleDegArr, sovgol_windowSize, savgol_order, mode='wrap')
                 #ax4.plot(azimuthalX, azimuthal_savgol, '--', label=f'savitsky golay filtered. Wsize = {sovgol_windowSize}, order = {savgol_order}')
@@ -1590,7 +1598,7 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
