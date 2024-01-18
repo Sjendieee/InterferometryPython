@@ -993,7 +993,7 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     return unwrapped, x, wrapped, peaks
 
 
-def non_uniform_savgol(x, y, window, polynom):
+def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
     """
     Applies a Savitzky-Golay filter to y with non-uniform spacing
     as defined in x
@@ -1085,22 +1085,24 @@ def non_uniform_savgol(x, y, window, polynom):
                 for k in range(polynom):
                     last_coeffs[k] += coeffs[k, j] * y[len(y) - window + j]
 
-    # Interpolate the result at the left border
-    for i in range(0, half_window, 1):
-        y_smoothed[i] = 0
-        x_i = 1
-        for j in range(0, polynom, 1):
-            y_smoothed[i] += first_coeffs[j] * x_i
-            x_i *= x[i] - x[half_window]
+    if mode == 'interp':
+        # Interpolate the result at the left border
+        for i in range(0, half_window, 1):
+            y_smoothed[i] = 0
+            x_i = 1
+            for j in range(0, polynom, 1):
+                y_smoothed[i] += first_coeffs[j] * x_i
+                x_i *= x[i] - x[half_window]
 
-    # Interpolate the result at the right border
-    for i in range(len(x) - half_window, len(x), 1):
-        y_smoothed[i] = 0
-        x_i = 1
-        for j in range(0, polynom, 1):
-            y_smoothed[i] += last_coeffs[j] * x_i
-            x_i *= x[i] - x[-half_window - 1]
-
+        # Interpolate the result at the right border
+        for i in range(len(x) - half_window, len(x), 1):
+            y_smoothed[i] = 0
+            x_i = 1
+            for j in range(0, polynom, 1):
+                y_smoothed[i] += last_coeffs[j] * x_i
+                x_i *= x[i] - x[-half_window - 1]
+    elif mode == 'periodic':
+        #TODO
     return y_smoothed
 
 
@@ -1380,7 +1382,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 sovgol_windowSize = round(len(angleDegArr)/10); savgol_order = 3
                 #azimuthal_savgol = scipy.signal.savgol_filter(angleDegArr, sovgol_windowSize, savgol_order, mode='wrap')
                 #ax4.plot(azimuthalX, azimuthal_savgol, '--', label=f'savitsky golay filtered. Wsize = {sovgol_windowSize}, order = {savgol_order}')
-                aziCA_savgol_nonuniformed = non_uniform_savgol(azimuthalX, angleDegArr, sovgol_windowSize, savgol_order)
+                aziCA_savgol_nonuniformed = non_uniform_savgol(azimuthalX, angleDegArr, sovgol_windowSize, savgol_order, mode='periodic')
                 ax4.plot(azimuthalX, aziCA_savgol_nonuniformed, '--', label=f'savgol filter, nonuniform')
                 phi_sorted, aziCA_savgol_sorted = [list(a) for a in zip(*sorted(zip(phi, aziCA_savgol_nonuniformed)))]  #TODO, check dit goed; snelle fix voor altijd increasing x, maar is misschien heel fout
                 for i in range(1, len(phi_sorted)):
@@ -1388,11 +1390,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                         phi_sorted[i] = phi_sorted[i - 1] + 1e-5
 
                 #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
-                azimuthal_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], aziCA_savgol_sorted + [aziCA_savgol_sorted[0]], bc_type='not-a-knot')
-                phi_range = np.arange(min(phi), max(phi), 0.01)
-                aziCA_cubesplined = azimuthal_savgol_cs(phi_range)
 
-                ax4.plot(convertPhiToazimuthal(phi_range), aziCA_cubesplined, '--', label=f'CubicSpline fit')
+                azimuthal_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], aziCA_savgol_sorted + [aziCA_savgol_sorted[0]], bc_type='periodic')
+                phi_range = np.arange(min(phi), max(phi), 0.01)
+                aziCA_cubesplined = azimuthal_savgol_cs(phi_range[:-1])
+
+#                ax4.plot(convertPhiToazimuthal(phi_range[:-1]), aziCA_cubesplined, '--', label=f'CubicSpline fit')
 
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
@@ -1529,7 +1532,7 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
