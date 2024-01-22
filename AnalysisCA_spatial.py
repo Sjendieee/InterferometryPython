@@ -1175,12 +1175,16 @@ def calculateForceOnDroplet(phi_CA_Function, phi_r_Function, boundaryPhi1, bound
     """
 
     #required ideally: a function that defines the (nett) force / CA as a function of cartesian coordinates
-    #total_force, error = integrate.quad(lambda phi: phi_r_Function(phi) * phi_CA_Function(phi), -np.pi/2, np.pi/2)
+    #TODO test if uppim limit works
+    total_force, error = integrate.quad(lambda phi: phi_r_Function(phi) * phi_CA_Function(phi), -np.pi/2, np.pi/2, limit=150)
     phi_range = np.arange(-np.pi, np.pi, 0.01)
-    f = phi_r_Function(phi_range) * phi_CA_Function(phi_range)
+    #TODO wrong: implement with nett horizontal componen force as a function of phi
+    total_force = phi_r_Function(phi_range) * phi_CA_Function(phi_range)
 
-    plt.plot(phi_range, f)
-
+    plt.plot(phi_range, total_force, label='phi vs r*CA')
+    plt.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_CA_Function(boundaryPhi1), '.', label='Top')
+    plt.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_CA_Function(boundaryPhi2), '.', label='Bottom')
+    plt.legend(loc='best')
     plt.show()
 
     #print(f"Total whatever calculated is ={total_force}")
