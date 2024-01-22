@@ -19,6 +19,7 @@ import statistics
 
 from matplotlib.widgets import RectangleSelector
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy import integrate
 from scipy.interpolate import interpolate
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
@@ -1165,7 +1166,65 @@ def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
     dx = np.subtract(xArrFinal, medianmiddleX)
     dy = np.subtract(yArrFinal, medianmiddleY)
     phi = np.arctan2(dy, dx)  # angle of contour coordinate w/ respect to 12o'clock (radians)
-    return phi
+    rArray = np.sqrt(np.square(dx) + np.square(dy))
+    return phi, rArray
+
+def calculateForceOnDroplet(phi_CA_Function, phi_r_Function, boundaryPhi1, boundaryPhi2):
+    """"
+    input: cubicSplineFunction
+    """
+
+    #required ideally: a function that defines the (nett) force / CA as a function of cartesian coordinates
+    #total_force, error = integrate.quad(lambda phi: phi_r_Function(phi) * phi_CA_Function(phi), -np.pi/2, np.pi/2)
+    phi_range = np.arange(-np.pi, np.pi, 0.01)
+    f = phi_r_Function(phi_range) * phi_CA_Function(phi_range)
+
+    plt.plot(phi_range, f)
+
+    plt.show()
+
+    #print(f"Total whatever calculated is ={total_force}")
+
+
+
+    # localContourLength = []  # in pixels
+    # totalContourLength = 0  # in pixels
+    # for i in range(0, len(xCartesian)):
+    #     localContourLength.append(np.sqrt((xCartesian[i + 1] - xCartesian[i]) ** 2 + (yCartesian[i + 1] - yCartesian[i]) ** 2))
+    #     totalContourLength += localContourLength[-1]
+    # localContourLength.append(np.sqrt((xCartesian[0] - xCartesian[i + 1]) ** 2 + (yCartesian[0] - yCartesian[i + 1]) ** 2))
+    # totalContourLength += localContourLength[-1]
+    # print(
+    #     f"Total contour length={totalContourLength} (in coordinates (i.e. pixel) units) (estimate from contour x&y coords, by pythagoras)")
+    # print(f"Total contour length={totalContourLength * conversionXY} mm")
+    # print(
+    #     f"length of xmax-xmin & ymax-ymin (mm)= {(max(xCartesian) - min(xCartesian)) * conversionXY} & {(max(yCartesian) - min(yCartesian)) * conversionXY}")
+    #
+    # # TODO split up droplet in upper & lower half, iterate over increasing x to interpolate for missing values
+    # # for now: assume entire droplet is investigated. Code prob. doesn't work for partial droplets.
+    # upperhalf = []
+    # lowerhalf = []
+    # n_xmin = (xin);
+    # n_xmax = max(xin)
+    # yatminx = yin[np.argmin(xin)];
+    # yatmaxx = yin[np.argmax(xin)]
+    #
+    #
+    # # plt.show()
+    # fig.savefig(os.path.join(analysisFolder, f'Spatial CA with fit {n:04}.png'), dpi=600)
+    # plt.close()
+    #
+    # weighedZ = np.multiply(Z, localContourLength)  # multiply Z value with the length of the contour (pixels) at that coordinate to weigh the relevance.
+    # # Also ^ basically converts Z (mN/m) to (mN * pixels/m), which can be converted to mN (below)
+    # totalZ = sum(weighedZ) * (conversionXY / 1000)  # in mN
+    #
+    # print(f"meanTotalZ = {totalZ} mN ")
+    # #TODO
+    # # somehow take a line integral?
+    # #
+
+
+    return total_force
 
 def primaryObtainCARoutine(path, wavelength_laser=520):
     """
@@ -1428,9 +1487,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 plt.close(fig2)
 
                 #TODO: middle point is not working too well yet, so left& right side are a bit skewed
-                phi = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
-                phiTop = coordsToPhi(coordsTop[0], abs(np.subtract(4608, coordsTop[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
-                phiBottom = coordsToPhi(coordsBottom[0], abs(np.subtract(4608, coordsBottom[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                phi, rFromMiddleArray = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                phiTop, rTop = coordsToPhi(coordsTop[0], abs(np.subtract(4608, coordsTop[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))  #the phi at which the 'top' of the droplet is located
+                phiBottom, rBot = coordsToPhi(coordsBottom[0], abs(np.subtract(4608, coordsBottom[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY))) #the phi at which the 'bottom' of the droplet is located
 
                 azimuthalX = convertPhiToazimuthal(phi)
                 fig4, ax4 = plt.subplots()
@@ -1449,23 +1508,38 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 #ax4.plot(azimuthalX, azimuthal_savgol, '--', label=f'savitsky golay filtered. Wsize = {sovgol_windowSize}, order = {savgol_order}')
                 aziCA_savgol_nonuniformed = non_uniform_savgol(azimuthalX, angleDegArr, sovgol_windowSize, savgol_order, mode='periodic')
                 ax4.plot(azimuthalX, aziCA_savgol_nonuniformed, '--', label=f'savgol filter, nonuniform')
-                phi_sorted, aziCA_savgol_sorted = [list(a) for a in zip(*sorted(zip(phi, aziCA_savgol_nonuniformed)))]  #TODO, check dit goed; snelle fix voor altijd increasing x, maar is misschien heel fout
+
+                # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
+                rFromMiddle_savgol = non_uniform_savgol(phi, rFromMiddleArray, sovgol_windowSize, savgol_order, mode='periodic')
+                phi_sorted, aziCA_savgol_sorted, rFromMiddle_savgol_sorted = [list(a) for a in zip(*sorted(zip(phi, aziCA_savgol_nonuniformed, rFromMiddle_savgol)))]  #TODO, check dit goed; snelle fix voor altijd increasing x, maar is misschien heel fout
                 for i in range(1, len(phi_sorted)):
                     if phi_sorted[i] <= phi_sorted[i - 1]:
                         phi_sorted[i] = phi_sorted[i - 1] + 1e-5
 
                 #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
 
-                azimuthal_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], aziCA_savgol_sorted + [aziCA_savgol_sorted[0]], bc_type='periodic')
+                phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], aziCA_savgol_sorted + [aziCA_savgol_sorted[0]], bc_type='periodic')
                 phi_range = np.arange(min(phi), max(phi), 0.01)
-                aziCA_cubesplined = azimuthal_savgol_cs(phi_range[:-1])
+                aziCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
 
                 ax4.plot(convertPhiToazimuthal(phi_range[:-1]), aziCA_cubesplined, '--', label=f'CubicSpline fit')
-
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
                 fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
                 plt.close(fig4)
+
+                # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
+                fig5, ax5 = plt.subplots()
+                phi_r_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], rFromMiddle_savgol_sorted + [rFromMiddle_savgol_sorted[0]], bc_type='periodic')
+                ax5.plot(phi_sorted, rFromMiddle_savgol_sorted, label='r as a function of phi data')
+                ax5.plot(np.arange(-np.pi, np.pi, 0.01), phi_r_savgol_cs(np.arange(-np.pi, np.pi, 0.01)), '--', label='cubespline fit')
+                ax5.legend(loc='best')
+                fig5.savefig(os.path.join(analysisFolder, f'Radius vs Phi {n:04}.png'), dpi=600)
+                fig5.show()
+
+
+                forceOnDroplet = calculateForceOnDroplet(phi_CA_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom)
+
 
                 # #ANIMATION of azimuthal CA
                 # figtemp, axtemp = plt.subplots()
@@ -1485,6 +1559,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
                 #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
                 Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
+
                 totalForce_afo_time.append(totalZ)
                 #fig5 = plt.figure()
                 #ax5 = fig5.add_subplot(1, 1, 1, projection='3d')
@@ -1598,7 +1673,7 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
