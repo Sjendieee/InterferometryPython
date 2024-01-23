@@ -998,6 +998,7 @@ def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
     """
     Applies a Savitzky-Golay filter to y with non-uniform spacing
     as defined in x
+    Returns a smoothened y-array of same size as input
 
     This is based on https://dsp.stackexchange.com/questions/1676/savitzky-golay-smoothing-filter-for-not-equally-spaced-data
     The borders are interpolated like scipy.signal.savgol_filter would do
@@ -1163,29 +1164,37 @@ def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr,
     return [x0arr[upwards_Index], y0arr[upwards_Index]], [x0arr[downwards_Index], y0arr[downwards_Index]]
 
 def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
+    """"
+    :return rArray: distance from the middle to the coordinate. UNIT= same as input units (so probably pixel, or e.g. mm)
+    """
     dx = np.subtract(xArrFinal, medianmiddleX)
     dy = np.subtract(yArrFinal, medianmiddleY)
     phi = np.arctan2(dy, dx)  # angle of contour coordinate w/ respect to 12o'clock (radians)
     rArray = np.sqrt(np.square(dx) + np.square(dy))
     return phi, rArray
 
-def calculateForceOnDroplet(phi_CA_Function, phi_r_Function, boundaryPhi1, boundaryPhi2):
+def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, boundaryPhi2, analysisFolder):
     """"
     input: cubicSplineFunction
     """
 
     #required ideally: a function that defines the (nett) force / CA as a function of cartesian coordinates
-    #TODO test if uppim limit works
-    total_force, error = integrate.quad(lambda phi: phi_r_Function(phi) * phi_CA_Function(phi), -np.pi/2, np.pi/2, limit=150)
-    phi_range = np.arange(-np.pi, np.pi, 0.01)
-    #TODO wrong: implement with nett horizontal componen force as a function of phi
-    total_force = phi_r_Function(phi_range) * phi_CA_Function(phi_range)
+    #TODO proper integration doesn't work currently, probably because the cubicSpline fits are REALLY off between too large intervals of data. (When plotted with a too small interval a lot of noise is introduced, even though the original data is really smooth)
+    total_force, error = integrate.quad(lambda phi: phi_r_Function(phi) * phi_Force_Function(phi), -np.pi, np.pi, limit=600)
+    phi_range = np.arange(-np.pi, np.pi, 0.05)
 
-    plt.plot(phi_range, total_force, label='phi vs r*CA')
-    plt.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_CA_Function(boundaryPhi1), '.', label='Top')
-    plt.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_CA_Function(boundaryPhi2), '.', label='Bottom')
-    plt.legend(loc='best')
-    plt.show()
+    #TODO attempting to manually integrate force vs phi
+    forceArr = phi_r_Function(phi_range) * phi_Force_Function(phi_range)
+    manualIntegratedForce = np.trapz(forceArr, phi_range)
+
+    fig6, ax6 = plt.subplots()
+    ax6.plot(phi_range, forceArr, label='phi vs r*tangent Force')
+    ax6.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_Force_Function(boundaryPhi1), '.', label='Top')
+    ax6.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_Force_Function(boundaryPhi2), '.', label='Bottom')
+    ax6.set(title=f"Horizontal force as a function of phi", xlabel=f'$\phi$', ylabel='Force (UNIT TO BE CHECKED, should be mN)')
+    ax6.legend(loc='best')
+    fig6.savefig(os.path.join(analysisFolder, f'Force vs Phi.png'), dpi=600)
+    #plt.show()
 
     #print(f"Total whatever calculated is ={total_force}")
 
@@ -1228,7 +1237,7 @@ def calculateForceOnDroplet(phi_CA_Function, phi_r_Function, boundaryPhi1, bound
     # #
 
 
-    return total_force
+    return total_force, manualIntegratedForce
 
 def primaryObtainCARoutine(path, wavelength_laser=520):
     """
@@ -1475,7 +1484,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 resizedimg = cv2.circle(resizedimg, (coordsTop), 30, (0, 255, 0), -1)       #green
 
                 #calculate the nett force over given CA en droplet range
-                forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
+                tangent_forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
 
                 #determine middle of droplet & plot
                 middleX, middleY,meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
@@ -1491,9 +1500,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 plt.close(fig2)
 
                 #TODO: middle point is not working too well yet, so left& right side are a bit skewed
-                phi, rFromMiddleArray = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
-                phiTop, rTop = coordsToPhi(coordsTop[0], abs(np.subtract(4608, coordsTop[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))  #the phi at which the 'top' of the droplet is located
-                phiBottom, rBot = coordsToPhi(coordsBottom[0], abs(np.subtract(4608, coordsBottom[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY))) #the phi at which the 'bottom' of the droplet is located
+                phi, rFromMiddleArray_pixel = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                phiTop, rTop_pixel = coordsToPhi(coordsTop[0], abs(np.subtract(4608, coordsTop[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))  #the phi at which the 'top' of the droplet is located
+                phiBottom, rBot_pixel = coordsToPhi(coordsBottom[0], abs(np.subtract(4608, coordsBottom[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY))) #the phi at which the 'bottom' of the droplet is located
+
+                rFromMiddleArray_m = rFromMiddleArray_pixel * conversionXY / 1000   #pixel* conversionXY is in mm, so divide by 1000 to yield in meters
+                rTop_m = rTop_pixel * conversionXY / 1000  # pixel* conversionXY is in mm, so divide by 1000 to yield in meters
+                rBot_m = rBot_pixel * conversionXY / 1000  # pixel* conversionXY is in mm, so divide by 1000 to yield in meters
 
                 azimuthalX = convertPhiToazimuthal(phi)
                 fig4, ax4 = plt.subplots()
@@ -1511,22 +1524,24 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 #azimuthal_savgol = scipy.signal.savgol_filter(angleDegArr, sovgol_windowSize, savgol_order, mode='wrap')
                 #ax4.plot(azimuthalX, azimuthal_savgol, '--', label=f'savitsky golay filtered. Wsize = {sovgol_windowSize}, order = {savgol_order}')
                 aziCA_savgol_nonuniformed = non_uniform_savgol(azimuthalX, angleDegArr, sovgol_windowSize, savgol_order, mode='periodic')
-                ax4.plot(azimuthalX, aziCA_savgol_nonuniformed, '--', label=f'savgol filter, nonuniform')
+                phi_CA_savgol_nonuniformed = non_uniform_savgol(phi, angleDegArr, sovgol_windowSize, savgol_order, mode='periodic')
+                phi_tangentF_savgol_nonuniformed = non_uniform_savgol(phi, tangent_forces, sovgol_windowSize, savgol_order, mode='periodic')
+                ax4.plot(azimuthalX, aziCA_savgol_nonuniformed, '.', label=f'azi savgol filter, nonuniform')
 
                 # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
-                rFromMiddle_savgol = non_uniform_savgol(phi, rFromMiddleArray, sovgol_windowSize, savgol_order, mode='periodic')
-                phi_sorted, aziCA_savgol_sorted, rFromMiddle_savgol_sorted = [list(a) for a in zip(*sorted(zip(phi, aziCA_savgol_nonuniformed, rFromMiddle_savgol)))]  #TODO, check dit goed; snelle fix voor altijd increasing x, maar is misschien heel fout
+                rFromMiddle_savgol = non_uniform_savgol(phi, rFromMiddleArray_m, sovgol_windowSize, savgol_order, mode='periodic')
+                phi_sorted, aziCA_savgol_sorted, rFromMiddle_savgol_sorted, phiCA_savgol_sorted, phi_tangentF_savgol_sorted = [list(a) for a in zip(*sorted(zip(phi, aziCA_savgol_nonuniformed, rFromMiddle_savgol, phi_CA_savgol_nonuniformed, phi_tangentF_savgol_nonuniformed)))]  #TODO, check dit goed; snelle fix voor altijd increasing x, maar is misschien heel fout
                 for i in range(1, len(phi_sorted)):
                     if phi_sorted[i] <= phi_sorted[i - 1]:
                         phi_sorted[i] = phi_sorted[i - 1] + 1e-5
 
                 #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
+                phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
+                phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
+                phi_range = np.arange(min(phi), max(phi), 0.05) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
+                phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
 
-                phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], aziCA_savgol_sorted + [aziCA_savgol_sorted[0]], bc_type='periodic')
-                phi_range = np.arange(min(phi), max(phi), 0.01)
-                aziCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
-
-                ax4.plot(convertPhiToazimuthal(phi_range[:-1]), aziCA_cubesplined, '--', label=f'CubicSpline fit')
+                ax4.plot(convertPhiToazimuthal(phi_range[:-1]), phiCA_cubesplined, '.', label=f'CubicSpline fit')
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
                 fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
@@ -1534,16 +1549,27 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
                 # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
                 fig5, ax5 = plt.subplots()
+                ax5_2 = ax5.twinx()
                 phi_r_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], rFromMiddle_savgol_sorted + [rFromMiddle_savgol_sorted[0]], bc_type='periodic')
-                ax5.plot(phi_sorted, rFromMiddle_savgol_sorted, label='r as a function of phi data')
-                ax5.plot(np.arange(-np.pi, np.pi, 0.01), phi_r_savgol_cs(np.arange(-np.pi, np.pi, 0.01)), '--', label='cubespline fit')
-                ax5.legend(loc='best')
+
+                ax5.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * 1000, 'r.', label='r vs phi data')
+                ax5.plot(phi_range, np.array(phi_r_savgol_cs(phi_range)) * 1000, 'k--', label='cubic spline fit')
+                ax5_2.plot(phi_sorted, phiCA_savgol_sorted, 'b', label='phi vs CA data')
+                ax5_2.plot(phi_range, phi_CA_savgol_cs(phi_range), 'y--', label='cubic spline fit')
+                ax5.set_xlabel('phi')
+                ax5.set_ylabel('Radius length (millimeter)', color='r')
+                ax5_2.set_ylabel('Contact Angle (deg)', color='b')
+                ax5.legend(loc='best');
+                ax5_2.legend(loc='best')
+                fig5.tight_layout()
                 fig5.savefig(os.path.join(analysisFolder, f'Radius vs Phi {n:04}.png'), dpi=600)
-                fig5.show()
+                #plt.show()
 
+                #TODO calculate nett horizonal force in for each phi, and fit it with a cubic spline
 
-                forceOnDroplet = calculateForceOnDroplet(phi_CA_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom)
-
+                forceOnDroplet, manualIntegratedForce = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder)
+                print(f"CALCULATED HORIZONTAL FORCE on the droplet = {forceOnDroplet}\n"
+                      f"Manual integrated force = {manualIntegratedForce}")
 
                 # #ANIMATION of azimuthal CA
                 # figtemp, axtemp = plt.subplots()
@@ -1562,7 +1588,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 # ani.save(filename=os.path.join(analysisFolder, f'Azimuthal_CA_movie.gif'), writer="pillow")
 
                 #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
-                Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
+                Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), tangent_forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
 
                 totalForce_afo_time.append(totalZ)
                 #fig5 = plt.figure()
@@ -1677,7 +1703,7 @@ def main():
     # procStatsJsonPath = os.path.join("D:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed", "PROC_20230927135916_statistics.json")
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
