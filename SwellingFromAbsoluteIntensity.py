@@ -190,7 +190,8 @@ def readDataFromfile(path):         #read in a single list of items
 def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
                                  ax0, ax1, cmap, colorGradient, dryBrushThickness, elapsedtime, fig0, fig1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
-                                 range1, range2, source, xshifted):
+                                 range1, range2, source, xshifted, vectorNumber):
+
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})  # print arrays later with only 2 decimals
@@ -220,8 +221,6 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
     minAndMaxOrdered = []
     ###Below: sort the list of minima and maxima such that minima and maxima are alternating.
     ### this requires all min & maxima to be 'correctly found' beforehand:
-    if idx == 22:
-        print("hello")
     for i, ival in enumerate(minAndMaxOrderedUnsorted):
         if i == 0:  # always input first extremum
             minAndMaxOrdered.append(ival)
@@ -252,12 +251,14 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
                 #         break
             else:
                 print(f"Skipped {minAndMaxOrderedUnsorted[i]}")
+
     # TODO select regions in plot to find minima and maxima
     if MANUALPEAKSELECTION:  # use manually selected peaks, either from a previous time or select new ones now
         if USESAVEDPEAKS:  # use peaks from a previous time (if they exist)
-            if os.path.exists(os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}.txt")):
+            #TODO this way of saving will create A LOT of files for different vectors in same image: optimization desired
+            if os.path.exists(os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}.txt")):
                 minAndMaxOrdered = readDataFromfile(
-                    os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}.txt"))
+                    os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}.txt"))
             else:
                 print(f"No saved peaks yet. Select them now:")
                 minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
