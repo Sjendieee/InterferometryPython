@@ -1205,52 +1205,54 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     :param boundaryPhi2: negative phi value
     such that boundaryPhi2:boundaryPhi1 is the right side of droplet
     """
-    print(f"BoundrayPhi 1 = {boundaryPhi1}, BoundrayPhi 2 = {boundaryPhi2}")
-    phi_range = np.arange(-np.pi, np.pi, 0.05)
-    phi_range1 = np.arange(boundaryPhi2, boundaryPhi1, 0.05)
-    phi_range2 = np.concatenate([np.arange(-np.pi, boundaryPhi2, 0.05), np.arange(boundaryPhi1, np.pi, 0.05)])
+    print(f"BoundaryPhi 1 = {boundaryPhi1}, BoundaryPhi 2 = {boundaryPhi2}")
+    #step = 0.05
+    for step in [0.001]:   #, 0.005, 0.01, 0.05, 0.1, 0.5
+        phi_range = np.arange(-np.pi, np.pi, step)
+        phi_range1 = np.arange(boundaryPhi2, boundaryPhi1, step)
+        phi_range2 = np.concatenate([np.arange(-np.pi, boundaryPhi2, step), np.arange(boundaryPhi1, np.pi, step)])
 
-    #required ideally: a function that defines the (nett) force / CA as a function of cartesian coordinates
-    #TODO proper integration doesn't work currently, probably because the cubicSpline fits are REALLY off between too large intervals of data. (When plotted with a too small interval a lot of noise is introduced, even though the original data is really smooth)
-    Ftot_func = lambda phi: phi_r_Function(phi) * phi_Force_Function(phi)
-    total_force, error = integrate.quad(Ftot_func, -np.pi, np.pi, limit=900)    #integrate over entire phi range
-    force_simpson = integrate.simpson(Ftot_func(phi_range), phi_range)
-    print(f"Force simpson integration = {force_simpson*1000:.7f} microN")
+        #required ideally: a function that defines the (nett) force / CA as a function of cartesian coordinates
+        #TODO proper integration doesn't work currently, probably because the cubicSpline fits are REALLY off between too large intervals of data. (When plotted with a too small interval a lot of noise is introduced, even though the original data is really smooth)
+        Ftot_func = lambda phi: phi_r_Function(phi) * phi_Force_Function(phi)
+        total_force, error = integrate.quad(Ftot_func, -np.pi, np.pi, limit=900)    #integrate over entire phi range
+        force_simpson = integrate.simpson(Ftot_func(phi_range), phi_range)
+        print(f"Force simpson integration = {force_simpson*1000:.7f} microN - step={step}")
 
 
-    total_force1, error = integrate.quad(Ftot_func, boundaryPhi1, boundaryPhi2, limit=900)    #integrate between phiTop & phiBottom
-    total_force2_1, error = integrate.quad(Ftot_func, 0, boundaryPhi1, limit=900)
-    total_force2_2, error = integrate.quad(Ftot_func, boundaryPhi2, np.pi, limit=900)
-    total_force2 = total_force2_1 + total_force2_2
-    print(f"Quad integrations:\n"
-          f"-Total, whole range = {total_force * 1000} microN\n\n"
-          f"-From Top(1) to Bot(2) = {total_force1 * 1000} microN\n"
-          f"-From 0 to top(1) = {total_force2_1 * 1000} microN, From bot(2) to pi = {total_force2_2 * 1000} microN\n"
-          f"-Resulting sum of line above = {total_force2 * 1000} microN\n"
-          f"-Sum left&right parts = {(total_force1 + total_force2)*1000} microN\n\n")
+        total_force1, error = integrate.quad(Ftot_func, boundaryPhi1, boundaryPhi2, limit=900)    #integrate between phiTop & phiBottom
+        total_force2_1, error = integrate.quad(Ftot_func, 0, boundaryPhi1, limit=900)
+        total_force2_2, error = integrate.quad(Ftot_func, boundaryPhi2, np.pi, limit=900)
+        total_force2 = total_force2_1 + total_force2_2
+        print(f"Quad integrations:\n"
+              f"-Total, whole range = {total_force * 1000} microN\n\n"
+              f"-From Top(1) to Bot(2) = {total_force1 * 1000} microN\n"
+              f"-From 0 to top(1) = {total_force2_1 * 1000} microN, From bot(2) to pi = {total_force2_2 * 1000} microN\n"
+              f"-Resulting sum of line above = {total_force2 * 1000} microN\n"
+              f"-Sum left&right parts = {(total_force1 + total_force2)*1000} microN\n\n")
 
-    #TODO attempting to manually integrate force vs phi
-    forceArr = phi_r_Function(phi_range) * phi_Force_Function(phi_range)
-    forceArr1 = phi_r_Function(phi_range1) * phi_Force_Function(phi_range1)
-    forceArr2 = phi_r_Function(phi_range2) * phi_Force_Function(phi_range2)
-    manualIntegratedForce = np.trapz(forceArr, phi_range)
-    print(f"Trapz integrated force (function) = {manualIntegratedForce*1000} microN\n")
-    trapz_intForce_data = np.trapz(np.array(rFromMiddle_savgol_sorted) * np.array(phi_tangentF_savgol_sorted), phi_sorted)
-    print(f"Trapz integrated force (data) = {trapz_intForce_data*1000} microN")
-    fig6, ax6 = plt.subplots()
-    # ax6.plot(phi_range, forceArr, label='phi vs r*tangent Force')
-    # ax6.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_Force_Function(boundaryPhi1), '.', label='Top')
-    # ax6.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_Force_Function(boundaryPhi2), '.', label='Bottom')
-    ax6.plot(phi_range1, forceArr1, '.', label='right side droplet')
-    ax6.plot(phi_range2, forceArr2, '.', label='left side droplet')
-    ax6.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_Force_Function(boundaryPhi1), '.', label='Top')
-    ax6.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_Force_Function(boundaryPhi2), '.', label='Bottom')
-    ax6.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * np.array(phi_tangentF_savgol_sorted), label='data')
-    ax6.set(title=f"[Horizontal force * r] as a function of phi", xlabel=f'$\phi$', ylabel='Force (mN/m (!?))')
-    ax6.legend(loc='best')
-    fig6.tight_layout()
-    fig6.savefig(os.path.join(analysisFolder, f'Force vs Phi.png'), dpi=600)
-    #plt.show()
+        #TODO attempting to manually integrate force vs phi
+        forceArr = phi_r_Function(phi_range) * phi_Force_Function(phi_range)
+        forceArr1 = phi_r_Function(phi_range1) * phi_Force_Function(phi_range1)
+        forceArr2 = phi_r_Function(phi_range2) * phi_Force_Function(phi_range2)
+        manualIntegratedForce = np.trapz(forceArr, phi_range)
+        print(f"Trapz integrated force (function) = {manualIntegratedForce*1000} microN - step={step}\n")
+        trapz_intForce_data = np.trapz(np.array(rFromMiddle_savgol_sorted) * np.array(phi_tangentF_savgol_sorted), phi_sorted)
+        print(f"Trapz integrated force (data) = {trapz_intForce_data*1000} microN")
+        fig6, ax6 = plt.subplots()
+        # ax6.plot(phi_range, forceArr, label='phi vs r*tangent Force')
+        # ax6.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_Force_Function(boundaryPhi1), '.', label='Top')
+        # ax6.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_Force_Function(boundaryPhi2), '.', label='Bottom')
+        ax6.plot(phi_range1, forceArr1, '.', label='right side droplet')
+        ax6.plot(phi_range2, forceArr2, '.', label='left side droplet')
+        ax6.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_Force_Function(boundaryPhi1), '.', label='Top')
+        ax6.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_Force_Function(boundaryPhi2), '.', label='Bottom')
+        ax6.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * np.array(phi_tangentF_savgol_sorted), label='data')
+        ax6.set(title=f"[Horizontal force * r] as a function of phi", xlabel=f'$\phi$', ylabel='Force (mN/m (!?))')
+        ax6.legend(loc='best')
+        fig6.tight_layout()
+        fig6.savefig(os.path.join(analysisFolder, f'Force vs Phi.png _ step = {step}.png'), dpi=600)
+        #plt.show()
 
     #print(f"Total whatever calculated is ={total_force}")
 
@@ -1485,8 +1487,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             ax1[1, 0].set_title("Wrapped profile (drop only)")
 
                             # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                            ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation"), 'C1';               #plot the swelling ratio outside droplet
-                            ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation"),'C0';
+                            ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C1');               #plot the swelling ratio outside droplet
+                            ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C0');
                             ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
                             ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}\nCA={angleDeg:.2f} deg');
                             ax1[0, 1].legend(loc='best')
@@ -1553,9 +1555,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             ax10[1, 0].set_title("Wrapped profile (drop only)")
 
                             # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                            ax10[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)],
-                                           label="Swelling fringe calculation"), 'C1';  # plot the swelling ratio outside droplet
-                            ax10[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation"), 'C0';
+                            #ax10[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation"), 'C1';  # plot the swelling ratio outside droplet
+                            ax10[0, 1].plot(np.concatenate([xOutwards, x[0:49]]), heightNearCL, label="Swelling fringe calculation", color='C1');
+                            ax10[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation", color='C0');
                             ax10[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.',
                                            label='Start linear regime droplet');
                             ax10[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000, '--', linewidth=1,
@@ -1835,7 +1837,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
