@@ -888,11 +888,12 @@ def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n):
     return Z, totalZ
 
 #TODO probably the path is not working as intended
+#TODO Seems to be working just fine?
 def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber):
     """
     :param xdata: np.aray of x-position data (unit=pixels)
     :param ydata: np.array of y-Intensity data
-    :param time: elapsed time with respect to t=0 (unit=seconds, format = string)
+    :param elapsedtime: elapsed time with respect to t=0 (unit=seconds, format = int or float)
     :param imgNumber: image number of analysed tiff file in folder. Required for saving & importing peak-picking data
     :param vectorNumber: vector number k analysed. Required for saving & importing peak-picking data
     :return height: np.array with absolute heights.
@@ -927,7 +928,7 @@ def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber
     height, h_ratio = heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
                                  axswel0, axswel1, cmap, colorGradient, dryBrushThickness, elapsedtime, figswel0, figswel1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
-                                 range1, range2, source, xshifted, vectorNumber)
+                                 range1, range2, source, xshifted, vectorNumber, unitXY="pixels")
     return height, h_ratio
 
 #TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
@@ -937,7 +938,7 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     :param y0arrcoord:
     :param dxarrcoord:
     :param dyarrcoord:
-    :param lengthVector:
+    :param lengthVector:    desired vector length over which the intensity profile will be taken
     :param greyresizedimg:
     :return profile: intensity profile over pixels in image between 2 coordinates
     :reutn lineLengthPixels: amount of pixels the vector spans. Can be used to calculate the length of the vector in e.g. mm
@@ -953,6 +954,12 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
         a = (dyarrcoord - y0arrcoord) / (dxarrcoord - x0arrcoord)
         b = y0arrcoord - a * x0arrcoord
         coords, lineLengthPixels = coordinates_on_line(a, b, [x0arrcoord, dxarrcoord, y0arrcoord, dyarrcoord])
+
+    #TODO implement a good way to check for when the outwardsVector is too long &
+    #TODO especially take into good consideration later on, when plotting the height profiles together
+    # if lengthVector < len(coords):
+    #     lengthVector = len(coords)
+
     profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
     return profile, lineLengthPixels
 
@@ -1126,9 +1133,14 @@ def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
 
 
 def convertPhiToazimuthal(phi):
+    """
+    :param phi: np.array of atan2 radians   [-pi, pi]
+    :return np.sin(phi2): np.array of azimuthal angle [-1, 1] rotating clockwise, starting at with 0 at top
+    :return phi2: np.array of normal radians [0, 2pi] rotating clockwise starting at top.
+    """
     phi1 = 0.5 * np.pi - phi
     phi2 = np.mod(phi1, (2.0 * np.pi))  # converting atan2 to normal radians: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-system
-    return np.sin(phi2)
+    return np.sin(phi2), phi2
 
 
 def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr, dxarr, dyarr
@@ -1172,8 +1184,12 @@ def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr,
     return [x0arr[upwards_Index], y0arr[upwards_Index]], [x0arr[downwards_Index], y0arr[downwards_Index]]
 
 def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
-    """"
+    """
+    :return phi: range [-pi : pi]
     :return rArray: distance from the middle to the coordinate. UNIT= same as input units (so probably pixel, or e.g. mm)
+
+    phi = 0 at right side -> 0.5pi at top -> 1pi at left -> -1pi at left -> -0.5pi at bottom
+    example how phi evolves: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
     """
     dx = np.subtract(xArrFinal, medianmiddleX)
     dy = np.subtract(yArrFinal, medianmiddleY)
@@ -1181,9 +1197,13 @@ def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
     rArray = np.sqrt(np.square(dx) + np.square(dy))
     return phi, rArray
 
-def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, boundaryPhi2, analysisFolder):
+
+def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, boundaryPhi2, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted):
     """"
     input: cubicSplineFunction
+    :param boundaryPhi1: positive phi value
+    :param boundaryPhi2: negative phi value
+    such that boundaryPhi2:boundaryPhi1 is the right side of droplet
     """
     print(f"BoundrayPhi 1 = {boundaryPhi1}, BoundrayPhi 2 = {boundaryPhi2}")
     phi_range = np.arange(-np.pi, np.pi, 0.05)
@@ -1214,18 +1234,19 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     forceArr1 = phi_r_Function(phi_range1) * phi_Force_Function(phi_range1)
     forceArr2 = phi_r_Function(phi_range2) * phi_Force_Function(phi_range2)
     manualIntegratedForce = np.trapz(forceArr, phi_range)
-    print(f"Manual integrated force = {manualIntegratedForce*1000} microN\n")
-
+    print(f"Trapz integrated force (function) = {manualIntegratedForce*1000} microN\n")
+    trapz_intForce_data = np.trapz(np.array(rFromMiddle_savgol_sorted) * np.array(phi_tangentF_savgol_sorted), phi_sorted)
+    print(f"Trapz integrated force (data) = {trapz_intForce_data*1000} microN")
     fig6, ax6 = plt.subplots()
     # ax6.plot(phi_range, forceArr, label='phi vs r*tangent Force')
     # ax6.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_Force_Function(boundaryPhi1), '.', label='Top')
     # ax6.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_Force_Function(boundaryPhi2), '.', label='Bottom')
-    ax6.plot(phi_range1, forceArr1, '.', label='right side droplet(?)')
-    ax6.plot(phi_range2, forceArr2, '.', label='left side droplet(?)')
+    ax6.plot(phi_range1, forceArr1, '.', label='right side droplet')
+    ax6.plot(phi_range2, forceArr2, '.', label='left side droplet')
     ax6.plot(boundaryPhi1, phi_r_Function(boundaryPhi1) * phi_Force_Function(boundaryPhi1), '.', label='Top')
     ax6.plot(boundaryPhi2, phi_r_Function(boundaryPhi2) * phi_Force_Function(boundaryPhi2), '.', label='Bottom')
-
-    ax6.set(title=f"Horizontal force as a function of phi", xlabel=f'$\phi$', ylabel='Force (UNIT TO BE CHECKED, should be mN)')
+    ax6.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * np.array(phi_tangentF_savgol_sorted), label='data')
+    ax6.set(title=f"[Horizontal force * r] as a function of phi", xlabel=f'$\phi$', ylabel='Force (mN/m (!?))')
     ax6.legend(loc='best')
     fig6.tight_layout()
     fig6.savefig(os.path.join(analysisFolder, f'Force vs Phi.png'), dpi=600)
@@ -1246,8 +1267,6 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     # print(
     #     f"length of xmax-xmin & ymax-ymin (mm)= {(max(xCartesian) - min(xCartesian)) * conversionXY} & {(max(yCartesian) - min(yCartesian)) * conversionXY}")
     #
-
-
     return total_force, manualIntegratedForce
 
 def primaryObtainCARoutine(path, wavelength_laser=520):
@@ -1267,10 +1286,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
     #usedImages = np.arange(0, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [9]
+    usedImages = [46]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
-    lengthVector = 400  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
-    outwardsLengthVector = 400 # length of normal vector over which intensity profile data is taken    (pointing OUTWARDS of droplet, so for swelling ratio analysis)
+    lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
+    outwardsLengthVector = 590 # length of normal vector over which intensity profile data is taken    (pointing OUTWARDS of droplet, so for swelling ratio analysis)
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -1390,25 +1409,33 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 vectorsFinal = []
                 omittedVectorCounter = 0
 
+                fig_heightsCombined, ax_heightsCombined = plt.subplots()
+                plotHeightCondition = list(np.arange(0,len(x0arr), len(x0arr)//8))# [300, 581, 4067, 4300] #lambda k: np.mod(k, len(x0arr)//8) == 0
+                heightPlottedCounter = 0
                 for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     try:
-                        # if k == 101:
-                        #     print(f"at this k we break={k}")
-                        # TODO trying to get this to work: plotting normals obtained with above function get_normals
-                        # resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
-                        if k % 25 == 0:  # only plot 1/25th of the vectors to not overcrowd the image
-                            resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), (0, 255, 0),
-                                                  2)  # draws 1 good contour around the outer halo fringe
-                            if outwardsLengthVector != 0:   #if a swelling profile is desired, also plot it in the image
-                                resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxnegarr[k], dynegarr[k]]), (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
-                        #intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
-                        profile, lineLengthPixels = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k], lengthVector, greyresizedimg)
                         profileOutwards = []
                         lineLengthPixelsOutwards = 0
                         if outwardsLengthVector != 0:
-                            profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k], dynegarr[k], outwardsLengthVector, greyresizedimg)
-                            xOutwards = np.linspace(0, lineLengthPixelsOutwards, len(profileOutwards)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
-                            profileOutwards.reverse()   #correct stitching of in-&outwards profiles requires reversing of the outwards profile
+                            profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k],dxnegarr[k],dynegarr[k],outwardsLengthVector,greyresizedimg)
+                            xOutwards = np.linspace(0, lineLengthPixelsOutwards,len(profileOutwards)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
+                            profileOutwards.reverse()  # correct stitching of in-&outwards profiles requires reversing of the outwards profile
+
+                        # resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
+                        if k % 25 == 0 or k in plotHeightCondition:  # only plot 1/25th of the vectors to not overcrowd the image
+                            if k in plotHeightCondition:
+                                colorInwards = (255, 0, 0)
+                                colorOutwards = (255, 0, 0)
+                            else:
+                                colorInwards = (0, 255, 0)
+                                colorOutwards = (0, 0, 255)
+                            resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), colorInwards,
+                                                  2)  # draws 1 good contour around the outer halo fringe
+                            if outwardsLengthVector != 0:   #if a swelling profile is desired, also plot it in the image
+                                resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxnegarr[k], dynegarr[k]]), colorOutwards, 2)  # draws 1 good contour around the outer halo fringe
+                        #intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
+                        profile, lineLengthPixels = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k], lengthVector, greyresizedimg)
+
 
                         # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
                         #
@@ -1437,7 +1464,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                         if k == round(len(x0arr) / 2):
                             # TODO WIP: swelling or height profile outside droplet
                             extraPartIndroplet = 50 #extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
-                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], f"{deltatFromZeroSeconds[n]}", path, k, n)
+                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
 
                             #Stitching together swelling height & droplet CA height
                             #heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
@@ -1475,12 +1502,35 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
                         # plot various height profiles in a seperate figure
                         #every 1/th of the image, an image is plotted
-                        if np.mod(k, len(x0arr)//8) == 0:
-                            # TODO WIP: swelling or height profile outside droplet
+                        # TODO WIP: swelling or height profile outside droplet
+                        HowManyImagesHeightProfile = 8
+                        #np.mod(k, len(x0arr)//HowManyImagesHeightProfile) == 0:
+                        if k in plotHeightCondition:
                             extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
                             heightNearCL, heightRatioNearCL = swellingRatioNearCL(
                                 np.arange(0, len(profileOutwards) + extraPartIndroplet),
-                                profileOutwards + profile[0:extraPartIndroplet], f"{deltatFromZeroSeconds[n]}", path, k, n)
+                                profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
+                            heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3) #apply a savgol filter for data smoothing
+                            if heightPlottedCounter == 0:
+                                distanceOfEqualHeight = 10         #can be changed: distance at which the profiles must overlap. xOutwards[-1]
+                                indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                                equalHeight = heightNearCL[indexOfEqualHeight]
+                                x_ax_heightsCombined = []
+                                y_ax_heightsCombined = []
+                                x_ks = []
+                                y_ks = []
+
+                                ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize = 15, zorder = len(x0arr), label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
+                                ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.5)
+                                ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet-1], facecolor='blue', alpha=0.5)
+                            else:
+                                indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                                heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight] - equalHeight)  #to set all height profiles at some index to the same height
+                            x_ks.append(x0arr[k])
+                            y_ks.append(y0arr[k])
+                            x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet-1)]]))
+                            y_ax_heightsCombined.append(heightNearCL)
+                            heightPlottedCounter += 1  # increment counter
 
                             # Stitching together swelling height & droplet CA height
                             # heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
@@ -1488,7 +1538,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
                             unwrapped = offsetDropHeight + unwrapped
 
-                            fig10, ax10 = plt.subplots()
+                            fig10, ax10 = plt.subplots(2,2)
                             ax10[0, 0].plot(profileOutwards + profile);
                             ax10[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.',
                                            label='transition brush-droplet')
@@ -1520,7 +1570,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             ax10[0, 1].set_xlabel("Distance (um)");
                             ax10[0, 1].set_ylabel("Height profile (nm)")
                             fig10.set_size_inches(12.8, 9.6)
-                            fig10.savefig(os.path.join(analysisFolder, f"Height profiles - {k}.png"), dpi=600)
+                            fig10.suptitle(f"Data profiles: imageNr {n}, vectorNr {k}", size=14)
+                            fig10.tight_layout()
+                            fig10.subplots_adjust(top=0.88)
+                            fig10.savefig(os.path.join(analysisFolder, f"Height profiles - imageNr {n}, vectorNr {k}.png"), dpi=600)
+                            plt.close(fig10)
                         # if angleDeg < 1.8:
                         #     print("we pausin'")
                         #     plt.plot(x, unwrapped * 1000);
@@ -1559,6 +1613,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 #plt.show()
                 plt.close(fig2)
 
+                #PLOTTING various previously calculated height profiles
+                phi_k, _ = coordsToPhi(x_ks, abs(np.subtract(4608, y_ks)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                for i in range(0, len(x_ax_heightsCombined)):
+                    ax_heightsCombined.plot(x_ax_heightsCombined[i], y_ax_heightsCombined[i], label=f'$\phi$={convertPhiToazimuthal(phi_k[i])[1]/np.pi:.2f}$\pi$ rad')
+                ax_heightsCombined.legend(loc='best')
+                ax_heightsCombined.set(xlabel='Distance (um)', ylabel='Film height (nm)', title='Halo height profiles at\nvarious positions on droplet contour\nSavgol smoothened!')
+                fig_heightsCombined.savefig(os.path.join(analysisFolder, f'Combined height profiles imgNr {n}.png'), dpi=600)
+
                 #TODO: middle point is not working too well yet, so left& right side are a bit skewed
                 phi, rFromMiddleArray_pixel = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
                 phiTop, rTop_pixel = coordsToPhi(coordsTop[0], abs(np.subtract(4608, coordsTop[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))  #the phi at which the 'top' of the droplet is located
@@ -1568,7 +1630,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 rTop_m = rTop_pixel * conversionXY / 1000  # pixel* conversionXY is in mm, so divide by 1000 to yield in meters
                 rBot_m = rBot_pixel * conversionXY / 1000  # pixel* conversionXY is in mm, so divide by 1000 to yield in meters
 
-                azimuthalX = convertPhiToazimuthal(phi)
+                azimuthalX, phi_normalRadians = convertPhiToazimuthal(phi)
+
                 fig4, ax4 = plt.subplots()
                 condition = [(elem < (np.pi * (1/2)) or elem > (np.pi * (3/2))) for elem in phi]    #condition for top half of sphere
                 rightFromMiddle = azimuthalX[condition]
@@ -1578,7 +1641,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
                 halfDropletCondition = np.invert((phi>phiBottom) & (phi<phiTop))
                 phi_leftside = phi[halfDropletCondition]
-                ax4.plot(convertPhiToazimuthal(phi_leftside), np.array(angleDegArr)[halfDropletCondition], '.', label='left side')
+                ax4.plot(convertPhiToazimuthal(phi_leftside)[0], np.array(angleDegArr)[halfDropletCondition], '.', label='left side')
 
                 sovgol_windowSize = round(len(angleDegArr)/10); savgol_order = 3
                 sovgol_windowSize = int(sovgol_windowSize + (np.mod(sovgol_windowSize, 2) == 0))    #ensure window size is uneven
@@ -1602,7 +1665,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 phi_range = np.arange(min(phi), max(phi), 0.05) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
 
-                ax4.plot(convertPhiToazimuthal(phi_range[:-1]), phiCA_cubesplined, '.', label=f'CubicSpline fit')
+                ax4.plot(convertPhiToazimuthal(phi_range[:-1])[0], phiCA_cubesplined, '.', label=f'CubicSpline fit')
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
                 fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
@@ -1613,22 +1676,30 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 ax5_2 = ax5.twinx()
                 phi_r_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], rFromMiddle_savgol_sorted + [rFromMiddle_savgol_sorted[0]], bc_type='periodic')
 
-                ax5.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * 1000, 'r.', label='r vs phi data')
-                ax5.plot(phi_range, np.array(phi_r_savgol_cs(phi_range)) * 1000, 'k--', label='cubic spline fit')
+                #for plotting r vs phi
+                #ax5.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * 1000, 'r.', label='r vs phi data')
+                #ax5.plot(phi_range, np.array(phi_r_savgol_cs(phi_range)) * 1000, 'k--', label='cubic spline fit')
+                #ax5.set_ylabel('Radius length (millimeter)', color='r')
+                ax5.plot(phi_sorted, np.array(phi_tangentF_savgol_sorted), 'r.', label='$F_{hor}$ vs phi data')
+                ax5.plot(phi_range, np.array(phi_tangentF_savgol_cs(phi_range)), 'k--', label='cubic spline fit')
+                ax5.set_ylabel('Horizontal force (mN/m)', color='r')
                 ax5_2.plot(phi_sorted, phiCA_savgol_sorted, 'b', label='phi vs CA data')
                 ax5_2.plot(phi_range, phi_CA_savgol_cs(phi_range), 'y--', label='cubic spline fit')
                 ax5.set_xlabel('phi')
-                ax5.set_ylabel('Radius length (millimeter)', color='r')
+
                 ax5_2.set_ylabel('Contact Angle (deg)', color='b')
-                ax5.legend(loc='best');
-                ax5_2.legend(loc='best')
+                ax5.legend(loc='upper left');
+                ax5_2.legend(loc='upper right')
                 fig5.tight_layout()
                 fig5.savefig(os.path.join(analysisFolder, f'Radius vs Phi {n:04}.png'), dpi=600)
                 #plt.show()
 
                 #TODO calculate nett horizonal force in for each phi, and fit it with a cubic spline
+                forceOnDroplet, manualIntegratedForce = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
 
-                forceOnDroplet, manualIntegratedForce = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder)
+
+
+
 
 
                 # #ANIMATION of azimuthal CA
@@ -1723,8 +1794,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
     ax2.plot(np.divide(usedDeltaTs, 60), totalForce_afo_time)
     ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Horizontal component force (mN)"); ax2.set_title("Horizontal component force over Time")
     fig2.savefig(os.path.join(analysisFolder, f'Horizontal component force vs Time.png'), dpi=600)
-    plt.close()
 
+    #plt.show()
 
 def CA_analysisRoutine(path, wavelength_laser=520):
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -1764,12 +1835,12 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
-    path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
+    #path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
     #path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"

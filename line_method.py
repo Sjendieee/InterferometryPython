@@ -288,6 +288,10 @@ def click_event(event, x, y, flags, params):
 
 
 def timeFormat(t):
+    """
+    :param t: input time (seconds, float or int)
+    :return out: formatted time (string)
+    """
     if t < 90:
         out = f"{round(t)}s"
     elif t < 3600:

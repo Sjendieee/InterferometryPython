@@ -16,6 +16,7 @@ from configparser import ConfigParser
 from scipy.odr import odrpack as odr
 from scipy.odr import models
 import scipy.signal
+import traceback
 
 from analysis_contactangle import Highlighter
 
@@ -404,24 +405,28 @@ def makeImagesManualTimeadjust(profile, timeFromStart, source, pixelLocation, co
 CrossingValY calculated from middle between extrema
 CorssingValX calculated from linear interpolation between two indices of closest values to CrassingValY"""
 def findMiddleCrossing(indexPeak1, indexPeak2, xdata, ydata):
-    extremum1 = ydata[indexPeak1]; extremum2 = ydata[indexPeak2]
-    mCrossVal = (extremum1 + extremum2) / 2
-    closest_value = min(ydata[indexPeak1:indexPeak2], key=lambda x: abs(mCrossVal - x))
-    #mCrossIndex = ydata[indexPeak1:indexPeak2].index(closest_value) + indexPeak1
-    mCrossIndex1 = np.where(ydata[indexPeak1:indexPeak2] == closest_value)[0][0] + indexPeak1       #index of value closest to crossing index
+    try:
+        extremum1 = ydata[indexPeak1]; extremum2 = ydata[indexPeak2]
+        mCrossVal = (extremum1 + extremum2) / 2
+        closest_value = min(ydata[indexPeak1:indexPeak2], key=lambda x: abs(mCrossVal - x))
+        #mCrossIndex = ydata[indexPeak1:indexPeak2].index(closest_value) + indexPeak1
+        mCrossIndex1 = np.where(ydata[indexPeak1:indexPeak2] == closest_value)[0][0] + indexPeak1       #index of value closest to crossing index
 
-    if np.abs(ydata[mCrossIndex1-1] - mCrossVal) > np.abs(ydata[mCrossIndex1+1] - mCrossVal):       #check which index of adjecent values is closer to crossing height
-        mCrossIndex2 = mCrossIndex1 + 1
-    else:
-        mCrossIndex2 = mCrossIndex1 - 1
+        if np.abs(ydata[mCrossIndex1-1] - mCrossVal) > np.abs(ydata[mCrossIndex1+1] - mCrossVal):       #check which index of adjecent values is closer to crossing height
+            mCrossIndex2 = mCrossIndex1 + 1
+        else:
+            mCrossIndex2 = mCrossIndex1 - 1
 
-    ##assume line between mCrossVals can be linearly interpolated with y=ax + b.
-    #a = dy/dx = (y2-y1) / (x2 - x1)
-    #b = y1 - a*x1
-    a = (ydata[mCrossIndex2] - ydata[mCrossIndex1]) / (xdata[mCrossIndex2] - xdata[mCrossIndex1])
-    b = ydata[mCrossIndex1] - a * xdata[mCrossIndex1]
-    #then x = (y-b)/a       To obtain approximate x value of crossing
-    mCrossXval = (mCrossVal-b) / a
+        ##assume line between mCrossVals can be linearly interpolated with y=ax + b.
+        #a = dy/dx = (y2-y1) / (x2 - x1)
+        #b = y1 - a*x1
+        a = (ydata[mCrossIndex2] - ydata[mCrossIndex1]) / (xdata[mCrossIndex2] - xdata[mCrossIndex1])
+        b = ydata[mCrossIndex1] - a * xdata[mCrossIndex1]
+        #then x = (y-b)/a       To obtain approximate x value of crossing
+        mCrossXval = (mCrossVal-b) / a
+    except:
+        logging.error("Some error occured while calculating the middle crossing")
+        print(traceback.format_exc())
     return mCrossVal, mCrossXval
 
 #xdata & ydata of entire profile, and indices of peaks in that entire profile

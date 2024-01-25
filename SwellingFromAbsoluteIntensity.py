@@ -187,24 +187,54 @@ def readDataFromfile(path):         #read in a single list of items
             data.append(x)
     return data
 
+def readDataFromfileV2(file_path):
+    """
+       Read numbers from a .txt file and convert them to a single array.
+
+       The input data can be written as individual numbers on separate lines
+       or on one line divided by a space.
+
+       Parameters:
+       - file_path (str): The path to the .txt file.
+
+       Returns:
+       - list of int: The array containing the read numbers.
+       """
+    numbers = []
+    with open(file_path, 'r') as file:
+        # Read lines from the file
+        lines = file.readlines()
+
+        # Check if the data is on separate lines or on one line
+        if len(lines) == 1 and ' ' in lines[0]:
+            # Data is on one line, split by space
+            numbers = [int(num) for num in lines[0].split()]
+        else:
+            # Data is on separate lines
+            numbers = [int(num) for num in lines]
+    return numbers
+
 def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
                                  ax0, ax1, cmap, colorGradient, dryBrushThickness, elapsedtime, fig0, fig1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
-                                 range1, range2, source, xshifted, vectorNumber):
+                                 range1, range2, source, xshifted, vectorNumber, unitXY= "mm"):
+
 
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
     np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})  # print arrays later with only 2 decimals
 
-    ax0.plot(xshifted, intensityProfileZoomConverted, '.', label=f'Time={timeFormat(int(elapsedtime))}', color=cmap(colorGradient[idxx]))    #plot the intensity profile
+    ax0.plot(xshifted, intensityProfileZoomConverted, '.', label=f'Time={timeFormat(elapsedtime)}', color=cmap(colorGradient[idxx]))    #plot the intensity profile
 
     # TODO prominances etc have to be adjusted manually it seems in order to have proper peakfinding
     peaks, _ = scipy.signal.find_peaks(np.divide(intensityProfileZoomConverted, normalizeFactor), height=0.5,
                                        distance=40, prominence=0.05)  # obtain indeces om maxima
     minima, _ = scipy.signal.find_peaks(np.divide(-np.array(intensityProfileZoomConverted), normalizeFactor),
                                         height=-0.35, distance=40, prominence=0.05)  # obtain indices of minima
-    print(f"\n\nT = {timeFormat(int(elapsedtime))}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}")
-    print(f"T = {timeFormat(int(elapsedtime))}\nMinima at index: {minima} \nAt x position: {np.array(xshifted)[minima]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[minima]}\n")
+    print(f"\n------------------- Investigating height profile image number {idx}, vector number {vectorNumber} -------------------\n"
+          f"---------------------------------------- HeightFromIntensityProfileV2() --------------------------------------\n")
+    print(f"\n\nT = {timeFormat(elapsedtime)}\nMaxima at index: {peaks} \nAt x position: {np.array(xshifted)[peaks]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[peaks]}")
+    print(f"T = {timeFormat(elapsedtime)}\nMinima at index: {minima} \nAt x position: {np.array(xshifted)[minima]}\nWith Intensity values: {np.array(intensityProfileZoomConverted)[minima]}\n")
     # for showing/plotting automatically picked peaks
     # ax0.plot(np.array(xshifted)[peaks], np.array(intensityProfileZoomConverted)[peaks], "x")
     # ax0.plot(np.array(xshifted)[minima], np.array(intensityProfileZoomConverted)[minima], "x")
@@ -257,22 +287,29 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
         if USESAVEDPEAKS:  # use peaks from a previous time (if they exist)
             #TODO this way of saving will create A LOT of files for different vectors in same image: optimization desired
             if os.path.exists(os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}.txt")):
-                minAndMaxOrdered = readDataFromfile(
+                minAndMaxOrdered = readDataFromfileV2(
                     os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}.txt"))
+                print(f">Imported saved peaks from 'MinAndMaximaHandpicked{idx}_{vectorNumber}.txt'")
             else:
-                print(f"No saved peaks yet. Select them now:")
-                minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
+                try:
+                    print(f"No saved peaks yet. Select them now:")
+                    minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
+                    saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}_{vectorNumber}.txt")
+                except:
+                    logging.error("Some error occured while trying to manually select peaks!")
+                    print(traceback.format_exc())
         else:  # select new peaks now
             try:
                 minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
+                saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}_{vectorNumber}.txt")
             except:
                 logging.error("Some error occured while trying to manually select peaks!")
                 print(traceback.format_exc())
         print(f"Handpicked extrema at: \n"
               f"Indices: {[minAndMaxOrdered]}\n"
-              f"Distance: {np.array(xshifted)[minAndMaxOrdered]}")
-        saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}.txt")
-    ax0.plot(np.array(xshifted)[minAndMaxOrdered], np.array(intensityProfileZoomConverted)[minAndMaxOrdered], "ob")
+              f"Distance : {np.array(xshifted)[minAndMaxOrdered]} in {unitXY}")
+
+    ax0.plot(np.array(xshifted)[minAndMaxOrdered], np.array(intensityProfileZoomConverted)[minAndMaxOrdered], "ob", label='picked max- & minima')
     # if FLIP:
     #     xshifted.reverse()
     #     np.flip(intensityProfileZoomConverted)
@@ -366,28 +403,36 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
         h = np.add(h, diffh)
 
         h_ratio = np.divide(h, hdry)
-        ax1.set_xlabel("Distance of chosen range (mm)")
+        ax1.set_xlabel(f"Distance of chosen range ({unitXY})")
         if PLOTSWELLINGRATIO:
             ax1.set_ylabel("Swelling ratio (h/h$_{0}$)")
-            ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(int(elapsedtime))}', color=cmap(colorGradient[idxx]))
-            ax1.set_title(f"Swelling profiles in pixelrange {range1}:{range2}")
+            ax1.plot(xrange, h_ratio, label=f'Time={timeFormat(elapsedtime)}', color=cmap(colorGradient[idxx]))
+            ax1.set_title(f"Swelling profiles in pixelrange {range1}:{range2}\nImgNr={idx}, VectorNr={vectorNumber}")
             ax1.set_title(f"Calibrated swelling profiles")
             ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'ok', markersize=9)
             ax1.plot(xrange[knownPixelPosition], h_ratio[knownPixelPosition], 'o', color=cmap(colorGradient[idxx]))
         else:
             ax1.set_ylabel("Film thickness (nm)")
-            ax1.plot(xrange, h, label=f'Time={timeFormat(int(elapsedtime))}', color=cmap(colorGradient[idxx]))
+            ax1.plot(xrange, h, label=f'Time={timeFormat(elapsedtime)}', color=cmap(colorGradient[idxx]))
             # ax1.set_title(f"Height profile at time: {timeFormat(elapsedtime)} in pixelrange {range1}:{range2}")
-            ax1.set_title(f"Calibrated height profiles")
+            ax1.set_title(f"Calibrated height profiles\nImgNr={idx}, VectorNr={vectorNumber}")
             ax1.plot(xrange[knownPixelPosition], h[knownPixelPosition], 'ok', markersize=9)
             ax1.plot(xrange[knownPixelPosition], h[knownPixelPosition], 'o', color=cmap(colorGradient[idxx]))
+        ax1.legend(loc='upper right')
+        ax1.autoscale(enable=True, axis='x', tight=True)
+        ax1.autoscale(enable=True, axis='y', tight=True)
+        if PLOTSWELLINGRATIO:
+            ax1.set_ylim(bottom=0.9)
+        else:
+            ax1.set_ylim(bottom=0)
+        fig1.tight_layout()
         print(f"Mean thickness (50 points) far from droplet: {np.mean(h[-50:-1])}")
 
         # Saves data in time vs height profile plot so a csv file.
         wrappedPath = os.path.join(source,
-                                   f"Swellingimages\\data{timeFormat(int(elapsedtime))}_anchor{knownPixelPosition}_PureIntensity.csv")
+                                   f"Swellingimages\\data{timeFormat(elapsedtime)}_anchor{knownPixelPosition}_PureIntensity.csv")
         d = dict(
-            {'xshifted (mm)': xshifted, 'Insensity converted (-)': intensityProfileZoomConverted, 'xrange (mm)': xrange,
+            {f'xshifted ({unitXY})': xshifted, 'Intensity converted (-)': intensityProfileZoomConverted, f'xrange ({unitXY})': xrange,
              'height (nm)': h, 'Swelling ratio (-)': h_ratio})
         df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in d.items()]))  # pad shorter colums with NaN's
         df.to_csv(wrappedPath, index=False)
@@ -397,21 +442,15 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
         print(f"No minimum and maximum were found. Only a single extremum")
     ax0.legend(loc='upper right')
     ax0.set_ylabel("Intensity (-)")
-    ax0.set_xlabel("Distance of chosen range (mm)")
-    ax0.set_title("Intensity profile")
-    ax1.legend(loc='upper right')
+    ax0.set_xlabel(f"Distance of chosen range ({unitXY})")
+    ax0.set_title(f"Intensity profile\n ImgNr={idx}, VectorNr={vectorNumber}")
     if SAVEFIG:
         ax0.autoscale(enable=True, axis='x', tight=True)
-        fig0.savefig(os.path.join(source, f"Swellingimages\\{idx}Intensity.png"), dpi=300)
-        ax1.autoscale(enable=True, axis='x', tight=True)
-        ax1.autoscale(enable=True, axis='y', tight=True)
-        ax1.set_ylim(bottom=0.9)
-        fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{timeFormat(int(elapsedtime))}.png"), dpi=300)
+        fig0.savefig(os.path.join(source, f"Swellingimages\\n{idx}_k{vectorNumber}_Intensity.png"), dpi=300)
+        fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{timeFormat(elapsedtime)}_k{vectorNumber}.png"), dpi=300)
     if SEPERATEPLOTTING:
         plt.close(fig1)
         plt.close(fig0)
-        fig0, ax0 = plt.subplots()
-        fig1, ax1 = plt.subplots()
     return h, h_ratio
 
 def main():
