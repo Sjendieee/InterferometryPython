@@ -326,6 +326,8 @@ def getContourList(grayImg, thresholdSensitivity):
                 maxxlist.append(max([elem[0][0] for elem in contour]))  # create a list with the max-x coord of a contour, to know which contour is the furthest right, 1 from furthest etc..
                 contourList.append(contour)
 
+    #TODO this number determines how many contours will be passed&shown to the user! Should be coupled to the later chosen img number, otherwise further iterations pick the wrong one from the save-file
+    #TODO for most runs, I used 20
     nrOfContoursToShow = 20
     if len(contourList) < nrOfContoursToShow:# nr of contours allow to be to checked
         nrOfContoursToShow = len(contourList)
@@ -558,9 +560,12 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
         # cv2.waitKey(0)
         # cv2.destroyAllWindows()
 
+
+        ########################################################################################
         # iterate from min y to max y
         # if (1) the x values at +- the middle y are not spaced far apart, we are only looking at a small contour at either the left or right side of the droplet
         # if (2) the x values are far apart, probably the contour of an entire droplet is investigated
+        ########################################################################################
 
         calcMiddleYVal = round((max(ylist) + min(ylist))/2) #calculated middle Y value; might be that it does not exist, so look for closest real Y value below
         diffMiddleYval = abs(ylist-calcMiddleYVal)     #
@@ -569,27 +574,25 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
         allYindicesAtMiddle = np.where(ylist == realMiddleYVal)[0]         #all indices of the same real y's
         if len(allYindicesAtMiddle) > 0:        #if there's more than 1 y-value, compare the min and max X at that value; if the difference is big -> entire droplet
             allXValuesMiddle = [xlist[i] for i in allYindicesAtMiddle]
-
             if abs(max(allXValuesMiddle) - min(allXValuesMiddle)) < minimalDifferenceValue: #X-values close together -> weird contour at only a part (primarily left or right) of the droplet
                 case = 1
+                logging.info("PARTIAL DROPLET - as determined by getCountourCoords() code ")
                 for j in range(min(ylist), max(ylist)):     #iterate over all y-coordinates from lowest to highest
                     indexesJ = np.where(ylist == j)[0]      #find all x-es at 1 y-coord
                     xListpery = [xlist[x] for x in indexesJ]
                     if len(indexesJ) > 2 and max(xListpery) - min(xListpery) > minimalDifferenceValue:  #if more than 2 x-coords at 1 y-coord, take the min & max as useable contour (contour is fish-hook shaped)
                         usableContourMin.append([min(xListpery), j])
                         usableContourMax.append([max(xListpery), j])
-
                     # else: left or right side of drop: check by comparing current x-coord with x-coord of minimum-y
                     elif max(xListpery) > xlist[ylist.argmin()] : #xcoord(current) > xcoord(@y_min) = right side droplet -> take max (x)
                         usableContourMax.append([max(xListpery), j])
-
                     else:
                         usableContourMin.append([min(xListpery), j])
-                usableContour = usableContourMax + usableContourMin[::-1]
+                usableContour = usableContourMax + usableContourMin[::-1]   #combined list 1 and reversed list2
                 # TODO not sure if this works properly: meant to concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
                 for ii in range(0, len(usableContour) - 1):
                         if abs(usableContour[ii][1] - usableContour[ii + 1][1]) > 20:  # if difference in y between 2 appending coords is large, a gap in the contour is formed
-                            usableContour = usableContour[ii:] + usableContour[0:ii]
+                            usableContour = usableContour[ii:] + usableContour[0:ii] #combined list 1 and reversed list2
                             print("The order of coords has been changed")
 
                 useableylist = np.array([elem[1] for elem in usableContour])
@@ -597,6 +600,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
             else:   #far spaced x-values: probably contour of an entire droplet: take the min & max at every y-coordinate
                 case = 2
+                logging.info("WHOLE DROPLET - as determined by getCountourCoords() code ")
                 for j in range(min(ylist), max(ylist)):  # iterate over all y-coordinates form lowest to highest
                     indexesJ = np.where(ylist == j)[0]  # find all x-es at 1 y-coord
 
@@ -605,10 +609,52 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                     usableContourMin.append([min(xListpery), j])    #add the min [x,y] into another list
                 usableContour = usableContourMax + usableContourMin[::-1]   #combine lists, such that the coordinates are listed counter-clockwise
 
+
+                usableContourCopy = np.array(usableContour)
+                ii_inserted = 0     #counter for index offset if multiple insertions have to be performed
                 # TODO not sure if this works properly: meant to concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
                 for ii in range(0, len(usableContour)-1):
-                    if abs(usableContour[ii][1] - usableContour[ii+1][1]) > 200:       #if difference in y between 2 appending coords is large, a gap in the contour is formed
-                        usableContour = usableContour[ii:] + usableContour[0:ii]        #shift coordinates in list such that the coordinates are sequential neighbouring
+                    #TODO try to implement function that fits an ellips between gaps:
+                    #OG CODE START
+                    # if abs(usableContour[ii][1] - usableContour[ii+1][1]) > 200:       #if difference in y between 2 appending coords is large, a gap in the contour is formed
+                    #     usableContour = usableContour[ii:] + usableContour[0:ii]        #shift coordinates in list such that the coordinates are sequential neighbouring
+                    #OG CODE END
+
+                    # TODO check for gaps in x axis
+                    if abs(usableContour[ii][0] - usableContour[ii + 1][0]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
+                        xrange_for_fitting = usableContour[ii-30:ii+30][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
+                        yrange_for_fitting = usableContour[ii-30:ii+30][1]
+                        if usableContour[ii][0] < usableContour[ii + 1][0]:    #ind if x is increasing
+                            x_values_to_be_fitted = np.arange(usableContour[ii - 30][0], usableContour[ii + 30][0], 1)
+                        else:
+                            x_values_to_be_fitted = np.arange(usableContour[ii + 30][0], usableContour[ii - 30][0], 1)
+                        localfit = np.polyfit(xrange_for_fitting, yrange_for_fitting, 2)    #horizontal gap: fit y(x)
+                        y_fitted = np.poly1d(localfit)(x_values_to_be_fitted).astype(int)
+                        usableContourCopy = np.insert(usableContourCopy, ii+ii_inserted+1, list(map(list, zip(x_values_to_be_fitted, y_fitted))), axis=0)
+                        ii_inserted+=len(x_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
+                    #TODO then check for gaps in y-direction
+                    if abs(usableContour[ii][1] - usableContour[ii + 1][1]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
+                        xrange_for_fitting = usableContour[ii-30:ii+30][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
+                        yrange_for_fitting = usableContour[ii-30:ii+30][1]
+                        if usableContour[ii][1] < usableContour[ii + 1][1]:    #find if y is increasing
+                            y_values_to_be_fitted = np.arange(usableContour[ii - 30][1], usableContour[ii + 30][1], 1)
+                        else:
+                            y_values_to_be_fitted = np.arange(usableContour[ii + 30][1], usableContour[ii - 30][1], 1)
+                        localfit = np.polyfit(y_values_to_be_fitted, xrange_for_fitting, 2)    #horizontal gap: fit x(y)
+                        x_fitted = np.poly1d(localfit)(y_values_to_be_fitted).astype(int)
+                        usableContourCopy = np.insert(usableContourCopy, ii+ii_inserted+1, list(map(list, zip(x_fitted, yrange_for_fitting))), axis=0)
+                        ii_inserted+=len(y_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
+
+                #TODO show suggested image with interpolated contour points & allow user to verify correctness
+                if ii_inserted>0:
+                    tempimg = []
+                    copyImg = resizedimg.copy()
+                    tempimg = cv2.polylines(copyImg, usableContour, False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+                    tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
+                    cv2.imshow(f"IS THIS POLYNOMIAL FITTED GOOD???????", tempimg)
+
+                usableContour = list(usableContourCopy)
+
                 useableylist = np.array([elem[1] for elem in usableContour])
                 useablexlist = [elem[0] for elem in usableContour]
 
@@ -1215,28 +1261,30 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
         #required ideally: a function that defines the (nett) force / CA as a function of cartesian coordinates
         #TODO proper integration doesn't work currently, probably because the cubicSpline fits are REALLY off between too large intervals of data. (When plotted with a too small interval a lot of noise is introduced, even though the original data is really smooth)
         Ftot_func = lambda phi: phi_r_Function(phi) * phi_Force_Function(phi)
-        total_force, error = integrate.quad(Ftot_func, -np.pi, np.pi, limit=900)    #integrate over entire phi range
-        force_simpson = integrate.simpson(Ftot_func(phi_range), phi_range)
-        print(f"Force simpson integration = {force_simpson*1000:.7f} microN - step={step}")
+        total_force_quad, error_quad = integrate.quad(Ftot_func, -np.pi, np.pi, limit=900)    #integrate over entire phi range
 
+        #Simposon integration
+        # force_simpson = integrate.simpson(Ftot_func(phi_range), phi_range)
+        # print(f"Force simpson integration = {force_simpson*1000:.7f} microN - step={step}")
 
-        total_force1, error = integrate.quad(Ftot_func, boundaryPhi1, boundaryPhi2, limit=900)    #integrate between phiTop & phiBottom
-        total_force2_1, error = integrate.quad(Ftot_func, 0, boundaryPhi1, limit=900)
-        total_force2_2, error = integrate.quad(Ftot_func, boundaryPhi2, np.pi, limit=900)
-        total_force2 = total_force2_1 + total_force2_2
-        print(f"Quad integrations:\n"
-              f"-Total, whole range = {total_force * 1000} microN\n\n"
-              f"-From Top(1) to Bot(2) = {total_force1 * 1000} microN\n"
-              f"-From 0 to top(1) = {total_force2_1 * 1000} microN, From bot(2) to pi = {total_force2_2 * 1000} microN\n"
-              f"-Resulting sum of line above = {total_force2 * 1000} microN\n"
-              f"-Sum left&right parts = {(total_force1 + total_force2)*1000} microN\n\n")
+        # seperate integrations for the left & right part of droplet.
+        # total_force1, error = integrate.quad(Ftot_func, boundaryPhi1, boundaryPhi2, limit=900)    #integrate between phiTop & phiBottom
+        # total_force2_1, error = integrate.quad(Ftot_func, 0, boundaryPhi1, limit=900)
+        # total_force2_2, error = integrate.quad(Ftot_func, boundaryPhi2, np.pi, limit=900)
+        # total_force2 = total_force2_1 + total_force2_2
+        # print(f"Quad integrations:\n"
+        #       f"-Total, whole range = {total_force * 1000} microN\n\n"
+        #       f"-From Top(1) to Bot(2) = {total_force1 * 1000} microN\n"
+        #       f"-From 0 to top(1) = {total_force2_1 * 1000} microN, From bot(2) to pi = {total_force2_2 * 1000} microN\n"
+        #       f"-Resulting sum of line above = {total_force2 * 1000} microN\n"
+        #       f"-Sum left&right parts = {(total_force1 + total_force2)*1000} microN\n\n")
 
         #TODO attempting to manually integrate force vs phi
         forceArr = phi_r_Function(phi_range) * phi_Force_Function(phi_range)
         forceArr1 = phi_r_Function(phi_range1) * phi_Force_Function(phi_range1)
         forceArr2 = phi_r_Function(phi_range2) * phi_Force_Function(phi_range2)
-        manualIntegratedForce = np.trapz(forceArr, phi_range)
-        print(f"Trapz integrated force (function) = {manualIntegratedForce*1000} microN - step={step}\n")
+        trapz_intForce_function = np.trapz(forceArr, phi_range)
+        print(f"Trapz integrated force (function) = {trapz_intForce_function*1000} microN - step={step}\n")
         trapz_intForce_data = np.trapz(np.array(rFromMiddle_savgol_sorted) * np.array(phi_tangentF_savgol_sorted), phi_sorted)
         print(f"Trapz integrated force (data) = {trapz_intForce_data*1000} microN")
         fig6, ax6 = plt.subplots()
@@ -1269,15 +1317,16 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     # print(
     #     f"length of xmax-xmin & ymax-ymin (mm)= {(max(xCartesian) - min(xCartesian)) * conversionXY} & {(max(yCartesian) - min(yCartesian)) * conversionXY}")
     #
-    return total_force, manualIntegratedForce
+    return total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data
 
-def primaryObtainCARoutine(path, wavelength_laser=520):
+def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     """
     Main routine to analyse the contact angle around the entire contour of a droplet.
     Optionally, also the swelling ratio around the contour can be determined by changing the "outwardsLengthVector" from 0 to e.g. 400
 
     :param path: Complete path to the folder with images to be analysed.
     :param wavelength_laser: wavelength of used light (unit=nm)
+    :param outwardsLengthVector: length of normal vector over which intensity profile data is taken    (pointing OUTWARDS of droplet, so for swelling ratio analysis)
     """
     #blockSize	Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on.
     #C Constant subtracted from the mean or weighted mean.
@@ -1286,12 +1335,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-    everyHowManyImages = 3
-    #usedImages = np.arange(0, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [46]
+    everyHowManyImages = 1
+    usedImages = np.arange(4, len(imgList), everyHowManyImages)  # 200 is the working one
+    #usedImages = [46]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
-    outwardsLengthVector = 590 # length of normal vector over which intensity profile data is taken    (pointing OUTWARDS of droplet, so for swelling ratio analysis)
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -1299,7 +1347,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
-    MANUALPICKING = 1
+    MANUALPICKING = 0
     lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
@@ -1412,10 +1460,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 omittedVectorCounter = 0
 
                 fig_heightsCombined, ax_heightsCombined = plt.subplots()
-                plotHeightCondition = list(np.arange(0,len(x0arr), len(x0arr)//8))# [300, 581, 4067, 4300] #lambda k: np.mod(k, len(x0arr)//8) == 0
+                #A list of vector numbers, for which an outwardsVector will be shown & heights can be plotted
+                plotHeightCondition = list(np.arange(0,len(x0arr), len(x0arr)//8))# [300, 581, 4067, 4300]
                 heightPlottedCounter = 0
                 for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     try:
+                        xOutwards = [0]
                         profileOutwards = []
                         lineLengthPixelsOutwards = 0
                         if outwardsLengthVector != 0:
@@ -1464,21 +1514,21 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
 
                         # plot 1 profile of each image with intensity, wrapped, height & resulting CA
                         if k == round(len(x0arr) / 2):
+                            offsetDropHeight = 0
                             # TODO WIP: swelling or height profile outside droplet
-                            extraPartIndroplet = 50 #extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
-                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
-
-                            #Stitching together swelling height & droplet CA height
-                            #heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
-                            #heightNearCL = heightNearCL - (heightNearCL[(- 1 - extraPartIndroplet)] - (unwrapped[0] * 1000))
-                            offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000 #height at start of droplet, in relation to the swollen height of PB
+                            if xOutwards[-1] != 0:
+                                extraPartIndroplet = 50 #extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
+                                heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
+                                #Stitching together swelling height & droplet CA height
+                                offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000 #height at start of droplet, in relation to the swollen height of PB
                             unwrapped = offsetDropHeight + unwrapped
 
                             fig1, ax1 = plt.subplots(2, 2)
                             ax1[0, 0].plot(profileOutwards + profile);
-                            ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
-                            ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5)
-                            ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5)
+                            if xOutwards[-1] != 0:
+                                ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
+                                ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.3)
+                            ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.3)
                             ax1[0, 0].legend(loc='best')
                             ax1[0, 0].set_title(f"Intensity profile");
 
@@ -1487,7 +1537,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             ax1[1, 0].set_title("Wrapped profile (drop only)")
 
                             # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                            ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C1');               #plot the swelling ratio outside droplet
+                            if xOutwards[-1] != 0:
+                                ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C1');               #plot the swelling ratio outside droplet
                             ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C0');
                             ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
                             ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}\nCA={angleDeg:.2f} deg');
@@ -1507,7 +1558,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                         # TODO WIP: swelling or height profile outside droplet
                         HowManyImagesHeightProfile = 8
                         #np.mod(k, len(x0arr)//HowManyImagesHeightProfile) == 0:
-                        if k in plotHeightCondition:
+                        if xOutwards[-1] != 0 and k in plotHeightCondition:
                             extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
                             heightNearCL, heightRatioNearCL = swellingRatioNearCL(
                                 np.arange(0, len(profileOutwards) + extraPartIndroplet),
@@ -1523,8 +1574,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                                 y_ks = []
 
                                 ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize = 15, zorder = len(x0arr), label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
-                                ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.5)
-                                ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet-1], facecolor='blue', alpha=0.5)
+                                ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
+                                ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet-1], facecolor='blue', alpha=0.3)
                             else:
                                 indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
                                 heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight] - equalHeight)  #to set all height profiles at some index to the same height
@@ -1544,9 +1595,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                             ax10[0, 0].plot(profileOutwards + profile);
                             ax10[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.',
                                            label='transition brush-droplet')
-                            ax10[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5)
+                            ax10[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.3)
                             ax10[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile),
-                                              facecolor='blue', alpha=0.5)
+                                              facecolor='blue', alpha=0.3)
                             ax10[0, 0].legend(loc='best')
                             ax10[0, 0].set_title(f"Intensity profile");
 
@@ -1615,13 +1666,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 #plt.show()
                 plt.close(fig2)
 
-                #PLOTTING various previously calculated height profiles
-                phi_k, _ = coordsToPhi(x_ks, abs(np.subtract(4608, y_ks)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
-                for i in range(0, len(x_ax_heightsCombined)):
-                    ax_heightsCombined.plot(x_ax_heightsCombined[i], y_ax_heightsCombined[i], label=f'$\phi$={convertPhiToazimuthal(phi_k[i])[1]/np.pi:.2f}$\pi$ rad')
-                ax_heightsCombined.legend(loc='best')
-                ax_heightsCombined.set(xlabel='Distance (um)', ylabel='Film height (nm)', title='Halo height profiles at\nvarious positions on droplet contour\nSavgol smoothened!')
-                fig_heightsCombined.savefig(os.path.join(analysisFolder, f'Combined height profiles imgNr {n}.png'), dpi=600)
+                #PLOTTING various previously calculated OUTSIDE height profiles
+                if xOutwards[-1] != 0:
+                    phi_k, _ = coordsToPhi(x_ks, abs(np.subtract(4608, y_ks)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                    for i in range(0, len(x_ax_heightsCombined)):
+                        ax_heightsCombined.plot(x_ax_heightsCombined[i], y_ax_heightsCombined[i], label=f'$\phi$={convertPhiToazimuthal(phi_k[i])[1]/np.pi:.2f}$\pi$ rad')
+                    ax_heightsCombined.legend(loc='best')
+                    ax_heightsCombined.set(xlabel='Distance (um)', ylabel='Film height (nm)', title='Halo height profiles at\nvarious positions on droplet contour\nSavgol smoothened!')
+                    fig_heightsCombined.savefig(os.path.join(analysisFolder, f'Combined height profiles imgNr {n}.png'), dpi=600)
 
                 #TODO: middle point is not working too well yet, so left& right side are a bit skewed
                 phi, rFromMiddleArray_pixel = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
@@ -1697,10 +1749,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 #plt.show()
 
                 #TODO calculate nett horizonal force in for each phi, and fit it with a cubic spline
-                forceOnDroplet, manualIntegratedForce = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
-
-
-
+                total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
 
 
 
@@ -1720,10 +1769,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
                 # #plt.show()
                 # ani.save(filename=os.path.join(analysisFolder, f'Azimuthal_CA_movie.gif'), writer="pillow")
 
-                #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
-                Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), tangent_forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
+                # #TODO trying to fit the CA contour in 3D, to integrate etc. for force calculation
+                # Z, totalZ = givemeZ(np.array(xArrFinal), np.array(yArrFinal), tangent_forces, np.array(x0arr), np.array(y0arr), conversionXY, analysisFolder, n)
 
-                totalForce_afo_time.append(totalZ)
+                totalForce_afo_time.append(total_force_quad)
                 #fig5 = plt.figure()
                 #ax5 = fig5.add_subplot(1, 1, 1, projection='3d')
                 #ax5.plot_surface(x0arr, y0arr, fittedCA, color='r')
@@ -1791,6 +1840,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520):
             resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 63, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(4608, medianmiddleY))
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
 
+            plt.close() #close all existing figures
+
     #once all images are analysed, plot obtained data together. Can also be done seperately afterwards with the "CA_analysisRoutine()" in this file
     fig2, ax2 = plt.subplots()
     ax2.plot(np.divide(usedDeltaTs, 60), totalForce_afo_time)
@@ -1837,7 +1888,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
