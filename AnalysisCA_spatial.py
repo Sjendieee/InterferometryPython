@@ -611,7 +611,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
 
                 usableContourCopy = np.array(usableContour)
-                windowSizePolynomialCheck = 80  #nr of values to check left and right for fitting polynomial, if distance between 2 values is 'too large'
+                windowSizePolynomialCheck = 40  #nr of values to check left and right for fitting polynomial, if distance between 2 values is 'too large'
                 usableContourCopy = np.concatenate([usableContourCopy[-windowSizePolynomialCheck:], usableContourCopy, usableContourCopy[:windowSizePolynomialCheck]])      #add values (periodic BC) for checking beginning& end of array
                 ii_inserted = 0     #counter for index offset if multiple insertions have to be performed
                 # TODO not sure if this works properly: meant to concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
@@ -624,51 +624,63 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
                     # TODO check for gaps in x axis
                     if abs(usableContour[ii][0] - usableContour[ii + 1][0]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
-                        xrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
-                        yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
+                        xrange_for_fitting = [i[0] for i in usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
+                        yrange_for_fitting = [i[1] for i in usableContour[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
+                        # xrange_for_fitting = usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
+                        # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
                         if usableContour[ii][0] < usableContour[ii + 1][0]:    #ind if x is increasing
-                            x_values_to_be_fitted = np.arange(usableContour[ii - windowSizePolynomialCheck][0], usableContour[ii + windowSizePolynomialCheck][0], 1)
+                            x_values_to_be_fitted = np.arange(usableContour[ii][0]+1, usableContour[ii + 1][0]-1, 1)
                         else:
-                            x_values_to_be_fitted = np.arange(usableContour[ii + windowSizePolynomialCheck][0], usableContour[ii - windowSizePolynomialCheck][0], 1)
+                            x_values_to_be_fitted = np.arange(usableContour[ii + 1][0]+1, usableContour[ii][0]-1, 1)
                         localfit = np.polyfit(xrange_for_fitting, yrange_for_fitting, 2)    #horizontal gap: fit y(x)
                         y_fitted = np.poly1d(localfit)(x_values_to_be_fitted).astype(int)
                         usableContourCopy = np.insert(usableContourCopy, ii+ii_inserted+1, list(map(list, zip(x_values_to_be_fitted, y_fitted))), axis=0)
                         ii_inserted+=len(x_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
+                        plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='x-gap data')
+                        plt.plot(x_values_to_be_fitted, y_fitted, label='x-gap fit')
+                        plt.legend(loc='best')
+
                     #TODO then check for gaps in y-direction
                     if abs(usableContour[ii][1] - usableContour[ii + 1][1]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
-                        xrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
-                        yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
+                        # xrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
+                        # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
+                        xrange_for_fitting = [i[0] for i in usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
+                        yrange_for_fitting = [i[1] for i in usableContour[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
                         if usableContour[ii][1] < usableContour[ii + 1][1]:    #find if y is increasing
-                            y_values_to_be_fitted = np.arange(usableContour[ii - windowSizePolynomialCheck][1], usableContour[ii + windowSizePolynomialCheck][1], 1)
+                            y_values_to_be_fitted = np.arange(usableContour[ii][1]+1, usableContour[ii+1][1]-1, 1)
                         else:
-                            y_values_to_be_fitted = np.arange(usableContour[ii + windowSizePolynomialCheck][1], usableContour[ii - windowSizePolynomialCheck][1], 1)
+                            y_values_to_be_fitted = np.arange(usableContour[ii+1][1]+1, usableContour[ii][1]-1, 1)
                         localfit = np.polyfit(y_values_to_be_fitted, xrange_for_fitting, 2)    #horizontal gap: fit x(y)
                         x_fitted = np.poly1d(localfit)(y_values_to_be_fitted).astype(int)
                         usableContourCopy = np.insert(usableContourCopy, ii+ii_inserted+1, list(map(list, zip(x_fitted, yrange_for_fitting))), axis=0)
                         ii_inserted+=len(y_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
-
+                        plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='y-gap data')
+                        plt.plot(x_fitted, y_values_to_be_fitted, label='fit')
+                        plt.legend(loc='best')
+                plt.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', label='total contour')
+                plt.show()
                 #TODO show suggested image with interpolated contour points & allow user to verify correctness
                 if ii_inserted>0:
                     usableContourCopy = usableContourCopy[windowSizePolynomialCheck:-windowSizePolynomialCheck]
                     tempimg = []
                     copyImg = resizedimg.copy()
-                    tempimg = cv2.polylines(copyImg, usableContourCopy, False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+                    tempimg = cv2.polylines(copyImg, np.array([usableContourCopy]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
                     tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
                     cv2.imshow(f"IS THIS POLYNOMIAL FITTED GOOD???????", tempimg)
                     choices = ["Yes (continue)", "No (don't use fitted polynomial)"]
                     myvar = easygui.choicebox("IS THIS POLYNOMIAL FITTED GOOD?", choices=choices)
                     if myvar == choices[1]:
-                        logging.error("Polynomial did not fit as desired. NOT using the fitted polynomial.")
+                        logging.warning("Polynomial did not fit as desired. NOT using the fitted polynomial.")
                     else:
-                        usableContour = list(usableContourCopy) #if good poly fits, use those
-
+                        #usableContour = list(list(usableContourCopy)) #if good poly fits, use those
+                        usableContour = [list(i) for i in usableContourCopy]
                 useableylist = np.array([elem[1] for elem in usableContour])
                 useablexlist = [elem[0] for elem in usableContour]
 
 
 
         else:   #if only 1 value
-            print(f"For now something seems to be weird. Either bad contour, or accidentally only 1 real Y at that level."
+            logging.error(f"For now something seems to be weird. Either bad contour, or accidentally only 1 real Y at that level."
                   f"Might therefore be a min/max in image, or the contour at the other side somehow skipped 1 Y-value (if this happens, implement new code)")
             exit()
 
@@ -999,10 +1011,11 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     if dxarrcoord - x0arrcoord == 0:  # constant x, variable y
         xarr = np.ones(lengthVector) * x0arrcoord
         if y0arrcoord > dyarrcoord:
-            yarr = np.arange(dyarrcoord, y0arrcoord + 1)
+            yarr = np.arange(dyarrcoord, y0arrcoord)
         else:
-            yarr = np.arange(y0arrcoord, dyarrcoord + 1)
+            yarr = np.arange(y0arrcoord, dyarrcoord)
         coords = list(zip(xarr.astype(int), yarr.astype(int)))
+        lineLengthPixels = lengthVector
     else:
         a = (dyarrcoord - y0arrcoord) / (dxarrcoord - x0arrcoord)
         b = y0arrcoord - a * x0arrcoord
@@ -1279,8 +1292,8 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
         # total_force2_1, error = integrate.quad(Ftot_func, 0, boundaryPhi1, limit=900)
         # total_force2_2, error = integrate.quad(Ftot_func, boundaryPhi2, np.pi, limit=900)
         # total_force2 = total_force2_1 + total_force2_2
-        # print(f"Quad integrations:\n"
-        #       f"-Total, whole range = {total_force * 1000} microN\n\n"
+        print(f"Quad integration:\n"
+              f"-Total, whole range = {total_force_quad * 1000} microN\n\n")
         #       f"-From Top(1) to Bot(2) = {total_force1 * 1000} microN\n"
         #       f"-From 0 to top(1) = {total_force2_1 * 1000} microN, From bot(2) to pi = {total_force2_2 * 1000} microN\n"
         #       f"-Resulting sum of line above = {total_force2 * 1000} microN\n"
