@@ -1339,6 +1339,40 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     #
     return total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data
 
+
+def manualFitting(inputX, inputY):
+    """
+    Goal: fit radial data by sin&cos functions. Tune N for more or less influence of noise
+    :param inputX:
+    :param inputY:
+    :return:
+    """
+    print(f"In manualFitting(): min & max inputX = {min(inputX)}, {max(inputX)}. If this is not -pi to pi, something's up...\n")
+    Y_phi = scipy.integrate.trapz(inputY, inputX)
+    print(f"calculated Y of phi: {Y_phi}")
+
+    function_s = lambda Y_phi, k, phi: Y_phi*np.sin(k*phi)
+    function_c = lambda Y_phi, k, phi: Y_phi * np.cos(k * phi)
+
+    sigma_k_s = [0]     #sigma_k_s=0  at n=0
+    sigma_k_c = [(2 / np.pi) * scipy.quad(function_c, min(inputX), max(inputX), args=(Y_phi, 0,))]
+    R_phi_func = lambda phi, n, sigma_n_s, sigma_n_c: sum(sigma_n_s * np.sin(n*phi)) + sum(sigma_n_s * np.cos(n*phi))
+
+    N = [1,2,3,4,5,6,7]
+    for k in N:
+        sigma_k_s.append((1/np.pi) * scipy.quad(function_s, min(inputX), max(inputX), args=(Y_phi, k,)))
+        sigma_k_c.append((1 / np.pi) * scipy.quad(function_c, min(inputX), max(inputX), args=(Y_phi, k,)))
+    N = [0] + N
+    X_range = np.linspace(min(inputX), max(inputX))
+    Y_range = R_phi_func(X_range, N, sigma_k_s, sigma_k_c)
+    fig1, ax1 = plt.subplots()
+    ax1.plot(inputX, inputY, '.', label='raw data')
+    ax1.plot(X_range, Y_range, '-', label='function order N=7')
+    plt.show()
+
+    return N, sigma_k_s, sigma_k_c
+
+
 def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     """
     Main routine to analyse the contact angle around the entire contour of a droplet.
@@ -1732,6 +1766,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 for i in range(1, len(phi_sorted)):
                     if phi_sorted[i] <= phi_sorted[i - 1]:
                         phi_sorted[i] = phi_sorted[i - 1] + 1e-5
+
+                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted)
 
                 #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
                 phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
