@@ -729,6 +729,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                     else:
                         #usableContour = list(list(usableContourCopy)) #if good poly fits, use those
                         usableContour = [list(i) for i in usableContourCopy_instertion]
+                    cv2.destroyAllWindows()
                 useableylist = np.array([elem[1] for elem in usableContour])
                 useablexlist = [elem[0] for elem in usableContour]
 
@@ -1407,7 +1408,7 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     #
     return total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data
 
-
+#TODO trying to get this to work
 def manualFitting(inputX, inputY):
     """
     Goal: fit radial data by sin&cos functions. Tune N for more or less influence of noise
@@ -1416,26 +1417,29 @@ def manualFitting(inputX, inputY):
     :return:
     """
     print(f"In manualFitting(): min & max inputX = {min(inputX)}, {max(inputX)}. If this is not -pi to pi, something's up...\n")
-    Y_phi = scipy.integrate.trapz(inputY, inputX)
-    print(f"calculated Y of phi: {Y_phi}")
+    integratedY_trapz = scipy.integrate.trapz(inputY, inputX)
+    print(f"calculated Y of phi: {integratedY_trapz}")
 
     function_s = lambda Y_phi, k, phi: Y_phi*np.sin(k*phi)
     function_c = lambda Y_phi, k, phi: Y_phi * np.cos(k * phi)
 
     sigma_k_s = [0]     #sigma_k_s=0  at n=0
-    sigma_k_c = [(2 / np.pi) * scipy.quad(function_c, min(inputX), max(inputX), args=(Y_phi, 0,))]
+    sigma_k_c = [(2 / np.pi) * scipy.integrate.quad(function_c, min(inputX), max(inputX), args=(inputY, 0,))[0]]
     R_phi_func = lambda phi, n, sigma_n_s, sigma_n_c: sum(sigma_n_s * np.sin(n*phi)) + sum(sigma_n_s * np.cos(n*phi))
 
     N = [1,2,3,4,5,6,7]
     for k in N:
-        sigma_k_s.append((1/np.pi) * scipy.quad(function_s, min(inputX), max(inputX), args=(Y_phi, k,)))
-        sigma_k_c.append((1 / np.pi) * scipy.quad(function_c, min(inputX), max(inputX), args=(Y_phi, k,)))
-    N = [0] + N
+        sigma_k_s.append((1/np.pi) * scipy.integrate.quad(function_s, min(inputX), max(inputX), args=(inputY, k,))[0])
+        sigma_k_c.append((1 / np.pi) * scipy.integrate.quad(function_c, min(inputX), max(inputX), args=(inputY, k,))[0])
+    N = np.array([0] + N)
     X_range = np.linspace(min(inputX), max(inputX))
-    Y_range = R_phi_func(X_range, N, sigma_k_s, sigma_k_c)
+
+    Y_range = [R_phi_func(Xval, N, sigma_k_s, sigma_k_c) for Xval in X_range]
+
     fig1, ax1 = plt.subplots()
     ax1.plot(inputX, inputY, '.', label='raw data')
     ax1.plot(X_range, Y_range, '-', label='function order N=7')
+    ax1.set(xlabel='Phi (rad)', ylabel='whatever y (?)', title="radial fitting of x vs y with sin and cos")
     plt.show()
 
     return N, sigma_k_s, sigma_k_c
@@ -1880,9 +1884,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
                 phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
+                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted)
+
                 phi_range = np.arange(min(phi), max(phi), 0.05) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
-
                 ax4.plot(convertPhiToazimuthal(phi_range[:-1])[0], phiCA_cubesplined, '.', label=f'CubicSpline fit')
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
@@ -2063,7 +2068,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
