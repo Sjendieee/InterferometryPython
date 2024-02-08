@@ -356,13 +356,39 @@ def getContourList(grayImg, thresholdSensitivity):
     #cv2.imwrite(os.path.join(analysisFolder, f"threshImage_contourLine{tstring}.png"), thresh)     #if you want to save the threshold image
     return [elem[1] for elem in FurthestRightContours], nrOfContoursToShow, thresholdSensitivity
 
-def selectAreaAndFindContour(resizedimg, thresholdSensitivity):
+
+def tryVariousThreshholdSensitivities(grayImg, thresholdSensitivityrange1, thresholdSensitivityrange2):
+    workingThreshes = []
+    contourArea = 5000
+    for thresh1 in thresholdSensitivityrange1:
+        counter = 0
+        for thresh2 in thresholdSensitivityrange2:
+            try:
+                if counter < 3: #only try for 3 thresh2-s at the same thresh1
+                    thresh = cv2.adaptiveThreshold(grayImg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, thresh1, thresh2)
+                    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                    for contour in contours:
+                        # Calculate the area of the contour
+                        area = cv2.contourArea(contour)
+                        # Set a minimum threshold for contour area
+                        if area > contourArea:  # OG = 2000
+                            # Check if the contour has at least 5 points
+                            if len(contour) >= 5:
+                                 workingThreshes.append([thresh1, thresh2])
+                                 print(f"{thresh1, thresh2}")
+                                 break
+                    counter=+1
+            except:
+                pass
+    return workingThreshes
+
+def selectAreaAndFindContour(resizedimg, thresholdSensitivity, resizeFactor):
     tempimg = []
     copyImg = resizedimg.copy()
     #tempimg = cv2.polylines(copyImg, np.array([contourList[i]]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
     #if combineMultipleContours:
     #    tempimg = cv2.polylines(tempimg, np.array([contour]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
-    resizeFactor = [round(5328 / 5), round(4608 / 5)]
+
     tempimg = cv2.resize(copyImg, resizeFactor, interpolation=cv2.INTER_AREA)  # resize image
     cv2.imshow('Grey image', tempimg)
     cv2.setWindowTitle("Grey image", "Square selection window. Click 2 times to select box in which contour is to be found.")
@@ -391,6 +417,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
     minimalDifferenceValue = 100    #Value of minimal difference in x1 and x2 at same y-coord to check for when differentiating between entire droplet & partial contour & fish-hook-like contour
     img = cv2.imread(imgPath)  # read in image
     grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
+    imgshape = img.shape  #tuple (height, width, channel)
     # Apply adaptive thresholding to the blurred frame
     # TODO not nice now, but for the code to work
     greyresizedimg = grayImg
@@ -474,6 +501,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
 
     iout = []
+    firstTimeNoContours = True
     #show img w/ contour to check if it is the correct one
     #make popup box to show next contour (or previous) if desired
     while goodContour == False:
@@ -483,7 +511,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             tempimg = cv2.polylines(copyImg, np.array([contourList[i]]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
             if combineMultipleContours:
                 tempimg = cv2.polylines(tempimg, np.array([contour]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
-            tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
+            tempimg = cv2.resize(tempimg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
             cv2.imshow(f"Contour img with current selection of contour {i+1} out of {nrOfContoursToShow}", tempimg)
             choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)",
                        "Stitch multiple contours together: first selection",
@@ -491,11 +519,24 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                        "EXPERIMENTAL: Drawing box in which contour MUST be found (in case it never finds it there)"]
             myvar = easygui.choicebox("Is this a desired contour?", choices=choices)
         else:
+            tempimg = []
+            copyImg = resizedimg.copy()
+            tempimg = cv2.resize(copyImg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
+            #TODO iterate over a bunch of thresholds, and suggest a few working ones
+            cv2.imshow(f"Contour img with current selection of contour {i + 1} out of {nrOfContoursToShow}", tempimg)
+
             choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)",
                        "Stitch multiple contours together: first selection",
                        "No good contours: Ajdust threshold sensitivities", "No good contours: quit programn",
                        "EXPERIMENTAL: Drawing box in which contour MUST be found (in case it never finds it there)"]
-            myvar = easygui.choicebox("From the get-go, no contours were obtained with this threshold sensitivity. Choose option 5 to change this.", choices=choices)
+            myvar = easygui.choicebox("From the get-go, no contours were obtained with this threshold sensitivity. Choose option 5 to change this.\n"
+                                      "Working thresholds are suggested in the terminal. This might take some time", choices=choices)
+            if firstTimeNoContours:
+                thresholdSensitivityrange1 = np.arange(1, 80, 3)
+                thresholdSensitivityrange2 = np.arange(1, 80, 3)
+                workingthreshholds = tryVariousThreshholdSensitivities(grayImg, thresholdSensitivityrange1, thresholdSensitivityrange2)
+                print(f"{workingthreshholds}")
+                firstTimeNoContours = False
         #cv2.waitKey(0)
 
         if myvar == choices[0]: #picks different i-1, if possible
@@ -540,7 +581,8 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             break
         #TODO select box for finding contour
         elif myvar == choices[6]:   #experimental: drawing a box in which the contour MUST be found
-            contourList = selectAreaAndFindContour(grayImg, thresholdSensitivity)
+            resizeFactor = [round(imgshape[1] / 5), round(imgshape[0] / 5)]
+            contourList = selectAreaAndFindContour(grayImg, thresholdSensitivity, resizeFactor)
         contour = np.array(contour)
         cv2.destroyAllWindows()
 
@@ -555,7 +597,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
         # TODO temp only for plotting the contour of which the vectors are taken
         # tempContourImg = cv2.polylines(resizedimg, np.array([contour]), False, (0, 0, 255), 2)  # draws 1 good contour around the outer halo fringe
-        # tempContourImg = cv2.resize(tempContourImg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
+        # tempContourImg = cv2.resize(tempContourImg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
         # cv2.imshow(f"Contour img of i={i} out of {len(contourList)}", tempContourImg)
         # cv2.waitKey(0)
         # cv2.destroyAllWindows()
@@ -605,17 +647,25 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                     indexesJ = np.where(ylist == j)[0]  # find all x-es at 1 y-coord
 
                     xListpery = [xlist[x] for x in indexesJ]    #list all x'es at that y
-                    usableContourMax.append([max(xListpery), j])    #add the max [x,y] into a list
-                    usableContourMin.append([min(xListpery), j])    #add the min [x,y] into another list
+                    if (max(xListpery) - min(xListpery)) < 30: #if pixel difference is less than some value, even here something is kinda wrong. So only parse 'close' values to previous good ones
+                        #left or right side of drop: check by comparing current x-coord with x-coord of minimum-y
+                        if max(xListpery) > xlist[ylist.argmin()]:  # xcoord(current) > xcoord(@y_min) = right side droplet -> take max (x)
+                            usableContourMax.append([max(xListpery), j])
+                        else:
+                            usableContourMin.append([min(xListpery), j])
+                    else: #if pixel are far enough spaced apart: probably good outer contour of droplet. Parse min & max [x,y]
+                        usableContourMax.append([max(xListpery), j])    #add the max [x,y] into a list
+                        usableContourMin.append([min(xListpery), j])    #add the min [x,y] into another list
                 usableContour = usableContourMax + usableContourMin[::-1]   #combine lists, such that the coordinates are listed counter-clockwise
 
 
                 usableContourCopy = np.array(usableContour)
                 windowSizePolynomialCheck = 40  #nr of values to check left and right for fitting polynomial, if distance between 2 values is 'too large'
                 usableContourCopy = np.concatenate([usableContourCopy[-windowSizePolynomialCheck:], usableContourCopy, usableContourCopy[:windowSizePolynomialCheck]])      #add values (periodic BC) for checking beginning& end of array
+                usableContourCopy_instertion = usableContourCopy    #copy into which coords from polynomial fits are inserted
                 ii_inserted = 0     #counter for index offset if multiple insertions have to be performed
                 # TODO not sure if this works properly: meant to concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
-                for ii in range(windowSizePolynomialCheck, len(usableContour)-(windowSizePolynomialCheck)):
+                for ii in range(windowSizePolynomialCheck, len(usableContourCopy)-(windowSizePolynomialCheck)+1):   #TODO check deze +1: ik wil ook een fit @top droplet, maar werkt nog niet
                     #TODO try to implement function that fits an ellips between gaps:
                     #OG CODE START
                     # if abs(usableContour[ii][1] - usableContour[ii+1][1]) > 200:       #if difference in y between 2 appending coords is large, a gap in the contour is formed
@@ -623,49 +673,54 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                     #OG CODE END
 
                     # TODO check for gaps in x axis
-                    if abs(usableContour[ii][0] - usableContour[ii + 1][0]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
-                        xrange_for_fitting = [i[0] for i in usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
-                        yrange_for_fitting = [i[1] for i in usableContour[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
+                    if abs(usableContourCopy[ii][0] - usableContourCopy[ii + 1][0]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
+                        xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
+                        yrange_for_fitting = [i[1] for i in usableContourCopy[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
                         # xrange_for_fitting = usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
                         # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
-                        if usableContour[ii][0] < usableContour[ii + 1][0]:    #ind if x is increasing
-                            x_values_to_be_fitted = np.arange(usableContour[ii][0]+1, usableContour[ii + 1][0]-1, 1)
+                        if usableContourCopy[ii][0] < usableContourCopy[ii + 1][0]:    #ind if x is increasing
+                            x_values_to_be_fitted = np.arange(usableContourCopy[ii][0]+1, usableContourCopy[ii + 1][0]-1, 1)
                         else:
-                            x_values_to_be_fitted = np.arange(usableContour[ii + 1][0]+1, usableContour[ii][0]-1, 1)
+                            x_values_to_be_fitted = np.arange(usableContourCopy[ii + 1][0]+1, usableContourCopy[ii][0]-1, 1)
                         localfit = np.polyfit(xrange_for_fitting, yrange_for_fitting, 2)    #horizontal gap: fit y(x)
                         y_fitted = np.poly1d(localfit)(x_values_to_be_fitted).astype(int)
-                        usableContourCopy = np.insert(usableContourCopy, ii+ii_inserted+1, list(map(list, zip(x_values_to_be_fitted, y_fitted))), axis=0)
-                        ii_inserted+=len(x_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
+                        usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_values_to_be_fitted, y_fitted))), axis=0)
+                        ii_inserted+=len(x_values_to_be_fitted) #offset index of insertion by length of previous arrays which were inserted
                         plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='x-gap data')
                         plt.plot(x_values_to_be_fitted, y_fitted, label='x-gap fit')
                         plt.legend(loc='best')
+                        #plt.show()
 
                     #TODO then check for gaps in y-direction
-                    if abs(usableContour[ii][1] - usableContour[ii + 1][1]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
+                    #TODO THIS IS STILL WRONG !!!
+                    if abs(usableContourCopy[ii][1] - usableContourCopy[ii + 1][1]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
                         # xrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
                         # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
-                        xrange_for_fitting = [i[0] for i in usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
-                        yrange_for_fitting = [i[1] for i in usableContour[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
-                        if usableContour[ii][1] < usableContour[ii + 1][1]:    #find if y is increasing
-                            y_values_to_be_fitted = np.arange(usableContour[ii][1]+1, usableContour[ii+1][1]-1, 1)
+                        xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
+                        yrange_for_fitting = [i[1] for i in usableContourCopy[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
+                        if usableContourCopy[ii][1] < usableContourCopy[ii + 1][1]:    #find if y is increasing
+                            y_values_to_be_fitted = np.arange(usableContourCopy[ii][1]+1, usableContourCopy[ii+1][1]-1, 1)
                         else:
-                            y_values_to_be_fitted = np.arange(usableContour[ii+1][1]+1, usableContour[ii][1]-1, 1)
-                        localfit = np.polyfit(y_values_to_be_fitted, xrange_for_fitting, 2)    #horizontal gap: fit x(y)
+                            y_values_to_be_fitted = np.arange(usableContourCopy[ii+1][1]+1, usableContourCopy[ii][1]-1, 1)
+                        localfit = np.polyfit(yrange_for_fitting, xrange_for_fitting, 2)    #horizontal gap: fit x(y)
                         x_fitted = np.poly1d(localfit)(y_values_to_be_fitted).astype(int)
-                        usableContourCopy = np.insert(usableContourCopy, ii+ii_inserted+1, list(map(list, zip(x_fitted, yrange_for_fitting))), axis=0)
+                        usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_fitted, yrange_for_fitting))), axis=0)
                         ii_inserted+=len(y_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
                         plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='y-gap data')
-                        plt.plot(x_fitted, y_values_to_be_fitted, label='fit')
+                        plt.plot(x_fitted, y_values_to_be_fitted, label='y-gap fit')
                         plt.legend(loc='best')
-                plt.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', label='total contour')
+                        plt.show()
+                plt.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', color = 'b', label='total contour')
+                plt.legend(loc='best')
                 plt.show()
+
                 #TODO show suggested image with interpolated contour points & allow user to verify correctness
                 if ii_inserted>0:
-                    usableContourCopy = usableContourCopy[windowSizePolynomialCheck:-windowSizePolynomialCheck]
+                    usableContourCopy_instertion = usableContourCopy_instertion[windowSizePolynomialCheck:-windowSizePolynomialCheck]
                     tempimg = []
                     copyImg = resizedimg.copy()
-                    tempimg = cv2.polylines(copyImg, np.array([usableContourCopy]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
-                    tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)], interpolation=cv2.INTER_AREA)  # resize image
+                    tempimg = cv2.polylines(copyImg, np.array([usableContourCopy_instertion]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+                    tempimg = cv2.resize(tempimg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
                     cv2.imshow(f"IS THIS POLYNOMIAL FITTED GOOD???????", tempimg)
                     choices = ["Yes (continue)", "No (don't use fitted polynomial)"]
                     myvar = easygui.choicebox("IS THIS POLYNOMIAL FITTED GOOD?", choices=choices)
@@ -673,7 +728,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                         logging.warning("Polynomial did not fit as desired. NOT using the fitted polynomial.")
                     else:
                         #usableContour = list(list(usableContourCopy)) #if good poly fits, use those
-                        usableContour = [list(i) for i in usableContourCopy]
+                        usableContour = [list(i) for i in usableContourCopy_instertion]
                 useableylist = np.array([elem[1] for elem in usableContour])
                 useablexlist = [elem[0] for elem in usableContour]
 
@@ -888,12 +943,12 @@ def approxMiddlePointDroplet(coords, vectors):
 
 #TODO get this to work? : fitting CA = (x,y) to interpolate for missing datapoints & get total contour length for good force calculation
 #part of OG code: https://www.geeksforgeeks.org/3d-curve-fitting-with-python/
-def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n):
+def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n, imgshape):
     #tck = interpolate.bisplrep(xin, yin, zin, s=0)
     #f = scipy.interpolate.interp2d(xin, yin, zin, kind="cubic")
     # Define mathematical function for curve fitting
-    yin = abs(np.subtract(4608, yin))       #flip y's for good plotting of data
-    yout = abs(np.subtract(4608, yout))
+    yin = abs(np.subtract(imgshape[0], yin))       #flip y's for good plotting of data
+    yout = abs(np.subtract(imgshape[0], yout))
     def func(xy, a, b, c, d, e, f):
         x, y = xy
         return a + b * x + c * y + d * x ** 2 + e * y ** 2 + f * x * y
@@ -1249,6 +1304,19 @@ def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr,
     #return x and y at the bottom & top respectively as seperate lists
     return [x0arr[upwards_Index], y0arr[upwards_Index]], [x0arr[downwards_Index], y0arr[downwards_Index]]
 
+
+def determineTopAndBottomOfDropletCoords_SIMPLEMINMAX(vectors, x0arr, y0arr):
+    """"
+    :param x0arr: input array with x coordinate values
+    :param y0arr: input array with y coordinate values
+    :param dxarr: input array with x coordinate values, at end of vector
+    :param dyarr: input array with y coordinate values, at end of vector
+    :return coords: [x, y] values of coordinates at minimum & maximum y-value
+    """
+    miny_index = np.argmin(y0arr)
+    maxy_index = np.argmax(y0arr)
+    return [x0arr[maxy_index], y0arr[maxy_index]], [x0arr[miny_index], y0arr[miny_index]]
+
 def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
     """
     :return phi: range [-pi : pi]
@@ -1281,7 +1349,7 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
         #required ideally: a function that defines the (nett) force / CA as a function of cartesian coordinates
         #TODO proper integration doesn't work currently, probably because the cubicSpline fits are REALLY off between too large intervals of data. (When plotted with a too small interval a lot of noise is introduced, even though the original data is really smooth)
         Ftot_func = lambda phi: phi_r_Function(phi) * phi_Force_Function(phi)
-        total_force_quad, error_quad = integrate.quad(Ftot_func, -np.pi, np.pi, limit=900)    #integrate over entire phi range
+        total_force_quad, error_quad = integrate.quad(Ftot_func, -np.pi, np.pi, limit=1200)    #integrate over entire phi range
 
         #Simposon integration
         # force_simpson = integrate.simpson(Ftot_func(phi_range), phi_range)
@@ -1373,6 +1441,34 @@ def manualFitting(inputX, inputY):
     return N, sigma_k_s, sigma_k_c
 
 
+def determineMiddleCoord(xArrFinal, yArrFinal):
+    """
+    Determine middle coordinate from surface area coordinate counting
+    :param xArrFinal:
+    :param yArrFinal:
+    :return:    middle coordinate(?)
+    """
+    yArrFinal = np.array(yArrFinal)
+    #iterate over all values between min and max y
+    minY = min(yArrFinal)
+    maxY = max(yArrFinal)
+    counter = np.array([0], dtype='float64')
+    xtot = np.array([0], dtype='float64')
+    ytot = np.array([0], dtype='float64')
+    for i in range(minY, maxY):
+        indices = np.where(yArrFinal == i)[0]
+        if len(indices) > 0:
+            xatY = [xArrFinal[index] for index in indices]
+            x1 = min(xatY)
+            x2 = max(xatY)
+            xtot += sum(np.arange(x1, x2+1))
+            ytot += i * ((x2+1) - x1)
+            counter += ((x2+1) - x1)
+    middleX = xtot // counter
+    middleY = ytot // counter
+    return [int(middleX), int(middleY)]
+
+
 def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     """
     Main routine to analyse the contact angle around the entire contour of a droplet.
@@ -1385,6 +1481,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #blockSize	Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on.
     #C Constant subtracted from the mean or weighted mean.
     thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
+    #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
@@ -1401,7 +1498,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
-    MANUALPICKING = 0
+    MANUALPICKING = 1
     lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
@@ -1480,6 +1577,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                                                                                            n, contouri,
                                                                                                            thresholdSensitivity,
                                                                                                            MANUALPICKING)
+            imgshape = resizedimg.shape #tuple (height, width, channel)
             print(f"Contour succesfully obtained. Next: obtaining the normals of contour.")
             try:
                 resizedimg = cv2.polylines(resizedimg, np.array([usableContour]), False, (0, 0, 255),
@@ -1496,16 +1594,23 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 if any(t < 0 for t in x0arr) or any(p < 0 for p in y0arr):#Check for weird x or y values, THEY NEVER SHOULD BE NEGATIVE
                     logging.critical("Either an x or y coordinate was found to be negative!\n This should not be possible.")
 
+                #TODO attempting to determine middle coord by making use of "mean surface" area coordinate
+                middleCoord = determineMiddleCoord(x0arr, y0arr)
+
                 tempimg = []
                 tempimg = cv2.polylines(resizedimg, np.array([tempcoords]), False, (0, 255, 0),
                                         20)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
-                tempimg = cv2.resize(tempimg, [round(5328 / 5), round(4608 / 5)],
+                print(f"Middle Coordinates from surface area [x,y] :\n"
+                      f"[{middleCoord[0]}", f" {middleCoord[1]}]")
+                resizedimg = cv2.circle(tempimg, (middleCoord[0], middleCoord[1]), 63, (255, 255, 255), -1)  # draw median middle. abs(np.subtract(imgshape[0], medianmiddleY))
+                tempimg = cv2.resize(tempimg, [round(tempimg.shape[1] / 5), round(tempimg.shape[0] / 5)],
                                      interpolation=cv2.INTER_AREA)  # resize image
+
                 if SHOWPLOTS_SHORT > 0:
                     cv2.imshow( f"Contour of img {np.where(np.array(usedImages) == n)[0][0]} out of {len(usedImages)} with coordinates being used by get_normals", tempimg)
                     cv2.waitKey(2000)
                     cv2.destroyAllWindows()
-                cv2.imwrite(os.path.join(analysisFolder, f"rawImage_x0y0Arr_blue{n}.png"), tempimg)
+                #cv2.imwrite(os.path.join(analysisFolder, f"rawImage_x0y0Arr_blue{n}.png"), tempimg)
 
                 angleDegArr = []
                 xArrFinal = []
@@ -1696,23 +1801,25 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 print(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
 
                 #coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords(x0arr, y0arr, dxarr, dyarr)
-                coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords(vectorsFinal, xArrFinal, yArrFinal)
+                #TODO testing the 'easy way' of determining top&bottom with only min/max because other method fails sometimes?
+                coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords_SIMPLEMINMAX(vectorsFinal, xArrFinal, yArrFinal)
                 print(f"Calculated top and bottom coordinates of the droplet to be:\n"
                       f"Top: x={coordsTop[0]}, y={coordsTop[1]}\n"
                       f"Bottom: x={coordsBottom[0]}, y={coordsBottom[1]}")
+
 
                 resizedimg = cv2.circle(resizedimg, (coordsBottom), 30, (255, 0, 0), -1)    #draw blue circle at calculated bottom/inflection point of droplet
                 resizedimg = cv2.circle(resizedimg, (coordsTop), 30, (0, 255, 0), -1)       #green
 
                 #calculate the nett force over given CA en droplet range
-                tangent_forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(4608, yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
+                tangent_forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
 
                 #determine middle of droplet & plot
                 middleX, middleY,meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
                 fig2, ax2 = plt.subplots()
-                ax2.plot(middleX, abs(np.subtract(4608, middleY)), 'b.', label='intersects of normal vectors')
-                ax2.plot(xArrFinal, abs(np.subtract(4608, yArrFinal)), 'r', label='contour of droplet')
-                ax2.plot(medianmiddleX, abs(np.subtract(4608, medianmiddleY)), 'k.', markersize=20, label='median middle coordinate')
+                ax2.plot(middleX, abs(np.subtract(imgshape[0], middleY)), 'b.', label='intersects of normal vectors')
+                ax2.plot(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), 'r', label='contour of droplet')
+                ax2.plot(medianmiddleX, abs(np.subtract(imgshape[0], medianmiddleY)), 'k.', markersize=20, label='median middle coordinate')
                 ax2.set_xlabel('X-coords'); ax2.set_ylabel('Y-coords')
                 ax2.legend(loc='best')
                 print(f"meanX = {meanmiddleX}, meanY:{meanmiddleY}, medianX = {medianmiddleX}, medianY = {medianmiddleY}")
@@ -1722,7 +1829,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 #PLOTTING various previously calculated OUTSIDE height profiles
                 if xOutwards[-1] != 0:
-                    phi_k, _ = coordsToPhi(x_ks, abs(np.subtract(4608, y_ks)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
+                    phi_k, _ = coordsToPhi(x_ks, abs(np.subtract(imgshape[0], y_ks)), medianmiddleX, abs(np.subtract(imgshape[0], medianmiddleY)))
                     for i in range(0, len(x_ax_heightsCombined)):
                         ax_heightsCombined.plot(x_ax_heightsCombined[i], y_ax_heightsCombined[i], label=f'$\phi$={convertPhiToazimuthal(phi_k[i])[1]/np.pi:.2f}$\pi$ rad')
                     ax_heightsCombined.legend(loc='best')
@@ -1730,9 +1837,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     fig_heightsCombined.savefig(os.path.join(analysisFolder, f'Combined height profiles imgNr {n}.png'), dpi=600)
 
                 #TODO: middle point is not working too well yet, so left& right side are a bit skewed
-                phi, rFromMiddleArray_pixel = coordsToPhi(xArrFinal, abs(np.subtract(4608, yArrFinal)), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))
-                phiTop, rTop_pixel = coordsToPhi(coordsTop[0], abs(np.subtract(4608, coordsTop[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY)))  #the phi at which the 'top' of the droplet is located
-                phiBottom, rBot_pixel = coordsToPhi(coordsBottom[0], abs(np.subtract(4608, coordsBottom[1])), medianmiddleX, abs(np.subtract(4608, medianmiddleY))) #the phi at which the 'bottom' of the droplet is located
+                phi, rFromMiddleArray_pixel = coordsToPhi(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), medianmiddleX, abs(np.subtract(imgshape[0], medianmiddleY)))
+                phiTop, rTop_pixel = coordsToPhi(coordsTop[0], abs(np.subtract(imgshape[0], coordsTop[1])), medianmiddleX, abs(np.subtract(imgshape[0], medianmiddleY)))  #the phi at which the 'top' of the droplet is located
+                phiBottom, rBot_pixel = coordsToPhi(coordsBottom[0], abs(np.subtract(imgshape[0], coordsBottom[1])), medianmiddleX, abs(np.subtract(imgshape[0], medianmiddleY))) #the phi at which the 'bottom' of the droplet is located
 
                 rFromMiddleArray_m = rFromMiddleArray_pixel * conversionXY / 1000   #pixel* conversionXY is in mm, so divide by 1000 to yield in meters
                 rTop_m = rTop_pixel * conversionXY / 1000  # pixel* conversionXY is in mm, so divide by 1000 to yield in meters
@@ -1741,24 +1848,26 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 azimuthalX, phi_normalRadians = convertPhiToazimuthal(phi)
 
                 fig4, ax4 = plt.subplots()
-                condition = [(elem < (np.pi * (1/2)) or elem > (np.pi * (3/2))) for elem in phi]    #condition for top half of sphere
+                #condition = [(elem < (np.pi * (1/2)) or elem > (np.pi * (3/2))) for elem in phi]    #condition for top half of sphere
+                condition = [elem > 0 for elem in phi]  # condition for top half of sphere
                 rightFromMiddle = azimuthalX[condition]
                 leftFromMiddle = azimuthalX[np.invert(condition)]
                 ax4.plot(rightFromMiddle, np.array(angleDegArr)[condition], '.', label='top side')
                 ax4.plot(leftFromMiddle, np.array(angleDegArr)[np.invert(condition)], '.', label='bottom side')
 
-                halfDropletCondition = np.invert((phi>phiBottom) & (phi<phiTop))
-                phi_leftside = phi[halfDropletCondition]
-                ax4.plot(convertPhiToazimuthal(phi_leftside)[0], np.array(angleDegArr)[halfDropletCondition], '.', label='left side')
+                #halfDropletCondition = np.invert((phi>phiBottom) & (phi<phiTop))
+                #phi_leftside = phi[halfDropletCondition]
+                #ax4.plot(convertPhiToazimuthal(phi_leftside)[0], np.array(angleDegArr)[halfDropletCondition], '-', label='left side')
 
-                sovgol_windowSize = round(len(angleDegArr)/10); savgol_order = 3
+                #still playing around with the windowsize. (e.g. round(len(angleDegArr)/10))
+                sovgol_windowSize = round(len(angleDegArr)/40); savgol_order = 3
                 sovgol_windowSize = int(sovgol_windowSize + (np.mod(sovgol_windowSize, 2) == 0))    #ensure window size is uneven
                 #azimuthal_savgol = scipy.signal.savgol_filter(angleDegArr, sovgol_windowSize, savgol_order, mode='wrap')
                 #ax4.plot(azimuthalX, azimuthal_savgol, '--', label=f'savitsky golay filtered. Wsize = {sovgol_windowSize}, order = {savgol_order}')
                 aziCA_savgol_nonuniformed = non_uniform_savgol(azimuthalX, angleDegArr, sovgol_windowSize, savgol_order, mode='periodic')
                 phi_CA_savgol_nonuniformed = non_uniform_savgol(phi, angleDegArr, sovgol_windowSize, savgol_order, mode='periodic')
                 phi_tangentF_savgol_nonuniformed = non_uniform_savgol(phi, tangent_forces, sovgol_windowSize, savgol_order, mode='periodic')
-                ax4.plot(azimuthalX, aziCA_savgol_nonuniformed, '.', label=f'azi savgol filter, nonuniform')
+                ax4.plot(azimuthalX, aziCA_savgol_nonuniformed, '.', markersize=3, label=f'azi savgol filter, nonuniform')
 
                 # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
                 rFromMiddle_savgol = non_uniform_savgol(phi, rFromMiddleArray_m, sovgol_windowSize, savgol_order, mode='periodic')
@@ -1767,11 +1876,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     if phi_sorted[i] <= phi_sorted[i - 1]:
                         phi_sorted[i] = phi_sorted[i - 1] + 1e-5
 
-                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted)
-
                 #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
                 phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
                 phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
+
                 phi_range = np.arange(min(phi), max(phi), 0.05) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
 
@@ -1780,6 +1888,17 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 ax4.legend(loc='best')
                 fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
                 plt.close(fig4)
+
+                fig6, ax6 = plt.subplots()
+                ax6.plot(phi[condition], np.array(angleDegArr)[condition], '.', label='raw data: top side')
+                ax6.plot(phi[np.invert(condition)], np.array(angleDegArr)[np.invert(condition)], '.', label='raw data: bottom side')
+                ax6.plot(phi, aziCA_savgol_nonuniformed, '.', markersize=3, label=f'savgol filter, nonuniform')
+                ax6.plot(phi_range[:-1], phiCA_cubesplined, '.', label=f'CubicSpline fit')
+                ax6.set(title=f"Radial contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'$phi$ (rad))', ylabel='contact angle (deg)')
+                ax6.legend(loc='best')
+                fig6.savefig(os.path.join(analysisFolder, f'Radial contact angle {n:04}.png'), dpi=600)
+                plt.show()
+                plt.close(fig6)
 
                 # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
                 fig5, ax5 = plt.subplots()
@@ -1791,10 +1910,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #ax5.plot(phi_range, np.array(phi_r_savgol_cs(phi_range)) * 1000, 'k--', label='cubic spline fit')
                 #ax5.set_ylabel('Radius length (millimeter)', color='r')
                 ax5.plot(phi_sorted, np.array(phi_tangentF_savgol_sorted), 'r.', label='$F_{hor}$ vs phi data')
-                ax5.plot(phi_range, np.array(phi_tangentF_savgol_cs(phi_range)), 'k--', label='cubic spline fit')
+                ax5.plot(phi_range, np.array(phi_tangentF_savgol_cs(phi_range)), 'k--', label='CubicSpline fit')
                 ax5.set_ylabel('Horizontal force (mN/m)', color='r')
                 ax5_2.plot(phi_sorted, phiCA_savgol_sorted, 'b', label='phi vs CA data')
-                ax5_2.plot(phi_range, phi_CA_savgol_cs(phi_range), 'y--', label='cubic spline fit')
+                ax5_2.plot(phi_range, phi_CA_savgol_cs(phi_range), 'y--', label='CubicSpline fit')
                 ax5.set_xlabel('phi')
 
                 ax5_2.set_ylabel('Contact Angle (deg)', color='b')
@@ -1850,7 +1969,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 # cy_save.append(cy)
 
                 fig3, ax3 = plt.subplots()
-                im3 = ax3.scatter(xArrFinal, abs(np.subtract(4608, yArrFinal)), c=angleDegArr, cmap='jet',
+                im3 = ax3.scatter(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), c=angleDegArr, cmap='jet',
                                   vmin=min(angleDegArr), vmax=max(angleDegArr))
                 ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
                 ax3.legend([f"Median CA (deg): {(statistics.median(angleDegArr)):.2f}"], loc='center left')
@@ -1858,7 +1977,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}.png'), dpi=600)
                 plt.close()
 
-                im1 = ax1[1, 1].scatter(xArrFinal, abs(np.subtract(4608, yArrFinal)), c=angleDegArr, cmap='jet',
+                im1 = ax1[1, 1].scatter(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), c=angleDegArr, cmap='jet',
                                         vmin=min(angleDegArr), vmax=max(angleDegArr))
                 ax1[1, 1].set_xlabel("X-coord"); ax1[1, 1].set_ylabel("Y-Coord"); ax1[1, 1].set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
                 ax1[1, 1].legend([f"Median CA (deg): {(statistics.median(angleDegArr)):.2f}"], loc='center left')
@@ -1893,7 +2012,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 print(f"Some error occured. Still plotting obtained contour")
                 print(traceback.format_exc())
             tstring = str(datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
-            resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 63, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(4608, medianmiddleY))
+            resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 30, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(imgshape[0], medianmiddleY))
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
 
             plt.close() #close all existing figures
@@ -1944,12 +2063,12 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
-    #path = "E:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
+    #path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
     #path = "D:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
@@ -1957,9 +2076,14 @@ def main():
     # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
+    #path = "E:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
+    #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
+
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
+    #path = "E:\\2023_07_31_PODMA_Basler2x_dodecane_2_2_3_WEDGE_1coverslip spacer____MOVEMENT"
 
+    #Zeiss = 520nm, Nikon=533nm
     primaryObtainCARoutine(path, wavelength_laser=520)
     #CA_analysisRoutine(path, wavelength_laser = 533)
 
