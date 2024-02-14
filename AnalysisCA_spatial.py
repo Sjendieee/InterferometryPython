@@ -1408,7 +1408,7 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     #
     return total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data
 
-#TODO trying to get this to work
+#TODO trying to get this to work: dirk sin cos fitting scheme
 def manualFitting(inputX, inputY):
     """
     Goal: fit radial data by sin&cos functions. Tune N for more or less influence of noise
@@ -1418,7 +1418,7 @@ def manualFitting(inputX, inputY):
     """
     print(f"In manualFitting(): min & max inputX = {min(inputX)}, {max(inputX)}. If this is not -pi to pi, something's up...\n")
     integratedY_trapz = scipy.integrate.trapz(inputY, inputX)
-    print(f"calculated Y of phi: {integratedY_trapz}")
+    print(f"calculated trapz Y of phi: {integratedY_trapz}")
 
     function_s = lambda Y_phi, k, phi: Y_phi*np.sin(k*phi)
     function_c = lambda Y_phi, k, phi: Y_phi * np.cos(k * phi)
@@ -1495,6 +1495,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     usedImages = [46]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
+    outwardsLengthVector = 400
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -1526,7 +1527,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     if not os.path.exists(
             contactAngleListFilePath):  # Create a file for saving median contact angle, if not already existing
         f = open(contactAngleListFilePath, 'w')
-        f.write(f"file number (n), delta time from 0 (s), median CA (deg), Horizontal component force (mN)\n")
+        f.write(f"file number (n), delta time from 0 (s), median CA (deg), Horizontal component force (mN), middle X-coord, middle Y-coord\n")
         f.close()
         print("Created Median Contact Angle list file.txt")
     else:
@@ -1884,7 +1885,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
                 phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
-                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted)
+                #TODO get this dirk fitting to work
+                #_,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted)
 
                 phi_range = np.arange(min(phi), max(phi), 0.05) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
@@ -2007,7 +2009,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 if n not in ndata:  # if not already saved median CA, save to txt file.
                     CAfile = open(contactAngleListFilePath, 'a')
-                    CAfile.write(f"{n}, {usedDeltaTs[-1]}, {angleDeg_afo_time[-1]}, {totalForce_afo_time[-1]}\n")
+                    CAfile.write(f"{n}, {usedDeltaTs[-1]}, {angleDeg_afo_time[-1]}, {totalForce_afo_time[-1]}, {middleCoord[0]}, {middleCoord[1]}\n")
                     CAfile.close()
 
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
@@ -2068,7 +2070,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
