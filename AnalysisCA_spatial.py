@@ -855,7 +855,18 @@ def timeFormat(time):
     return out
 
 def linearFitLinearRegimeOnly(xarr, yarr, sensitivityR2, k):
+    """
+    Try fitting in linear regime of droplet shape for contact angle analysis
+    :param xarr: array of distance in x-direction
+    :param yarr: array of height
+    :param sensitivityR2: desired minimum R^2 of fit to judge its validity
+    :param k: nr of vector being analysed
+    :return startLinRegimeIndex: index nr from which point forwards the linear regime is taken.
+    :return coef1: calculated a & b values of linear fit
+    :return r2: calculated R^2 of fit
+    """
     #TODO: make it so that if error is too large for linear fit, a NaN is return instead of a completely bogus CA
+    #TODO currently, all values are just returned and the R^2 is checked in a next function
     minimalnNrOfDatapoints = round(len(yarr) * (2/4))
     residualLastTime = 10000        #some arbitrary high value to have the first iteration work
     for i in range(0, len(yarr)-minimalnNrOfDatapoints):    #iterate over the first 2/4 of the datapoints as a starting value
@@ -1625,7 +1636,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 fig_heightsCombined, ax_heightsCombined = plt.subplots()
                 #A list of vector numbers, for which an outwardsVector will be shown & heights can be plotted
-                plotHeightCondition = list(np.arange(0,len(x0arr), len(x0arr)//8))# [300, 581, 4067, 4300]
+                #plotHeightCondition = list(np.arange(0,len(x0arr), len(x0arr)//8))# [300, 581, 4067, 4300]
+                plotHeightCondition = [300, 581, 4067, 4300]
                 heightPlottedCounter = 0
                 for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     try:
@@ -1720,16 +1732,45 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         # plot various height profiles in a seperate figure
                         #every 1/th of the image, an image is plotted
                         # TODO WIP: swelling or height profile outside droplet
-                        HowManyImagesHeightProfile = 8
-                        #np.mod(k, len(x0arr)//HowManyImagesHeightProfile) == 0:
+                        # TODO this part below allows for anchoring at a set distance
+                        # if xOutwards[-1] != 0 and k in plotHeightCondition:
+                        #     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
+                        #     heightNearCL, heightRatioNearCL = swellingRatioNearCL(
+                        #         np.arange(0, len(profileOutwards) + extraPartIndroplet),
+                        #         profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
+                        #     heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3) #apply a savgol filter for data smoothing
+                        #     if heightPlottedCounter == 0:
+                        #         distanceOfEqualHeight = 10         #can be changed: distance at which the profiles must overlap. xOutwards[-1]
+                        #         indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                        #         equalHeight = heightNearCL[indexOfEqualHeight]
+                        #         x_ax_heightsCombined = []
+                        #         y_ax_heightsCombined = []
+                        #         x_ks = []
+                        #         y_ks = []
+                        #
+                        #         ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize = 15, zorder = len(x0arr), label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
+                        #         ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
+                        #         ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet-1], facecolor='blue', alpha=0.3)
+                        #     else:
+                        #         indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                        #         heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight] - equalHeight)  #to set all height profiles at some index to the same height
+                        #     x_ks.append(x0arr[k])
+                        #     y_ks.append(y0arr[k])
+                        #     x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet-1)]]))
+                        #     y_ax_heightsCombined.append(heightNearCL)
+                        #     heightPlottedCounter += 1  # increment counter
+
+                        # TODO WIP: swelling or height profile outside droplet
+                        # TODO this part below sets the anchor at some index within the droplet regime
                         if xOutwards[-1] != 0 and k in plotHeightCondition:
                             extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
-                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(
-                                np.arange(0, len(profileOutwards) + extraPartIndroplet),
+                            #Big function below: for calculating the height profile manually outside droplet by peak selection from intensity profile
+                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet),
                                 profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
-                            heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3) #apply a savgol filter for data smoothing
+                            heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3)  # apply a savgol filter for data smoothing
+
                             if heightPlottedCounter == 0:
-                                distanceOfEqualHeight = 10         #can be changed: distance at which the profiles must overlap. xOutwards[-1]
+                                distanceOfEqualHeight = 10  # can be changed: distance at which the profiles must overlap. xOutwards[-1]
                                 indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
                                 equalHeight = heightNearCL[indexOfEqualHeight]
                                 x_ax_heightsCombined = []
@@ -1737,17 +1778,18 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                 x_ks = []
                                 y_ks = []
 
-                                ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize = 15, zorder = len(x0arr), label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
+                                ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize=15, zorder=len(x0arr), label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
                                 ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
-                                ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet-1], facecolor='blue', alpha=0.3)
+                                ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet - 1], facecolor='blue', alpha=0.3)
                             else:
                                 indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
-                                heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight] - equalHeight)  #to set all height profiles at some index to the same height
+                                heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight] - equalHeight)  # to set all height profiles at some index to the same height
                             x_ks.append(x0arr[k])
                             y_ks.append(y0arr[k])
-                            x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet-1)]]))
+                            x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet - 1)]]))
                             y_ax_heightsCombined.append(heightNearCL)
                             heightPlottedCounter += 1  # increment counter
+
 
                             # Stitching together swelling height & droplet CA height
                             # heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
