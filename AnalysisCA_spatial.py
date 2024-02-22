@@ -1073,7 +1073,8 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     :param lengthVector:    desired vector length over which the intensity profile will be taken
     :param greyresizedimg:
     :return profile: intensity profile over pixels in image between 2 coordinates
-    :reutn lineLengthPixels: amount of pixels the vector spans. Can be used to calculate the length of the vector in e.g. mm
+    :return lineLengthPixels: amount of pixels the vector spans. Can be used to calculate the length of the vector in e.g. mm
+            ^NOTE/TODO: this one should be almost the same for all vectors right?
     """
     if dxarrcoord - x0arrcoord == 0:  # constant x, variable y
         xarr = np.ones(lengthVector) * x0arrcoord
@@ -1420,7 +1421,7 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
     return total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data
 
 #TODO trying to get this to work: dirk sin cos fitting scheme
-def manualFitting(inputX, inputY):
+def manualFitting_1(inputX, inputY):
     """
     Goal: fit radial data by sin&cos functions. Tune N for more or less influence of noise
     :param inputX:
@@ -1432,16 +1433,16 @@ def manualFitting(inputX, inputY):
     print(f"calculated trapz Y of phi: {integratedY_trapz}")
 
     function_s = lambda Y_phi, k, phi: Y_phi*np.sin(k*phi)
-    function_c = lambda Y_phi, k, phi: Y_phi * np.cos(k * phi)
+    function_c = lambda Y_phi, k, phi: Y_phi*np.cos(k*phi)
 
     sigma_k_s = [0]     #sigma_k_s=0  at n=0
-    sigma_k_c = [(2 / np.pi) * scipy.integrate.quad(function_c, min(inputX), max(inputX), args=(inputY, 0,))[0]]
+    sigma_k_c = [(2 / np.pi) * scipy.integrate.quad(function_c, min(inputX), max(inputX), args=(integratedY_trapz, 0,))[0]]
     R_phi_func = lambda phi, n, sigma_n_s, sigma_n_c: sum(sigma_n_s * np.sin(n*phi)) + sum(sigma_n_s * np.cos(n*phi))
 
-    N = [1,2,3,4,5,6,7]
+    N = [1,2,3,4,5]
     for k in N:
-        sigma_k_s.append((1/np.pi) * scipy.integrate.quad(function_s, min(inputX), max(inputX), args=(inputY, k,))[0])
-        sigma_k_c.append((1 / np.pi) * scipy.integrate.quad(function_c, min(inputX), max(inputX), args=(inputY, k,))[0])
+        sigma_k_s.append((1/np.pi) * scipy.integrate.quad(function_s, min(inputX), max(inputX), args=(integratedY_trapz, k,))[0])
+        sigma_k_c.append((1/np.pi) * scipy.integrate.quad(function_c, min(inputX), max(inputX), args=(integratedY_trapz, k,))[0])
     N = np.array([0] + N)
     X_range = np.linspace(min(inputX), max(inputX))
 
@@ -1449,10 +1450,63 @@ def manualFitting(inputX, inputY):
 
     fig1, ax1 = plt.subplots()
     ax1.plot(inputX, inputY, '.', label='raw data')
-    ax1.plot(X_range, Y_range, '-', label='function order N=7')
+    ax1.plot(X_range, Y_range, '-', label=f'function order N={N[-1]}')
     ax1.set(xlabel='Phi (rad)', ylabel='whatever y (?)', title="radial fitting of x vs y with sin and cos")
+    ax1.legend(loc='best')
     plt.show()
 
+    return N, sigma_k_s, sigma_k_c
+
+#TODO trying to get this to work: dirk sin cos fitting scheme
+#for now, seemingly the working one
+def manualFitting(inputX, inputY, path):
+    """
+    Goal: fit radial data by sin&cos functions. Tune N for more or less influence of noise
+    :param inputX: array with radial angles
+    :param inputY: array with data corresponding to the inputX. Must be periodic for this fitting to make sense
+    :return:
+    """
+    colorscheme = 'plasma'
+    cmap = plt.get_cmap(colorscheme)
+    #######
+    I_k__c_j = lambda f_j1, f_j, phi_j1, phi_j, k:  f_j1 * (np.sin(k*phi_j1) / k +
+                                                            (np.cos(k*phi_j1) - np.cos(k*phi_j)) / (k**2 * (phi_j1 - phi_j))) - \
+                                                    f_j * (np.sin(k*phi_j)/k +
+                                                            (np.cos(k*phi_j1) - np.cos(k*phi_j)) / (k**2 * (phi_j1 - phi_j)))
+    f_k__c = lambda I_k__c, k, phi, f_phi : (1/np.pi) * sum([I_k__c_j(f_phi[j+1], f_phi[j], phi[j+1], phi[j], k) for j in range(0, len(f_phi)-1)])
+
+    I_k__s_j = lambda f_j1, f_j, phi_j1, phi_j, k: f_j1 * (-np.cos(k * phi_j1) / k +
+                                                           (np.sin(k*phi_j1) - np.sin(k * phi_j)) /
+                                                           (k**2 * (phi_j1 - phi_j))) + \
+                                                   f_j * (np.cos(k * phi_j) / k -
+                                                          (np.sin(k*phi_j1) - np.sin(k * phi_j)) /
+                                                          (k**2 * (phi_j1 - phi_j)))
+
+    f_k__s = lambda I_k__s, k, phi, f_phi: (1 / np.pi) * sum([I_k__s_j(f_phi[j + 1], f_phi[j], phi[j + 1], phi[j], k) for j in range(0, len(f_phi)-1)])
+    ##########
+    f_phi = lambda x, k, f_c, f_s: sum([f_c[i] * np.cos(i*x) + f_s[i] * np.sin(i*x) for i in range(0, k+1)])
+    ##########
+
+    sigma_k_s = [0]     #sigma_k_s=0  at n=0
+    sigma_k_c = [(1 / (2*np.pi)) * scipy.integrate.trapz(inputY, inputX)]
+
+    N = [10, 40]
+    for k in range(1, N[-1]+1):
+        sigma_k_s.append(f_k__s(I_k__s_j, k, inputX, inputY))
+        sigma_k_c.append(f_k__c(I_k__c_j, k, inputX, inputY))
+    N = np.array([0] + N)
+    X_range = np.linspace(min(inputX), max(inputX), 500)
+
+    fig1, ax1 = plt.subplots()
+    colorGradient = np.linspace(0, 1, len(N))
+    for i, n in enumerate(N[1:]):
+        Y_range = [f_phi(Xval, n, sigma_k_c, sigma_k_s) for Xval in X_range]
+        ax1.plot(X_range, Y_range, '-', label=f'function order N={n}', linewidth=3,  color=cmap(colorGradient[i+1]))
+    ax1.plot(inputX, inputY, '.', label='raw data',  color=cmap(colorGradient[0]), markersize=2)
+    ax1.set(xlabel='Angle Phi (rad)', ylabel='Contact Angle (deg)', title="Fourier fitting of x vs y\n Here, contact angle vs radial angle with fourier fitting")
+    ax1.legend(loc='best')
+    fig1.savefig(os.path.join(path, "Radial CA Fourier fitted.png"), dpi=300)
+    plt.show()
     return N, sigma_k_s, sigma_k_c
 
 
@@ -1503,10 +1557,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
     #usedImages = np.arange(4, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [46]
+    usedImages = [44]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
-    outwardsLengthVector = 400
+    outwardsLengthVector = 0#400
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -1764,9 +1818,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         # TODO this part below sets the anchor at some index within the droplet regime
                         if xOutwards[-1] != 0 and k in plotHeightCondition:
                             extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
+                            xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet)  #distance (nr of datapoints (NOT pixels!))
+                            yBrushAndDroplet = profileOutwards + profile[0:extraPartIndroplet]  #intensity data of brush & some datapoints within dropelt
                             #Big function below: for calculating the height profile manually outside droplet by peak selection from intensity profile
-                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet),
-                                profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
+                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet, yBrushAndDroplet, deltatFromZeroSeconds[n], path, n, k)
                             heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3)  # apply a savgol filter for data smoothing
 
                             if heightPlottedCounter == 0:
@@ -1928,9 +1983,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
                 #TODO get this dirk fitting to work
-                #_,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted)
+                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder)
 
-                phi_range = np.arange(min(phi), max(phi), 0.05) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
+                phi_range = np.arange(min(phi), max(phi), 0.001) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
                 ax4.plot(convertPhiToazimuthal(phi_range[:-1])[0], phiCA_cubesplined, '.', label=f'CubicSpline fit')
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
@@ -2112,7 +2167,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    #path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
@@ -2125,7 +2180,7 @@ def main():
     # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
-    #path = "E:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
+    path = "E:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
     #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
 
     #PODMA on heating stage:
