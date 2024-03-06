@@ -1459,7 +1459,7 @@ def manualFitting_1(inputX, inputY):
 
 #TODO trying to get this to work: dirk sin cos fitting scheme
 #for now, seemingly the working one
-def manualFitting(inputX, inputY, path, Ylabel):
+def manualFitting(inputX, inputY, path, Ylabel, N):
     """
     Goal: fit radial data by sin&cos functions. Tune N for more or less influence of noise
     :param inputX: array with radial angles
@@ -1484,14 +1484,16 @@ def manualFitting(inputX, inputY, path, Ylabel):
 
     f_k__s = lambda I_k__s, k, phi, f_phi: (1 / np.pi) * sum([I_k__s_j(f_phi[j + 1], f_phi[j], phi[j + 1], phi[j], k) for j in range(0, len(f_phi)-1)])
     ##########
+    #x = 1 value for phi to calculate the corresponding y for. k = 1 number, the max order to calculate the fit with.
+    #f_c & f_k = sigma's for sin & cos: array of numbers with (at least) as many numbers as the desired order k
     f_phi = lambda x, k, f_c, f_s: sum([f_c[i] * np.cos(i*x) + f_s[i] * np.sin(i*x) for i in range(0, k+1)])
     ##########
 
     sigma_k_s = [0]     #sigma_k_s=0  at n=0
     sigma_k_c = [(1 / (2*np.pi)) * scipy.integrate.trapz(inputY, inputX)]
 
-    N = [7]
-    for k in range(1, N[-1]+1):
+    #N = [7]
+    for k in range(1, N[-1]+1): #for all orders in range 1 to N, determine the sigma's sin & cos.
         sigma_k_s.append(f_k__s(I_k__s_j, k, inputX, inputY))
         sigma_k_c.append(f_k__c(I_k__c_j, k, inputX, inputY))
     N = np.array([0] + N)
@@ -1499,15 +1501,21 @@ def manualFitting(inputX, inputY, path, Ylabel):
 
     fig1, ax1 = plt.subplots()
     colorGradient = np.linspace(0, 1, len(N))
+
+    func_range = lambda x_range: [f_phi(x, N[-1], sigma_k_c, sigma_k_s) for x in x_range]
+    func_single = lambda x: f_phi(x, N[-1], sigma_k_c, sigma_k_s)
+
     for i, n in enumerate(N[1:]):
         Y_range = [f_phi(Xval, n, sigma_k_c, sigma_k_s) for Xval in X_range]
         ax1.plot(X_range, Y_range, '-', label=f'function order N={n}', linewidth=3,  color=cmap(colorGradient[i+1]))
     ax1.plot(inputX, inputY, '.', label='raw data',  color=cmap(colorGradient[0]), markersize=2)
-    ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel}', title=f"{Ylabel[0]}  vs radial angle with fourier fitting")
+    ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}', title=f"{Ylabel[0]} vs radial angle with fourier fitting")
     ax1.legend(loc='best')
-    fig1.savefig(os.path.join(path, "Radial CA Fourier fitted.png"), dpi=300)
+    fig1.savefig(os.path.join(path, f"{Ylabel[0]} Fourier fitted.png"), dpi=300)
     plt.show()
-    return N, sigma_k_s, sigma_k_c
+
+
+    return func_range, func_single, N, sigma_k_s, sigma_k_c,
 
 
 def determineMiddleCoord(xArrFinal, yArrFinal):
@@ -1549,15 +1557,15 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     """
     #blockSize	Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on.
     #C Constant subtracted from the mean or weighted mean.
-    thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
-    #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
+    #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
+    thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
     #usedImages = np.arange(4, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [46]
+    usedImages = [44]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 0#400
@@ -1978,19 +1986,18 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     if phi_sorted[i] <= phi_sorted[i - 1]:
                         phi_sorted[i] = phi_sorted[i - 1] + 1e-5
 
-                #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
-                phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
-                phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
+                # #cubespline. +[x[0]] and +[y[0]] for required periodic boundary condition
+                # phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
+                # phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
                 #TODO get this dirk fitting to work
-                #TODO get proper outpur which is usefull & turn them into forces
-                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "(deg)"])
-                _, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Contact angle ", "(deg)"])
+                phiCA_fourierFit, phiCA_fourierFit_single, phiCA_N, _, _ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "[deg]"], [30])
+                tangentF_fourierFit, tangentF_fourierFit_single, tangentF_N, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Tangent Force ", "[mN/m]"], [30])
+                rFromMiddle_fourierFit, rFromMiddle_fourierFit_single, rFromMiddle_N, _, _ = manualFitting(phi_sorted, rFromMiddle_savgol_sorted, analysisFolder, ["Radius", "[m]"], [30])
 
-
-                phi_range = np.arange(min(phi), max(phi), 0.001) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
-                phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
-                ax4.plot(convertPhiToazimuthal(phi_range[:-1])[0], phiCA_cubesplined, '.', label=f'CubicSpline fit')
+                phi_range = np.arange(min(phi), max(phi), 0.01) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
+                # phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])      #if using a cubicSpline Fit
+                ax4.plot(convertPhiToazimuthal(phi_range)[0], phiCA_fourierFit(phi_range), '.', label=f'Fourier Fit order: {phiCA_N}')
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
                 fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
@@ -2000,7 +2007,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 ax6.plot(phi[condition], np.array(angleDegArr)[condition], '.', label='raw data: top side')
                 ax6.plot(phi[np.invert(condition)], np.array(angleDegArr)[np.invert(condition)], '.', label='raw data: bottom side')
                 ax6.plot(phi, aziCA_savgol_nonuniformed, '.', markersize=3, label=f'savgol filter, nonuniform')
-                ax6.plot(phi_range[:-1], phiCA_cubesplined, '.', label=f'CubicSpline fit')
+                ax6.plot(phi_range, phiCA_fourierFit(phi_range), '.', label=f'Fourier Fit order: {phiCA_N}')
                 ax6.set(title=f"Radial contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'$phi$ (rad))', ylabel='contact angle (deg)')
                 ax6.legend(loc='best')
                 fig6.savefig(os.path.join(analysisFolder, f'Radial contact angle {n:04}.png'), dpi=600)
@@ -2010,17 +2017,17 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
                 fig5, ax5 = plt.subplots()
                 ax5_2 = ax5.twinx()
-                phi_r_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], rFromMiddle_savgol_sorted + [rFromMiddle_savgol_sorted[0]], bc_type='periodic')
+                # phi_r_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], rFromMiddle_savgol_sorted + [rFromMiddle_savgol_sorted[0]], bc_type='periodic')
 
                 #for plotting r vs phi
                 #ax5.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * 1000, 'r.', label='r vs phi data')
                 #ax5.plot(phi_range, np.array(phi_r_savgol_cs(phi_range)) * 1000, 'k--', label='cubic spline fit')
                 #ax5.set_ylabel('Radius length (millimeter)', color='r')
                 ax5.plot(phi_sorted, np.array(phi_tangentF_savgol_sorted), 'r.', label='$F_{hor}$ vs phi data')
-                ax5.plot(phi_range, np.array(phi_tangentF_savgol_cs(phi_range)), 'k--', label='CubicSpline fit')
+                ax5.plot(phi_range, np.array(tangentF_fourierFit(phi_range)), 'k--', label=f'Fourier fit order: {tangentF_N}')
                 ax5.set_ylabel('Horizontal force (mN/m)', color='r')
                 ax5_2.plot(phi_sorted, phiCA_savgol_sorted, 'b', label='phi vs CA data')
-                ax5_2.plot(phi_range, phi_CA_savgol_cs(phi_range), 'y--', label='CubicSpline fit')
+                ax5_2.plot(phi_range, phiCA_fourierFit(phi_range), 'y--', label=f'Fourier fit order: {phiCA_N}')
                 ax5.set_xlabel('phi')
 
                 ax5_2.set_ylabel('Contact Angle (deg)', color='b')
@@ -2031,9 +2038,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #plt.show()
 
                 #TODO calculate nett horizonal force in for each phi, and fit it with a cubic spline
-                total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
+                #total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
 
-
+                total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data = calculateForceOnDroplet(
+                    tangentF_fourierFit_single, rFromMiddle_fourierFit_single, phiTop, phiBottom, analysisFolder, phi_sorted,
+                    rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
 
                 # #ANIMATION of azimuthal CA
                 # figtemp, axtemp = plt.subplots()
@@ -2170,7 +2179,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
@@ -2183,7 +2192,7 @@ def main():
     # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
-    #path = "E:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
+    path = "H:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
     #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
 
     #PODMA on heating stage:
