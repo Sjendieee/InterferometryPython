@@ -1459,7 +1459,7 @@ def manualFitting_1(inputX, inputY):
 
 #TODO trying to get this to work: dirk sin cos fitting scheme
 #for now, seemingly the working one
-def manualFitting(inputX, inputY, path):
+def manualFitting(inputX, inputY, path, Ylabel):
     """
     Goal: fit radial data by sin&cos functions. Tune N for more or less influence of noise
     :param inputX: array with radial angles
@@ -1490,7 +1490,7 @@ def manualFitting(inputX, inputY, path):
     sigma_k_s = [0]     #sigma_k_s=0  at n=0
     sigma_k_c = [(1 / (2*np.pi)) * scipy.integrate.trapz(inputY, inputX)]
 
-    N = [10, 40]
+    N = [7]
     for k in range(1, N[-1]+1):
         sigma_k_s.append(f_k__s(I_k__s_j, k, inputX, inputY))
         sigma_k_c.append(f_k__c(I_k__c_j, k, inputX, inputY))
@@ -1503,7 +1503,7 @@ def manualFitting(inputX, inputY, path):
         Y_range = [f_phi(Xval, n, sigma_k_c, sigma_k_s) for Xval in X_range]
         ax1.plot(X_range, Y_range, '-', label=f'function order N={n}', linewidth=3,  color=cmap(colorGradient[i+1]))
     ax1.plot(inputX, inputY, '.', label='raw data',  color=cmap(colorGradient[0]), markersize=2)
-    ax1.set(xlabel='Angle Phi (rad)', ylabel='Contact Angle (deg)', title="Fourier fitting of x vs y\n Here, contact angle vs radial angle with fourier fitting")
+    ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel}', title=f"{Ylabel[0]}  vs radial angle with fourier fitting")
     ax1.legend(loc='best')
     fig1.savefig(os.path.join(path, "Radial CA Fourier fitted.png"), dpi=300)
     plt.show()
@@ -1557,7 +1557,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 3
     #usedImages = np.arange(4, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [44]
+    usedImages = [46]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 0#400
@@ -1983,7 +1983,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
                 #TODO get this dirk fitting to work
-                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder)
+                #TODO get proper outpur which is usefull & turn them into forces
+                _,_,_ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "(deg)"])
+                _, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Contact angle ", "(deg)"])
+
 
                 phi_range = np.arange(min(phi), max(phi), 0.001) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])
@@ -2167,7 +2170,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    #path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
@@ -2180,7 +2183,7 @@ def main():
     # path = "F:\\2023_10_31_PLMA_Dodecane_Basler5x_Xp_1_29_S1_FullDropletInFocus"
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
-    path = "E:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
+    #path = "E:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
     #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
 
     #PODMA on heating stage:
