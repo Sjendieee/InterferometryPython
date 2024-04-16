@@ -1021,7 +1021,7 @@ def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n, imgshape
 
 #TODO probably the path is not working as intended
 #TODO Seems to be working just fine?
-def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber):
+def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber, outwardsLengthVector):
     """
     :param xdata: np.aray of x-position data (unit=pixels)
     :param ydata: np.array of y-Intensity data
@@ -1060,7 +1060,7 @@ def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber
     height, h_ratio = heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
                                  axswel0, axswel1, cmap, colorGradient, dryBrushThickness, elapsedtime, figswel0, figswel1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
-                                 range1, range2, source, xshifted, vectorNumber, unitXY="pixels")
+                                 range1, range2, source, xshifted, vectorNumber, outwardsLengthVector, unitXY="pixels")
     return height, h_ratio
 
 #TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
@@ -1466,8 +1466,7 @@ def manualFitting(inputX, inputY, path, Ylabel, N):
     :param inputY: array with data corresponding to the inputX. Must be periodic for this fitting to make sense
     :return:
     """
-    colorscheme = 'plasma'
-    cmap = plt.get_cmap(colorscheme)
+
     #######
     I_k__c_j = lambda f_j1, f_j, phi_j1, phi_j, k:  f_j1 * (np.sin(k*phi_j1) / k +
                                                             (np.cos(k*phi_j1) - np.cos(k*phi_j)) / (k**2 * (phi_j1 - phi_j))) - \
@@ -1500,16 +1499,28 @@ def manualFitting(inputX, inputY, path, Ylabel, N):
     X_range = np.linspace(min(inputX), max(inputX), 500)
 
     fig1, ax1 = plt.subplots()
-    colorGradient = np.linspace(0, 1, len(N))
+    if len(N)>2:
+        colorscheme = 'plasma'
+        cmap = plt.get_cmap(colorscheme)
+        colorGradient = np.linspace(0, 1, len(N))
+    else:
+        colorscheme = 'hsv'
+        cmap = plt.get_cmap(colorscheme)
+        colorGradient = [0.66, 0]
 
     func_range = lambda x_range: [f_phi(x, N[-1], sigma_k_c, sigma_k_s) for x in x_range]
     func_single = lambda x: f_phi(x, N[-1], sigma_k_c, sigma_k_s)
 
     for i, n in enumerate(N[1:]):
         Y_range = [f_phi(Xval, n, sigma_k_c, sigma_k_s) for Xval in X_range]
-        ax1.plot(X_range, Y_range, '-', label=f'function order N={n}', linewidth=3,  color=cmap(colorGradient[i+1]))
+        ax1.plot(X_range, Y_range, '-', label=f'N={n}', linewidth=3,  color=cmap(colorGradient[i+1]))
     ax1.plot(inputX, inputY, '.', label='raw data',  color=cmap(colorGradient[0]), markersize=2)
-    ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}', title=f"{Ylabel[0]} vs radial angle with fourier fitting")
+    #TODO clean this up (messing with plot titles etc) for figure making
+    #ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}', title=f"{Ylabel[0]} vs radial angle with fourier fitting")
+    ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}',
+            title=f"{Ylabel[0]} vs radial angle with fourier fitting\n"
+                  f"Influence of function order parameter")
+
     ax1.legend(loc='best')
     fig1.savefig(os.path.join(path, f"{Ylabel[0]} Fourier fitted.png"), dpi=300)
     plt.show()
@@ -1563,12 +1574,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-    everyHowManyImages = 3
-    #usedImages = np.arange(4, len(imgList), everyHowManyImages)  # 200 is the working one
-    usedImages = [10, 28, 50, 68, 100]
+    everyHowManyImages = 4
+    #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
+    usedImages = [46]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
-    outwardsLengthVector = 0#400
+    outwardsLengthVector = 650      #0 if no swelling profile to be measured.
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -1700,6 +1711,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #A list of vector numbers, for which an outwardsVector will be shown & heights can be plotted
                 #plotHeightCondition = list(np.arange(0,len(x0arr), len(x0arr)//8))# [300, 581, 4067, 4300]
                 plotHeightCondition = [300, 581, 4067, 4300]
+                plotHeightCondition = [round(len(x0arr) / 2)]
                 heightPlottedCounter = 0
                 for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                     try:
@@ -1756,13 +1768,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             # TODO WIP: swelling or height profile outside droplet
                             if xOutwards[-1] != 0:
                                 extraPartIndroplet = 50 #extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
-                                heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
+                                heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet), profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector)
                                 #Stitching together swelling height & droplet CA height
                                 offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000 #height at start of droplet, in relation to the swollen height of PB
                             unwrapped = offsetDropHeight + unwrapped
 
                             fig1, ax1 = plt.subplots(2, 2)
-                            ax1[0, 0].plot(profileOutwards + profile);
+                            ax1[0, 0].plot(profileOutwards + profile, 'k');
                             if xOutwards[-1] != 0:
                                 ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
                                 ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.3)
@@ -1776,8 +1788,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                             # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
                             if xOutwards[-1] != 0:
-                                ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C1');               #plot the swelling ratio outside droplet
-                            ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C0');
+                                ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C0');               #plot the swelling ratio outside droplet
+                            ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C1');
                             ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
                             ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}\nCA={angleDeg:.2f} deg');
                             ax1[0, 1].legend(loc='best')
@@ -1829,7 +1841,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet)  #distance (nr of datapoints (NOT pixels!))
                             yBrushAndDroplet = profileOutwards + profile[0:extraPartIndroplet]  #intensity data of brush & some datapoints within dropelt
                             #Big function below: for calculating the height profile manually outside droplet by peak selection from intensity profile
-                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet, yBrushAndDroplet, deltatFromZeroSeconds[n], path, n, k)
+                            heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet, yBrushAndDroplet, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector)
                             heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3)  # apply a savgol filter for data smoothing
 
                             if heightPlottedCounter == 0:
@@ -1991,9 +2003,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 # phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
                 #TODO get this dirk fitting to work
-                phiCA_fourierFit, phiCA_fourierFit_single, phiCA_N, _, _ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "[deg]"], [30])
-                tangentF_fourierFit, tangentF_fourierFit_single, tangentF_N, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Tangent Force ", "[mN/m]"], [30])
-                rFromMiddle_fourierFit, rFromMiddle_fourierFit_single, rFromMiddle_N, _, _ = manualFitting(phi_sorted, rFromMiddle_savgol_sorted, analysisFolder, ["Radius", "[m]"], [30])
+                N_for_fitting = [8] #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accuractely. Useful for noisy data.
+                phiCA_fourierFit, phiCA_fourierFit_single, phiCA_N, _, _ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "[deg]"], N_for_fitting)
+                tangentF_fourierFit, tangentF_fourierFit_single, tangentF_N, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Tangent Force ", "[mN/m]"], N_for_fitting)
+                rFromMiddle_fourierFit, rFromMiddle_fourierFit_single, rFromMiddle_N, _, _ = manualFitting(phi_sorted, rFromMiddle_savgol_sorted, analysisFolder, ["Radius", "[m]"], N_for_fitting)
 
                 phi_range = np.arange(min(phi), max(phi), 0.01) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 # phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])      #if using a cubicSpline Fit
@@ -2179,7 +2192,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
@@ -2193,7 +2206,7 @@ def main():
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
     #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
-    path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
+    #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
 
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
