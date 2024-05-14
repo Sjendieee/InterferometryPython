@@ -413,7 +413,7 @@ def selectAreaAndFindContour(resizedimg, thresholdSensitivity, resizeFactor):
 # Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
 # Parses all 'outer' coordinates, not only on right side of droplet
 #With working popup box for checking and changing contour
-def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, contourCoords = 0, FITGAPS_POLYOMIAL=True):
+def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, contourCoords = 0, FITGAPS_POLYOMIAL=False):
     minimalDifferenceValue = 100    #Value of minimal difference in x1 and x2 at same y-coord to check for when differentiating between entire droplet & partial contour & fish-hook-like contour
     img = cv2.imread(imgPath)  # read in image
     grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
@@ -657,6 +657,8 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                         usableContourMax.append([max(xListpery), j])    #add the max [x,y] into a list
                         usableContourMin.append([min(xListpery), j])    #add the min [x,y] into another list
                 usableContour = usableContourMax + usableContourMin[::-1]   #combine lists, such that the coordinates are listed counter-clockwise
+                useableylist = np.array([elem[1] for elem in usableContour])
+                useablexlist = [elem[0] for elem in usableContour]
 
 
                 usableContourCopy = np.array(usableContour)
@@ -1577,7 +1579,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 4
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [7]
+    usedImages = [48]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 0      #0 if no swelling profile to be measured.
@@ -1646,6 +1648,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 contouri = [-1]
                 thresholdSensitivity = thresholdSensitivityStandard
             print(f"Determining contour for image n = {n}/{len(imgList)}, or nr {list(usedImages).index(n)+1} out of {len(usedImages)}")
+
             # One of the main functions: outputs the coordinates of the desired contour of current image
             if n == usedImages[0] and MANUALPICKING != 0:  # on first iteration, don't parse previous coords (because there are none)
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
@@ -2211,7 +2214,10 @@ def main():
     #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
 
     #New P12MA dataset from 2024/05/07
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
+    #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
+    #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
+    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+
 
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
