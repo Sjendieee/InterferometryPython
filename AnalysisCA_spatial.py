@@ -1,5 +1,7 @@
 import itertools
 import os.path
+import pickle
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -413,7 +415,23 @@ def selectAreaAndFindContour(resizedimg, thresholdSensitivity, resizeFactor):
 # Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
 # Parses all 'outer' coordinates, not only on right side of droplet
 #With working popup box for checking and changing contour
-def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, contourCoords = 0, FITGAPS_POLYOMIAL=False):
+def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, **kwargs):
+    contourCoords = 0
+    FITGAPS_POLYOMIAL = True
+    saveCoordinates = False     #save obtained [x,y] coordinates to a .txt file
+    coordinatesListFilePath = os.path.join(os.path.dirname(contourListFilePath), f"ContourCoords\\coordinatesListFilePath_{n}.txt")
+    for keyword, value in kwargs.items():
+        if keyword == "contourcoords":
+            contourCoords = value
+        elif keyword == "fitgapspolynomial":
+            FITGAPS_POLYOMIAL = value
+        elif keyword == "saveCoordinates":
+            saveCoordinates = value
+        elif keyword == "coordinatesListFilePath":
+            coordinatesListFilePath = value
+        else:
+            logging.error(f"Incorrect keyword inputted: {keyword} is not known")
+
     minimalDifferenceValue = 100    #Value of minimal difference in x1 and x2 at same y-coord to check for when differentiating between entire droplet & partial contour & fish-hook-like contour
     img = cv2.imread(imgPath)  # read in image
     grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
@@ -676,7 +694,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                         #OG CODE END
 
                         # TODO check for gaps in x axis
-                        if abs(usableContourCopy[ii][0] - usableContourCopy[ii + 1][0]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
+                        if abs(usableContourCopy[ii][0] - usableContourCopy[ii + 1][0]) > 20:      #if difference in x between 2 appending coords is large, a horizontal gap in the contour is formed
                             xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
                             yrange_for_fitting = [i[1] for i in usableContourCopy[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
                             # xrange_for_fitting = usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
@@ -696,7 +714,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
                         #TODO then check for gaps in y-direction
                         #TODO THIS IS STILL WRONG !!!
-                        if abs(usableContourCopy[ii][1] - usableContourCopy[ii + 1][1]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
+                        elif abs(usableContourCopy[ii][1] - usableContourCopy[ii + 1][1]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
                             # xrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
                             # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
                             xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
@@ -724,7 +742,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                         copyImg = resizedimg.copy()
                         tempimg = cv2.polylines(copyImg, np.array([usableContourCopy_instertion]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
                         tempimg = cv2.resize(tempimg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
-                        cv2.imshow(f"IS THIS POLYNOMIAL FITTED GOOD???????", tempimg)
+                        cv2.imshow(f"IS THIS POLYNOMIAL FITTED GOOD???", tempimg)
                         choices = ["Yes (continue)", "No (don't use fitted polynomial)"]
                         myvar = easygui.choicebox("IS THIS POLYNOMIAL FITTED GOOD?", choices=choices)
                         if myvar == choices[1]:
@@ -751,7 +769,35 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 file.write(f"{n}; {iout[0]}; {thresholdSensitivity[0]}; {thresholdSensitivity[1]}\n")
             file.close()
 
+        if saveCoordinates == True:
+            # file = open(coordinatesListFilePath, 'a')
+            # file.write(f"{usableContour}")
+            # file.close()
+            if os.path.exists(os.path.dirname(coordinatesListFilePath)):
+                with open(coordinatesListFilePath, 'wb') as internal_filename:
+                    pickle.dump(usableContour, internal_filename)
+            else:
+                logging.error("Path to folder in which the contour coordinates file is to be saved DOES NOT exist.\n"
+                              "When parsing 'saveCoordinates' = True, make sure 'coordinatesListFilePath' is parsed (correctly) as well")
+
     return useablexlist, useableylist, usableContour, resizedimg, greyresizedimg
+
+def getContourCoordsFromDatafile(imgPath, coordinatesListFilePath):
+
+    with open(coordinatesListFilePath, 'rb') as new_filename:
+        usableContour = pickle.load(new_filename)
+    #file = open(coordinatesListFilePath, 'r')
+    #usableContour = file.readlines()
+    useableylist = np.array([elem[1] for elem in usableContour])
+    useablexlist = [elem[0] for elem in usableContour]
+
+    #TODO Not not nice for now, but for the code to work (same as in getContourCoordsV4())
+    img = cv2.imread(imgPath)  # read in image
+    grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
+    greyresizedimg = grayImg
+    resizedimg = img
+    return useablexlist, useableylist, usableContour, resizedimg, greyresizedimg
+
 
 
 def importConversionFactors(procStatsJsonPath):
@@ -1587,16 +1633,20 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     FLIPDATA = True
     SHOWPLOTS_SHORT = 0  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
     sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
-    FITGAPS_POLYOMIAL = False
-
+    FITGAPS_POLYOMIAL = True
+    saveCoordinates = True  #for saving the actual pixel coordinates for each file analyzed.
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
-    MANUALPICKING = 0
+    MANUALPICKING = 1
     lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
         print('created path: ', analysisFolder)
-    contourListFilePath = os.path.join(analysisFolder, "ContourListFile.txt")
+    contourListFilePath = os.path.join(analysisFolder, "ContourListFile.txt")       #for saving the settings how the contour was obtained (but fails when the experimental box is drawn manually for getting contour)
+    contourCoordsFolderFilePath = os.path.join(analysisFolder, "ContourCoords")     #folder for saving individual .txt files containing contour coordinates
+    if not os.path.exists(contourCoordsFolderFilePath):
+        os.mkdir(contourCoordsFolderFilePath)
+        print('created path: ', contourCoordsFolderFilePath)
     contactAngleListFilePath = os.path.join(analysisFolder, "ContactAngle_MedianListFile.txt")
     if os.path.exists(
             contourListFilePath):  # read in all contourline data from existing file (filenr ,+ i for obtaining contour location)
@@ -1649,28 +1699,56 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 thresholdSensitivity = thresholdSensitivityStandard
             print(f"Determining contour for image n = {n}/{len(imgList)}, or nr {list(usedImages).index(n)+1} out of {len(usedImages)}")
 
-            # One of the main functions: outputs the coordinates of the desired contour of current image
-            if n == usedImages[0] and MANUALPICKING != 0:  # on first iteration, don't parse previous coords (because there are none)
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
-                                                                                                           contourListFilePath,
-                                                                                                           n, contouri,
-                                                                                                           thresholdSensitivity,
-                                                                                                           MANUALPICKING, FITGAPS_POLYOMIAL)
+
+
+            #Trying for automatic coordinate finding, using coordinates of a previous iteration.
             # TODO doesn't work as desired: now finds contour at location of previous one, but not the aout CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
-            elif n - usedImages[list(usedImages).index(
-                    n) - 1] == everyHowManyImages and MANUALPICKING == 2:  # if using sequential images, use coordinates of previous image
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
-                                                                                                           contourListFilePath,
-                                                                                                           n, contouri,
-                                                                                                           thresholdSensitivity,
-                                                                                                           MANUALPICKING,
-                                                                                                           usableContour, FITGAPS_POLYOMIAL)
-            else:  # else, don't parse coordinates (let user define them themselves)
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
-                                                                                                           contourListFilePath,
-                                                                                                           n, contouri,
-                                                                                                           thresholdSensitivity,
-                                                                                                           MANUALPICKING, FITGAPS_POLYOMIAL)
+            if MANUALPICKING == 2 and n != usedImages[0] and n - usedImages[list(usedImages).index(n) - 1] == everyHowManyImages:
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
+                    getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, usablecontour=usableContour, fitgapspolynomial=FITGAPS_POLYOMIAL)
+            #in any other case
+            else:
+                coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"coordinatesListFilePath_{n}.txt")
+                #If allowing importing known coords:
+                if (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):  # if coordinates were already written out
+                    useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
+                #if not allowing, or coords not known yet:
+                else:
+                    useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
+                        getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
+
+
+
+            ##TODO older piece of code: the above should function exactly the same, but more compact. Remove below later if all works fine
+            # # One of the main functions: outputs the coordinates of the desired contour of current image
+            # #On first iteration, don't parse previous coords (because there are none)
+            # if n == usedImages[0] and MANUALPICKING != 0:
+            #     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
+            #                                                                                                contourListFilePath,
+            #                                                                                                n, contouri,
+            #                                                                                                thresholdSensitivity,
+            #                                                                                                MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates = saveCoordinates)
+            # #Trying for automatic coordinate finding, using coordinates of a previous iteration.
+            # # TODO doesn't work as desired: now finds contour at location of previous one, but not the aout CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
+            # elif n - usedImages[list(usedImages).index(
+            #         n) - 1] == everyHowManyImages and MANUALPICKING == 2:  # if using sequential images, use coordinates of previous image
+            #     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
+            #                                                                                                contourListFilePath,
+            #                                                                                                n, contouri,
+            #                                                                                                thresholdSensitivity,
+            #                                                                                                MANUALPICKING,
+            #                                                                                                usablecontour=usableContour, fitgapspolynomial=FITGAPS_POLYOMIAL)
+            # else:  # else, don't parse coordinates (let user define them themselves)
+            #     coordinatesListFilePath = os.path.join(os.path.dirname(contourListFilePath), f"coordinatesListFilePath_{n}.txt")
+            #     if (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):  #if coordinates were already written out
+            #         useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
+            #     else:
+            #         useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
+            #                                                                                                contourListFilePath,
+            #                                                                                                n, contouri,
+            #                                                                                                thresholdSensitivity,
+            #                                                                                                MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates = saveCoordinates)
+
             imgshape = resizedimg.shape #tuple (height, width, channel)
             print(f"Contour succesfully obtained. Next: obtaining the normals of contour.")
             try:
