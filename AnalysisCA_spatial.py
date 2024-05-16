@@ -1582,7 +1582,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     usedImages = [48]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
-    outwardsLengthVector = 0      #0 if no swelling profile to be measured.
+    outwardsLengthVector = 0      #0, 590 if no swelling profile to be measured.
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 0  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -1782,8 +1782,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             ax1[0, 0].plot(profileOutwards + profile, 'k');
                             if xOutwards[-1] != 0:
                                 ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
-                                ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.3)
-                            ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.3)
+                                ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5, label='brush profile')
+                            ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5, label='droplet')
                             ax1[0, 0].legend(loc='best')
                             ax1[0, 0].set_title(f"Intensity profile");
 
