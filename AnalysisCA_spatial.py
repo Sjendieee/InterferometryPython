@@ -1753,7 +1753,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     usedImages = [32, 48, 70, 125]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
-    outwardsLengthVector = 0      #0 if no swelling profile to be measured.
+    outwardsLengthVector = 0      #0, 590 if no swelling profile to be measured.
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 0  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
@@ -1997,14 +1997,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                     offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000 #height at start of droplet, in relation to the swollen height of PB
                                 unwrapped = offsetDropHeight + unwrapped
 
-                                fig1, ax1 = plt.subplots(2, 2)
-                                ax1[0, 0].plot(profileOutwards + profile, 'k');
-                                if xOutwards[-1] != 0:
-                                    ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
-                                    ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.3)
-                                ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.3)
-                                ax1[0, 0].legend(loc='best')
-                                ax1[0, 0].set_title(f"Intensity profile");
+                            fig1, ax1 = plt.subplots(2, 2)
+                            ax1[0, 0].plot(profileOutwards + profile, 'k');
+                            if xOutwards[-1] != 0:
+                                ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
+                                ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5, label='brush profile')
+                            ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5, label='droplet')
+                            ax1[0, 0].legend(loc='best')
+                            ax1[0, 0].set_title(f"Intensity profile");
 
                                 ax1[1, 0].plot(wrapped);
                                 ax1[1, 0].plot(peaks, wrapped[peaks], '.')
@@ -2152,6 +2152,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 print(f"Calculated top and bottom coordinates of the droplet to be:\n"
                       f"Top: x={coordsTop[0]}, y={coordsTop[1]}\n"
                       f"Bottom: x={coordsBottom[0]}, y={coordsBottom[1]}")
+
 
                 resizedimg = cv2.circle(resizedimg, (coordsBottom), 30, (255, 0, 0), -1)    #draw blue circle at calculated bottom/inflection point of droplet
                 resizedimg = cv2.circle(resizedimg, (coordsTop), 30, (0, 255, 0), -1)       #green
