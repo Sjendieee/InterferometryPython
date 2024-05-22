@@ -2006,26 +2006,26 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             ax1[0, 0].legend(loc='best')
                             ax1[0, 0].set_title(f"Intensity profile");
 
-                                ax1[1, 0].plot(wrapped);
-                                ax1[1, 0].plot(peaks, wrapped[peaks], '.')
-                                ax1[1, 0].set_title("Wrapped profile (drop only)")
+                            ax1[1, 0].plot(wrapped);
+                            ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                            ax1[1, 0].set_title("Wrapped profile (drop only)")
 
-                                # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                                if xOutwards[-1] != 0:
-                                    ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C0');               #plot the swelling ratio outside droplet
-                                ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C1');
-                                ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
-                                ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}\nCA={angleDeg:.2f} deg');
-                                ax1[0, 1].legend(loc='best')
-                                ax1[0, 1].set_title("Brush & drop height vs distance")
+                            # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+                            if xOutwards[-1] != 0:
+                                ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C0');               #plot the swelling ratio outside droplet
+                            ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C1');
+                            ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
+                            ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}\nCA={angleDeg:.2f} deg');
+                            ax1[0, 1].legend(loc='best')
+                            ax1[0, 1].set_title("Brush & drop height vs distance")
 
-                                ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
-                                ax1[0, 0].set_ylabel("Intensity (a.u.)")
-                                ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
-                                ax1[1, 0].set_ylabel("Amplitude (a.u.)")
-                                ax1[0, 1].set_xlabel("Distance (um)");
-                                ax1[0, 1].set_ylabel("Height profile (nm)")
-                                fig1.set_size_inches(12.8, 9.6)
+                            ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+                            ax1[0, 0].set_ylabel("Intensity (a.u.)")
+                            ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+                            ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+                            ax1[0, 1].set_xlabel("Distance (um)");
+                            ax1[0, 1].set_ylabel("Height profile (nm)")
+                            fig1.set_size_inches(12.8, 9.6)
 
                             # plot various height profiles in a seperate figure
                             #every 1/th of the image, an image is plotted
@@ -2133,13 +2133,6 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                 fig10.subplots_adjust(top=0.88)
                                 fig10.savefig(os.path.join(analysisFolder, f"Height profiles - imageNr {n}, vectorNr {k}.png"), dpi=600)
                                 plt.close(fig10)
-                            # if angleDeg < 1.8:
-                            #     print("we pausin'")
-                            #     plt.plot(x, unwrapped * 1000);
-                            #     plt.title("For deg< 1.8: Drop height vs distance (unwrapped profile)")
-                            #     plt.plot(x, np.poly1d(coef1)(x) * 1000, linewidth=0.5)
-                            #     plt.legend([f'R2={r2}'])
-                            #     plt.show()
                         except:
                             logging.error(f"!{k}: Analysing each coordinate & normal vector broke!")
                             print(traceback.format_exc())
