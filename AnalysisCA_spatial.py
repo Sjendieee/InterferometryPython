@@ -361,12 +361,14 @@ def getContourList(grayImg, thresholdSensitivity):
 
 def tryVariousThreshholdSensitivities(grayImg, thresholdSensitivityrange1, thresholdSensitivityrange2):
     workingThreshes = []
+    threshesToShow = 15
     contourArea = 5000
+    totalcounter = 0
     for thresh1 in thresholdSensitivityrange1:
         counter = 0
         for thresh2 in thresholdSensitivityrange2:
             try:
-                if counter < 3: #only try for 3 thresh2-s at the same thresh1
+                if counter < 3 and totalcounter < threshesToShow: #only try for 3 thresh2-s at the same thresh1
                     thresh = cv2.adaptiveThreshold(grayImg, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, thresh1, thresh2)
                     contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
                     for contour in contours:
@@ -380,10 +382,16 @@ def tryVariousThreshholdSensitivities(grayImg, thresholdSensitivityrange1, thres
                                  print(f"{thresh1, thresh2}")
                                  break
                     counter=+1
+                    totalcounter=+1
             except:
                 pass
+    if totalcounter == threshesToShow:
+        logging.warning(f"Stopped displaying working threshold sensitivities after {threshesToShow} were found.\n "
+                        f"If for whatever reason you want more next time, change 'threshesToShow' in the code manually."  )
     return workingThreshes
 
+
+#TODO Purely for manually selecting a part of an image in which a contour must be found
 def selectAreaAndFindContour(resizedimg, thresholdSensitivity, resizeFactor):
     tempimg = []
     copyImg = resizedimg.copy()
@@ -405,10 +413,13 @@ def selectAreaAndFindContour(resizedimg, thresholdSensitivity, resizeFactor):
     cv2.imshow('Partial image', tempimg2)
     cv2.waitKey(0)
     contourList, nrOfContoursToShow, thresholdSensitivity = getContourList(selectionOfInterest, thresholdSensitivity)  # obtain new contours with new thresholldSensitivity
+    if len(contourList) == 0:
+        logging.warning(f"INFO: no contours found in selected region!")
     adjustedContourList = []
     for contour in contourList:
         adjustedContourList.append([np.array([[elem[0][0] + P1[0], elem[0][1]+P1[1]]]) for elem in contour])
 
+    right_clicks = list()
     return adjustedContourList
 
 
@@ -524,6 +535,9 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
     #make popup box to show next contour (or previous) if desired
     while goodContour == False:
         if len(contourList) > 0:
+            if i >= len(contourList):    #to make sure list index cannot be out of range
+                logging.warning(f"INFO: i ({i})was smaller than the len of contourlist {len(contourList)} and has therefore be changed to {len(contourList)-1}")
+                i = len(contourList)-1
             tempimg = []
             copyImg = resizedimg.copy()
             tempimg = cv2.polylines(copyImg, np.array([contourList[i]]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
@@ -543,18 +557,26 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             #TODO iterate over a bunch of thresholds, and suggest a few working ones
             cv2.imshow(f"Contour img with current selection of contour {i + 1} out of {nrOfContoursToShow}", tempimg)
 
-            choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)",
+            choices = ["One contour outwards (-i)",
+                       "Current contour is fine",
+                       "One contour inwards (+1)",
                        "Stitch multiple contours together: first selection",
-                       "No good contours: Ajdust threshold sensitivities", "No good contours: quit programn",
-                       "EXPERIMENTAL: Drawing box in which contour MUST be found (in case it never finds it there)"]
+                       "No good contours: Ajdust threshold sensitivities",
+                       "No good contours: quit programn",
+                       "EXPERIMENTAL: Drawing box in which contour MUST be found (in case it never finds it there)",
+                       "Suggest working thresholds. This might take some time."]
             myvar = easygui.choicebox("From the get-go, no contours were obtained with this threshold sensitivity. Choose option 5 to change this.\n"
                                       "Working thresholds are suggested in the terminal. This might take some time", choices=choices)
-            if firstTimeNoContours:
-                thresholdSensitivityrange1 = np.arange(1, 80, 3)
-                thresholdSensitivityrange2 = np.arange(1, 80, 3)
-                workingthreshholds = tryVariousThreshholdSensitivities(grayImg, thresholdSensitivityrange1, thresholdSensitivityrange2)
-                print(f"{workingthreshholds}")
-                firstTimeNoContours = False
+            if myvar == choices[7]:
+                if firstTimeNoContours:
+                    thresholdSensitivityrange1 = np.arange(1, 80, 3)
+                    thresholdSensitivityrange2 = np.arange(1, 80, 3)
+                    workingthreshholds = tryVariousThreshholdSensitivities(grayImg, thresholdSensitivityrange1, thresholdSensitivityrange2)
+                    print(f"{workingthreshholds}")
+                    firstTimeNoContours = False
+                else:
+                    logging.warning("Already printed working contours previously to terminal. Not doing that again.")
+
         #cv2.waitKey(0)
 
         if myvar == choices[0]: #picks different i-1, if possible
@@ -636,7 +658,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             allXValuesMiddle = [xlist[i] for i in allYindicesAtMiddle]
             if abs(max(allXValuesMiddle) - min(allXValuesMiddle)) < minimalDifferenceValue: #X-values close together -> weird contour at only a part (primarily left or right) of the droplet
                 case = 1
-                logging.info("PARTIAL DROPLET - as determined by getCountourCoords() code ")
+                logging.warning("PARTIAL DROPLET - as determined by getCountourCoords() code ")
                 for j in range(min(ylist), max(ylist)):     #iterate over all y-coordinates from lowest to highest
                     indexesJ = np.where(ylist == j)[0]      #find all x-es at 1 y-coord
                     xListpery = [xlist[x] for x in indexesJ]
@@ -660,8 +682,9 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
             else:   #far spaced x-values: probably contour of an entire droplet: take the min & max at every y-coordinate
                 case = 2
-                logging.info("WHOLE DROPLET - as determined by getCountourCoords() code ")
-                for j in range(min(ylist), max(ylist)):  # iterate over all y-coordinates form lowest to highest
+                logging.warning("WHOLE DROPLET - as determined by getCountourCoords() code ")
+                #for j in range(min(ylist), max(ylist)):  # iterate over all y-coordinates form lowest to highest
+                for j in sorted(set(ylist)):        #iterate through all values in ylist (with duplicates removed)
                     indexesJ = np.where(ylist == j)[0]  # find all x-es at 1 y-coord
 
                     xListpery = [xlist[x] for x in indexesJ]    #list all x'es at that y
@@ -1436,7 +1459,7 @@ def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
         #by extending the x & y manually in beginning, the periodic boundary condition is already fulfilled
         y_smoothed = y_smoothed[half_window:-half_window]
         if startLenghtX == len(y_smoothed):
-            logging.info("nice, everything went well")
+            logging.warning("nice, everything went well")
         else:
             logging.error("help, something is wrong")
     return y_smoothed
@@ -1743,14 +1766,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #C Constant subtracted from the mean or weighted mean.
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
-    thresholdSensitivityStandard = [13, 5]
+    #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
+    usedImages = [172, 205, 226, 283, 322, 352]
+    thresholdSensitivityStandard = [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 4
-    #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [32, 48, 70, 125]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 0      #0, 590 if no swelling profile to be measured.
@@ -1997,35 +2020,36 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                     offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000 #height at start of droplet, in relation to the swollen height of PB
                                 unwrapped = offsetDropHeight + unwrapped
 
-                            fig1, ax1 = plt.subplots(2, 2)
-                            ax1[0, 0].plot(profileOutwards + profile, 'k');
-                            if xOutwards[-1] != 0:
-                                ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
-                                ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5, label='brush profile')
-                            ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5, label='droplet')
-                            ax1[0, 0].legend(loc='best')
-                            ax1[0, 0].set_title(f"Intensity profile");
+                                fig1, ax1 = plt.subplots(2, 2)
+                                ax1[0, 0].plot(profileOutwards + profile, 'k');
+                                if xOutwards[-1] != 0:
+                                    ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.', label='transition brush-droplet')
+                                    ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5, label='brush profile')
+                                ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5, label='droplet')
+                                ax1[0, 0].legend(loc='best')
+                                ax1[0, 0].set_title(f"Intensity profile");
 
-                            ax1[1, 0].plot(wrapped);
-                            ax1[1, 0].plot(peaks, wrapped[peaks], '.')
-                            ax1[1, 0].set_title("Wrapped profile (drop only)")
+                                ax1[1, 0].plot(wrapped);
+                                ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                                ax1[1, 0].set_title("Wrapped profile (drop only)")
 
-                            # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                            if xOutwards[-1] != 0:
-                                ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C0');               #plot the swelling ratio outside droplet
-                            ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C1');
-                            ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
-                            ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}\nCA={angleDeg:.2f} deg');
-                            ax1[0, 1].legend(loc='best')
-                            ax1[0, 1].set_title("Brush & drop height vs distance")
+                                # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+                                if xOutwards[-1] != 0:
+                                    ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color ='C0');               #plot the swelling ratio outside droplet
+                                ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation",color='C1');
+                                ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
+                                # '\nCA={angleDeg:.2f} deg. ' Initially had this in label below, but because of code order change angledeg is not defined yet
+                                ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000 , '--', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}');
+                                ax1[0, 1].legend(loc='best')
+                                ax1[0, 1].set_title("Brush & drop height vs distance")
 
-                            ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
-                            ax1[0, 0].set_ylabel("Intensity (a.u.)")
-                            ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
-                            ax1[1, 0].set_ylabel("Amplitude (a.u.)")
-                            ax1[0, 1].set_xlabel("Distance (um)");
-                            ax1[0, 1].set_ylabel("Height profile (nm)")
-                            fig1.set_size_inches(12.8, 9.6)
+                                ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+                                ax1[0, 0].set_ylabel("Intensity (a.u.)")
+                                ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+                                ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+                                ax1[0, 1].set_xlabel("Distance (um)");
+                                ax1[0, 1].set_ylabel("Height profile (nm)")
+                                fig1.set_size_inches(12.8, 9.6)
 
                             # plot various height profiles in a seperate figure
                             #every 1/th of the image, an image is plotted
@@ -2525,7 +2549,9 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
+    path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
 
     #PODMA on heating stage:
