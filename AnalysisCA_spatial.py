@@ -5,6 +5,7 @@ import pickle
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter, MultipleLocator
 import matplotlib.animation as animation
 import shapely
 import math
@@ -1767,7 +1768,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [1]
+    usedImages = [46]
     thresholdSensitivityStandard = [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -1959,6 +1960,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     #plotHeightCondition = list(np.arange(0,len(x0arr), len(x0arr)//8))# [300, 581, 4067, 4300]
                     plotHeightCondition = [300, 581, 4067, 4300]
                     plotHeightCondition = [round(len(x0arr) / 2)]
+                    plotHeightCondition = [round(len(x0arr) / 4), round(len(x0arr) * 3 / 2)]
                     heightPlottedCounter = 0
                     for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
                         try:
@@ -1966,7 +1968,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             profileOutwards = []
                             lineLengthPixelsOutwards = 0
                             if outwardsLengthVector != 0:
-                                profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k],dxnegarr[k],dynegarr[k],outwardsLengthVector,greyresizedimg)
+                                profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],dynegarr[k],outwardsLengthVector,greyresizedimg)
                                 xOutwards = np.linspace(0, lineLengthPixelsOutwards,len(profileOutwards)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
                                 profileOutwards.reverse()  # correct stitching of in-&outwards profiles requires reversing of the outwards profile
 
@@ -2184,51 +2186,54 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 temp_vectorsFinal = vectorsFinal
 
                 if FILTERED:    #already filtered, only plot the contact angle scatterplot
-                    fig1, ax1 = plt.subplots(2, 2)
-                    ax1[0, 0].plot(profileOutwards + profile, 'k');
-                    if xOutwards[-1] != 0:
-                        ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.',
-                                       label='transition brush-droplet')
-                        ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5, label='brush profile')
-                    ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5,
-                                      label='droplet')
-                    ax1[0, 0].legend(loc='best')
-                    ax1[0, 0].set_title(f"Intensity profile");
-
-                    ax1[1, 0].plot(wrapped);
-                    ax1[1, 0].plot(peaks, wrapped[peaks], '.')
-                    ax1[1, 0].set_title("Wrapped profile (drop only)")
-
-                    # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-                    if xOutwards[-1] != 0:
-                        ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)],
-                                       label="Swelling fringe calculation",
-                                       color='C0');  # plot the swelling ratio outside droplet
-                    ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation", color='C1');
-                    ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.',
-                                   label='Start linear regime droplet');
-                    # '\nCA={angleDeg:.2f} deg. ' Initially had this in label below, but because of code order change angledeg is not defined yet
-                    ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000, '--', linewidth=1,
-                                   label=f'Linear fit, R$^2$={r2:.3f}');
-                    ax1[0, 1].legend(loc='best')
-                    ax1[0, 1].set_title("Brush & drop height vs distance")
-
-                    ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
-                    ax1[0, 0].set_ylabel("Intensity (a.u.)")
-                    ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
-                    ax1[1, 0].set_ylabel("Amplitude (a.u.)")
-                    ax1[0, 1].set_xlabel("Distance (um)");
-                    ax1[0, 1].set_ylabel("Height profile (nm)")
-                    fig1.set_size_inches(12.8, 9.6)
-
-                    #plotting for fig3
-                    fig3, ax3 = plt.subplots()
-                    im3 = ax3.scatter(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), c=angleDegArr, cmap='jet', vmin=min(angleDegArr), vmax=max(angleDegArr))
-                    ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
-                    ax3.legend([f"Median CA (deg): {(statistics.median(angleDegArr)):.2f}"], loc='center left')
-                    fig3.colorbar(im3)
-                    plt.show()
-                    fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
+                    pass
+                    #TODO implement a way to still extract height profiles from desired locations.
+                    #TODO Both inside droplet, and outside
+                    # fig1, ax1 = plt.subplots(2, 2)
+                    # ax1[0, 0].plot(profileOutwards + profile, 'k');
+                    # if xOutwards[-1] != 0:
+                    #     ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.',
+                    #                    label='transition brush-droplet')
+                    #     ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5, label='brush profile')
+                    # ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5,
+                    #                   label='droplet')
+                    # ax1[0, 0].legend(loc='best')
+                    # ax1[0, 0].set_title(f"Intensity profile");
+                    #
+                    # ax1[1, 0].plot(wrapped);
+                    # ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                    # ax1[1, 0].set_title("Wrapped profile (drop only)")
+                    #
+                    # # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+                    # if xOutwards[-1] != 0:
+                    #     ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)],
+                    #                    label="Swelling fringe calculation",
+                    #                    color='C0');  # plot the swelling ratio outside droplet
+                    # ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation", color='C1');
+                    # ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.',
+                    #                label='Start linear regime droplet');
+                    # # '\nCA={angleDeg:.2f} deg. ' Initially had this in label below, but because of code order change angledeg is not defined yet
+                    # ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000, '--', linewidth=1,
+                    #                label=f'Linear fit, R$^2$={r2:.3f}');
+                    # ax1[0, 1].legend(loc='best')
+                    # ax1[0, 1].set_title("Brush & drop height vs distance")
+                    #
+                    # ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+                    # ax1[0, 0].set_ylabel("Intensity (a.u.)")
+                    # ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+                    # ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+                    # ax1[0, 1].set_xlabel("Distance (um)");
+                    # ax1[0, 1].set_ylabel("Height profile (nm)")
+                    # fig1.set_size_inches(12.8, 9.6)
+                    #
+                    # #plotting for fig3
+                    # fig3, ax3 = plt.subplots()
+                    # im3 = ax3.scatter(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), c=angleDegArr, cmap='jet', vmin=min(angleDegArr), vmax=max(angleDegArr))
+                    # ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
+                    # ax3.legend([f"Median CA (deg): {(statistics.median(angleDegArr)):.2f}"], loc='center left')
+                    # fig3.colorbar(im3)
+                    # plt.show()
+                    # fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
                 else:  #else, allow to manually filter the CA scatterplot & save filtered coords afterwards
                     while not DONEFILTERTIING:
                         #TODO trying to deselect regions manually, where e.g. a pinning point is
@@ -2367,7 +2372,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 phi_range = np.arange(min(phi), max(phi), 0.01) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 # phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])      #if using a cubicSpline Fit
-                ax4.plot(convertPhiToazimuthal(phi_range)[0], phiCA_fourierFit(phi_range), '.', label=f'Fourier Fit order: {phiCA_N}')
+                ax4.plot(convertPhiToazimuthal(phi_range)[0], phiCA_fourierFit(phi_range), '.', label=f'Fourier Fit order: {phiCA_N[-1]}')
                 ax4.set(title=f"Azimuthal contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'sin($\phi$)', ylabel='contact angle (deg)')
                 ax4.legend(loc='best')
                 fig4.savefig(os.path.join(analysisFolder, f'Azimuthal contact angle {n:04}.png'), dpi=600)
@@ -2377,7 +2382,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 ax6.plot(phi[condition], np.array(angleDegArr)[condition], '.', label='raw data: top side')
                 ax6.plot(phi[np.invert(condition)], np.array(angleDegArr)[np.invert(condition)], '.', label='raw data: bottom side')
                 ax6.plot(phi, aziCA_savgol_nonuniformed, '.', markersize=3, label=f'savgol filter, nonuniform')
-                ax6.plot(phi_range, phiCA_fourierFit(phi_range), '.', label=f'Fourier Fit order: {phiCA_N}')
+                ax6.plot(phi_range, phiCA_fourierFit(phi_range), '.', label=f'Fourier Fit order: {phiCA_N[-1]}')
                 ax6.set(title=f"Radial contact angle.\nWsize = {sovgol_windowSize}, order = {savgol_order}", xlabel=f'$phi$ (rad))', ylabel='contact angle (deg)')
                 ax6.legend(loc='best')
                 fig6.savefig(os.path.join(analysisFolder, f'Radial contact angle {n:04}.png'), dpi=600)
@@ -2393,16 +2398,20 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #ax5.plot(phi_sorted, np.array(rFromMiddle_savgol_sorted) * 1000, 'r.', label='r vs phi data')
                 #ax5.plot(phi_range, np.array(phi_r_savgol_cs(phi_range)) * 1000, 'k--', label='cubic spline fit')
                 #ax5.set_ylabel('Radius length (millimeter)', color='r')
-                ax5.plot(phi_sorted, np.array(phi_tangentF_savgol_sorted), 'r.', label='$F_{hor}$ vs phi data')
-                ax5.plot(phi_range, np.array(tangentF_fourierFit(phi_range)), 'k--', label=f'Fourier fit order: {tangentF_N}')
+                ax5.plot(np.divide(phi_sorted, np.pi), np.array(phi_tangentF_savgol_sorted), 'r.', label='Azimuthal $F_{hor}$ data')
+                #ax5.plot(phi_range, np.array(tangentF_fourierFit(phi_range)), 'k--', label=f'Fourier fit order: {tangentF_N[-1]}')
+                ax5.plot(np.divide(phi_range, np.pi), np.array(tangentF_fourierFit(phi_range)), 'k--', label=f'Fourier fit')
                 ax5.set_ylabel('Horizontal force (mN/m)', color='r')
-                ax5_2.plot(phi_sorted, phiCA_savgol_sorted, 'b', label='phi vs CA data')
-                ax5_2.plot(phi_range, phiCA_fourierFit(phi_range), 'y--', label=f'Fourier fit order: {phiCA_N}')
-                ax5.set_xlabel('phi')
+                ax5_2.plot(np.divide(phi_sorted, np.pi), phiCA_savgol_sorted, 'b', label='Azimuthal CA data')
+                #ax5_2.plot(phi_range, phiCA_fourierFit(phi_range), 'y--', label=f'Fourier fit order: {phiCA_N[-1]}')
+                ax5_2.plot(np.divide(phi_range, np.pi), phiCA_fourierFit(phi_range), 'y--', label=f'Fourier fit')
+                ax5.set_xlabel('Azimuthal angle $\phi$ (rad)')
 
                 ax5_2.set_ylabel('Contact Angle (deg)', color='b')
                 ax5.legend(loc='upper left');
                 ax5_2.legend(loc='upper right')
+                ax5.xaxis.set_major_formatter(FormatStrFormatter('%g $\pi$'))
+                ax5.xaxis.set_major_locator(MultipleLocator(base=1.0))
                 fig5.tight_layout()
                 fig5.savefig(os.path.join(analysisFolder, f'Radius vs Phi {n:04}.png'), dpi=600)
                 #plt.show()
@@ -2568,12 +2577,12 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
-    path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
+    #path = "H:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
     #path = "H:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
@@ -2591,6 +2600,8 @@ def main():
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
+    #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
+    #path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
 
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
