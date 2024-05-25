@@ -1767,7 +1767,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [172, 205, 226, 283, 322, 352]
+    usedImages = [1]
     thresholdSensitivityStandard = [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -2184,6 +2184,44 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 temp_vectorsFinal = vectorsFinal
 
                 if FILTERED:    #already filtered, only plot the contact angle scatterplot
+                    fig1, ax1 = plt.subplots(2, 2)
+                    ax1[0, 0].plot(profileOutwards + profile, 'k');
+                    if xOutwards[-1] != 0:
+                        ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'r.',
+                                       label='transition brush-droplet')
+                        ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='orange', alpha=0.5, label='brush profile')
+                    ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='blue', alpha=0.5,
+                                      label='droplet')
+                    ax1[0, 0].legend(loc='best')
+                    ax1[0, 0].set_title(f"Intensity profile");
+
+                    ax1[1, 0].plot(wrapped);
+                    ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+                    ax1[1, 0].set_title("Wrapped profile (drop only)")
+
+                    # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+                    if xOutwards[-1] != 0:
+                        ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)],
+                                       label="Swelling fringe calculation",
+                                       color='C0');  # plot the swelling ratio outside droplet
+                    ax1[0, 1].plot(x, unwrapped * 1000, label="Interference fringe calculation", color='C1');
+                    ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.',
+                                   label='Start linear regime droplet');
+                    # '\nCA={angleDeg:.2f} deg. ' Initially had this in label below, but because of code order change angledeg is not defined yet
+                    ax1[0, 1].plot(x, (np.poly1d(coef1)(x) + offsetDropHeight) * 1000, '--', linewidth=1,
+                                   label=f'Linear fit, R$^2$={r2:.3f}');
+                    ax1[0, 1].legend(loc='best')
+                    ax1[0, 1].set_title("Brush & drop height vs distance")
+
+                    ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+                    ax1[0, 0].set_ylabel("Intensity (a.u.)")
+                    ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+                    ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+                    ax1[0, 1].set_xlabel("Distance (um)");
+                    ax1[0, 1].set_ylabel("Height profile (nm)")
+                    fig1.set_size_inches(12.8, 9.6)
+
+                    #plotting for fig3
                     fig3, ax3 = plt.subplots()
                     im3 = ax3.scatter(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), c=angleDegArr, cmap='jet', vmin=min(angleDegArr), vmax=max(angleDegArr))
                     ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
@@ -2535,7 +2573,7 @@ def main():
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
     #path = "D:\\2023_12_08_PLMA_Basler5x_dodecane_1_28_S2_FULLCOVER"
-    #path = "H:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
+    path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
     #path = "H:\\2023_12_15_PLMA_Basler5x_dodecane_1_28_S2_WEDGE_Tilted"
 
     # path = "D:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_AIR_SIDE"
@@ -2551,7 +2589,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
-    path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
+    #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
 
     #PODMA on heating stage:
