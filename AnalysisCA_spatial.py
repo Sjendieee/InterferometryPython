@@ -413,7 +413,7 @@ def selectAreaAndFindContour(resizedimg, thresholdSensitivity, resizeFactor):
 # Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
 # Parses all 'outer' coordinates, not only on right side of droplet
 #With working popup box for checking and changing contour
-def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, contourCoords = 0, FITGAPS_POLYOMIAL=True):
+def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, FITGAPS_POLYOMIAL, contourCoords = 0):
     minimalDifferenceValue = 100    #Value of minimal difference in x1 and x2 at same y-coord to check for when differentiating between entire droplet & partial contour & fish-hook-like contour
     img = cv2.imread(imgPath)  # read in image
     grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # convert to greyscale
@@ -731,8 +731,9 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                             #usableContour = list(list(usableContourCopy)) #if good poly fits, use those
                             usableContour = [list(i) for i in usableContourCopy_instertion]
                         cv2.destroyAllWindows()
-                    useableylist = np.array([elem[1] for elem in usableContour])
-                    useablexlist = [elem[0] for elem in usableContour]
+
+                useableylist = np.array([elem[1] for elem in usableContour])
+                useablexlist = [elem[0] for elem in usableContour]
 
 
 
@@ -1565,8 +1566,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 4
-    usedImages = np.arange(24, 70, everyHowManyImages)  # len(imgList)
-    #usedImages = [10, 28, 50, 68, 100]
+    #usedImages = np.arange(52, 70, everyHowManyImages)  # len(imgList)
+    usedImages = [80]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 0#400
@@ -1649,8 +1650,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                                                                                            contourListFilePath,
                                                                                                            n, contouri,
                                                                                                            thresholdSensitivity,
-                                                                                                           MANUALPICKING,
-                                                                                                           usableContour, FITGAPS_POLYOMIAL)
+                                                                                                           MANUALPICKING,FITGAPS_POLYOMIAL,
+                                                                                                           usableContour)
             else:  # else, don't parse coordinates (let user define them themselves)
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsV4(img,
                                                                                                            contourListFilePath,
@@ -2196,7 +2197,7 @@ def main():
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
     #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
-    path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
+    path = "E:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
 
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
