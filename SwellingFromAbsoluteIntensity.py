@@ -217,7 +217,7 @@ def readDataFromfileV2(file_path):
 def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
                                  ax0, ax1, cmap, colorGradient, dryBrushThickness, elapsedtime, fig0, fig1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
-                                 range1, range2, source, xshifted, vectorNumber, unitXY= "mm"):
+                                 range1, range2, source, xshifted, vectorNumber, outwardsLengthVector, unitXY= "mm"):
 
 
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
@@ -286,22 +286,22 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
     if MANUALPEAKSELECTION:  # use manually selected peaks, either from a previous time or select new ones now
         if USESAVEDPEAKS:  # use peaks from a previous time (if they exist)
             #TODO this way of saving will create A LOT of files for different vectors in same image: optimization desired
-            if os.path.exists(os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}.txt")):
+            if os.path.exists(os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}_{outwardsLengthVector}.txt")):
                 minAndMaxOrdered = readDataFromfileV2(
-                    os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}.txt"))
-                print(f">Imported saved peaks from 'MinAndMaximaHandpicked{idx}_{vectorNumber}.txt'")
+                    os.path.join(source, f"SwellingImages\\MinAndMaximaHandpicked{idx}_{vectorNumber}_{outwardsLengthVector}.txt"))
+                print(f">Imported saved peaks from 'MinAndMaximaHandpicked{idx}_{vectorNumber}_{outwardsLengthVector}.txt'")
             else:
                 try:
                     print(f"No saved peaks yet. Select them now:")
                     minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
-                    saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}_{vectorNumber}.txt")
+                    saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}_{vectorNumber}_{outwardsLengthVector}.txt")
                 except:
                     logging.error("Some error occured while trying to manually select peaks!")
                     print(traceback.format_exc())
         else:  # select new peaks now
             try:
                 minAndMaxOrdered = selectMinimaAndMaxima(np.divide(intensityProfileZoomConverted, normalizeFactor), idx)
-                saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}_{vectorNumber}.txt")
+                saveDataToFile(minAndMaxOrdered, os.path.join(source, f"SwellingImages"), f"MinAndMaximaHandpicked{idx}_{vectorNumber}_{outwardsLengthVector}.txt")
             except:
                 logging.error("Some error occured while trying to manually select peaks!")
                 print(traceback.format_exc())

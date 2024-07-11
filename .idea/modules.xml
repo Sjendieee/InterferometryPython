@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/InterferometryPython.iml" filepath="$PROJECT_DIR$/.idea/InterferometryPython.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../PythonTimelapseAssembler/.idea/timelapseassembler.iml" filepath="$PROJECT_DIR$/../PythonTimelapseAssembler/.idea/timelapseassembler.iml" />
     </modules>
   </component>
 </project>
