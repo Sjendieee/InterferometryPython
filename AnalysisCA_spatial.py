@@ -1780,7 +1780,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     outwardsLengthVector = 0      #0, 590 if no swelling profile to be measured.
 
     FLIPDATA = True
-    SHOWPLOTS_SHORT = 0  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
+    SHOWPLOTS_SHORT = 1  # 0 Don't show plots&images at all; 1 = show images for only 2 seconds; 2 = remain open untill clicked away manually
     sensitivityR2 = 0.997    #sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
     FITGAPS_POLYOMIAL = True
     saveCoordinates = True  #for saving the actual pixel coordinates for each file analyzed.
@@ -1856,7 +1856,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
 
             #Trying for automatic coordinate finding, using coordinates of a previous iteration.
-            # TODO doesn't work as desired: now finds contour at location of previous one, but not the aout CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
+            # TODO doesn't work as desired: now finds contour at location of previous one, but not the  CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
             if MANUALPICKING == 2 and n != usedImages[0] and n - usedImages[list(usedImages).index(n) - 1] == everyHowManyImages:
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
                     getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, usablecontour=usableContour, fitgapspolynomial=FITGAPS_POLYOMIAL)
@@ -1865,19 +1865,26 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"coordinatesListFilePath_{n}.txt")
                 filtered_coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"filtered_coordinatesListFilePath_{n}.txt")
                 #If allowing importing known coords:
-                if (MANUALPICKING in [1, 3]) and os.path.exists(filtered_coordinatesListFilePath):   #if filtered coordinates etc. already exist, import those
+                #-if filtered coordinates etc. already exist, import those
+                if (MANUALPICKING in [1, 3]) and os.path.exists(filtered_coordinatesListFilePath):
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, vectorsFinal, angleDegArr = getfilteredContourCoordsFromDatafile(img, filtered_coordinatesListFilePath)
                     xArrFinal = useablexlist
                     yArrFinal = useableylist
-                    useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
+                    IMPORTEDCOORDS = True
                     FILTERED = True #Bool for not doing any filtering operations anymore later
-                elif (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):  # if coordinates were already written out
+
+                #-if coordinates were already written out, but not filtered
+                elif (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
-                #if not allowing, or coords not known yet:
+                    xArrFinal = useablexlist
+                    yArrFinal = useableylist
+                    IMPORTEDCOORDS = True
+                    #TODO ^ where to do filtering? -> check where filtering in code
+                #-if not allowing, or coords not known yet:
                 else:
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
                         getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
-
+                    IMPORTEDCOORDS = False
 
 
             ##TODO older piece of code: the above should function exactly the same, but more compact. Remove below later if all works fine
@@ -1917,7 +1924,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                            2)  # draws 1 red good contour around the outer halo fringe
                 #TODO temporary solution to import already filtered coordinates. Completely skip the obtaining coords & vectors part.
                 #TODO in doing so, some plots are not created (correctly), which results in errors later  e.g. im1 = ax1[1, 1].scatter()...
-                if FILTERED:
+                if IMPORTEDCOORDS:
                     pass
                 else:
                     # One of the main functions:
@@ -2577,7 +2584,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
