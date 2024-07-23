@@ -198,10 +198,10 @@ x = xcoords of contour
 y = ycoords of contour
 L = desired length of normal vector (determines how many fringes will be accounted for later on)
 """
-def get_normalsV4(x, y, L, L2 = 0):
+def get_normalsV4(x, y, L, L2 = 0, L3 = 0):
     # For each coordinate, fit with nearby points to a polynomial to better estimate the dx dy -> tangent
     # Take derivative of the polynomial to obtain tangent and use that one.
-    x0arr = []; dyarr = []; y0arr = []; dxarr = []; dxnegarr = []; dynegarr = []
+    x0arr = []; dyarr = []; y0arr = []; dxarr = []; dxnegarr = []; dynegarr = []; dxL3arr = []; dyL3arr = []
     window_size = round(len(x) / 100)            #!!! window size to use. 25 seems to be good for most normal vectors
     k = round((window_size+1)/2)
 
@@ -244,7 +244,7 @@ def get_normalsV4(x, y, L, L2 = 0):
 
             normalisation = L / np.sqrt(1+dy**2)        #normalise by desired length vs length of vector
 
-            #Determine direction of normal vector by calculating of both direction the Root-square-mean to the "middle cooridnate" of the contour, and take the smallest one
+            #Determine direction of normal vector by calculating of both direction the Root-square-mean to the "middle coordinate" of the contour, and take the smallest one
             nx1 = -dy * normalisation; ny1 = dx * normalisation #normal vector 1
             nx2 = +dy * normalisation; ny2 = -dx * normalisation #normal vector 2
 
@@ -277,22 +277,12 @@ def get_normalsV4(x, y, L, L2 = 0):
             dxnegarr.append(round(x0 - (L2*(nx/L))))   #for normals pointing outwards of the droplet
             dynegarr.append(round(y0 - (L2*(ny/L))))
 
-
-        #Below: for plotting & showing of a few polynomial fits - to investigate how good the fit is
-        # if idx - k == 101:
-        #     plt.plot(xarr, np.array(yarr), '.', label="coordinates")
-        #     plt.plot(xrange, np.array(yrange), label="fit")
-        #     plt.plot([x0,x0+nx], np.array([y0, y0+ny]), '-', label="normal to contour")
-        #     plt.title(f"Zoomed-in coordinates of contour. idx = {idx}")
-        #     plt.xlabel("x - coords")
-        #     plt.ylabel("y - coords")
-        #     plt.legend()
-        #     plt.show()
-        #     plt.close()
-        #     print(f"idx: {idx} - {fit}")
+        if L3 != 0:
+            dxL3arr.append(round(x0 - (L3*(nx/L))))   #for normals pointing outwards of the droplet
+            dyL3arr.append(round(y0 - (L3*(ny/L))))
 
     vector = [[dxarr[i] - x0arr[i], dyarr[i] - y0arr[i]] for i in range(0, len(x0arr))]   #vector [dx, dy] for each coordinate
-    return x0arr, dxarr, y0arr, dyarr, vector, dxnegarr, dynegarr  # return the original data points x0&y0, and the coords of the inwards normals dx&dy, and the outwards normals dxneg&dyneg
+    return x0arr, dxarr, y0arr, dyarr, vector, dxnegarr, dynegarr, dxL3arr, dyL3arr  # return the original data points x0&y0, and the coords of the inwards normals dx&dy, and the outwards normals dxneg&dyneg
 
 
 def getContourList(grayImg, thresholdSensitivity):
@@ -1061,20 +1051,34 @@ def linearFitLinearRegimeOnly(xarr, yarr, sensitivityR2, k):
     """
     #TODO: make it so that if error is too large for linear fit, a NaN is return instead of a completely bogus CA
     #TODO currently, all values are just returned and the R^2 is checked in a next function
+    # minimalnNrOfDatapoints = round(len(yarr) * (2/4))
+    # residualLastTime = 10000        #some arbitrary high value to have the first iteration work
+    # for i in range(0, len(yarr)-minimalnNrOfDatapoints):    #iterate over the first 2/4 of the datapoints as a starting value
+    #     coef1, residuals, _, _, _ = np.polyfit(xarr[i:-4], yarr[i:-4], 1, full=True)        #omit last 5 datapoints (since these are generally not great due to wrapped function)
+    #     startLinRegimeIndex = i
+    #     if not (residualLastTime/(len(yarr)-i+1) - residuals[0]/(len(yarr)-i)) / (residuals[0]/(len(yarr)-i)) > 0.05:    #if difference between
+    #         break
+    #     residualLastTime = residuals
+    # if i == (len(yarr)-minimalnNrOfDatapoints-1):
+    #     print(f"Apparently no the difference in squared sum differs a lot for all 2/4th first datapoints. "
+    #           f"\nTherefore the data is fitted from 2/4th of the data onwards.")
+    # r2 = r2_score(yarr, np.poly1d(coef1)(xarr))
+    # #if r2 < sensitivityR2:
+    # #    print(f"{k}: R^2 of fit is worse than {sensitivityR2}, namely: {r2:.4f}. This fit is not to be trusted")
+
     minimalnNrOfDatapoints = round(len(yarr) * (2/4))
     residualLastTime = 10000        #some arbitrary high value to have the first iteration work
     for i in range(0, len(yarr)-minimalnNrOfDatapoints):    #iterate over the first 2/4 of the datapoints as a starting value
-        coef1, residuals, _, _, _ = np.polyfit(xarr[i:], yarr[i:], 1, full=True)
+        coef1, residuals, _, _, _ = np.polyfit(xarr[i:-4], yarr[i:-4], 1, full=True)        #omit last 5 datapoints (since these are generally not great due to wrapped function)
         startLinRegimeIndex = i
-        if not (residualLastTime/(len(yarr)-i+1) - residuals[0]/(len(yarr)-i)) / (residuals[0]/(len(yarr)-i)) > 0.05:    #if difference between
+        r2 = r2_score(yarr[i:-4], np.poly1d(coef1)(xarr[i:-4]))
+        if r2 > sensitivityR2:    #stop iterating when desired R2 is achieved
             break
         residualLastTime = residuals
     if i == (len(yarr)-minimalnNrOfDatapoints-1):
         print(f"Apparently no the difference in squared sum differs a lot for all 2/4th first datapoints. "
               f"\nTherefore the data is fitted from 2/4th of the data onwards.")
-    r2 = r2_score(yarr, np.poly1d(coef1)(xarr))
-    #if r2 < sensitivityR2:
-    #    print(f"{k}: R^2 of fit is worse than {sensitivityR2}, namely: {r2:.4f}. This fit is not to be trusted")
+
     return startLinRegimeIndex, coef1, r2
 
 def extractContourNumbersFromFile(lines):
@@ -1276,7 +1280,7 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     :return lineLengthPixels: amount of pixels the vector spans. Can be used to calculate the length of the vector in e.g. mm
             ^NOTE/TODO: this one should be almost the same for all vectors right?
     """
-    if dxarrcoord - x0arrcoord == 0:  # constant x, variable y
+    if dxarrcoord - x0arrcoord == 0:  # 'flat' vector in x-dir: constant x, variable y
         xarr = np.ones(lengthVector) * x0arrcoord
         if y0arrcoord > dyarrcoord:
             yarr = np.arange(dyarrcoord, y0arrcoord)
@@ -1284,7 +1288,7 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
             yarr = np.arange(y0arrcoord, dyarrcoord)
         coords = list(zip(xarr.astype(int), yarr.astype(int)))
         lineLengthPixels = lengthVector
-    else:
+    else:   #for any other vector orientation
         a = (dyarrcoord - y0arrcoord) / (dxarrcoord - x0arrcoord)
         b = y0arrcoord - a * x0arrcoord
         coords, lineLengthPixels = coordinates_on_line(a, b, [x0arrcoord, dxarrcoord, y0arrcoord, dyarrcoord])
@@ -1757,7 +1761,7 @@ def determineMiddleCoord(xArrFinal, yArrFinal):
 def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
                          lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
-                         resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT):
+                         resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, smallExtraOutwardsVector):
     """
 
     :param FLIPDATA:
@@ -1821,15 +1825,16 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
             # intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
             profile, lineLengthPixels = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k], lengthVector,
                                                                 greyresizedimg)
+
             #TODO incoorp. functionality profile + bit outside drop to check for correctness of CA & finding the linear regime
-
-
-
+            profileExtraOut, lineLengthPixelsExtraOut = profileFromVectorCoords(x0arr[k], y0arr[k], dxExtraOutarr[k], dyExtraOutarr[k],
+                                                                              smallExtraOutwardsVector, greyresizedimg)
+            profileExtraOut.reverse()
+            profileExtraOut = profileExtraOut[:-1]  #remove the last datapoint, as it's the same as the start of the CA profile
             # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
-            #
-            # unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileOutwards + profile, lineLengthPixelsOutwards + lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
-            unwrapped, x, wrapped, peaks = intensityToHeightProfile(profile, lineLengthPixels, conversionXY,
+            unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
                                                                     conversionZ, FLIPDATA)
+
             x += xOutwards[-1]
             # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
             # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
@@ -1855,15 +1860,41 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 # TODO WIP: swelling or height profile outside droplet
                 if xOutwards[-1] != 0:
                     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
+                    if extraPartIndroplet >= outwardsLengthVector:
+                        logging.critical(f'This will break. OutwardsLengthVector ({outwardsLengthVector}) must be longer than extraPartInDroplet ({extraPartIndroplet}).')
                     heightNearCL, heightRatioNearCL = swellingRatioNearCL(
                         np.arange(0, len(profileOutwards) + extraPartIndroplet),
                         profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k,
                         outwardsLengthVector)
-                    # Stitching together swelling height & droplet CA height
-                    offsetDropHeight = heightNearCL[
-                                           -1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
-                unwrapped = offsetDropHeight + unwrapped
+                    # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
 
+                    offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
+                    offsetDropHeight = (unwrapped[len(profileExtraOut)] - heightNearCL[len(profileOutwards)] / 1000)
+                    offsetDropHeight = (unwrapped[0] - heightNearCL[-smallExtraOutwardsVector] / 1000)
+
+                #unwrapped = offsetDropHeight + unwrapped
+
+                # set equal height of swelling profile & droplet
+                unwrapped = unwrapped - offsetDropHeight
+
+                #remove overlapping datapoints from 'xOutwards' to do proper plotting later
+                xOutwards = xOutwards[:-smallExtraOutwardsVector]; profileOutwards = profileOutwards[:-smallExtraOutwardsVector]
+                #Also, shift x-axis of 'x' to stitch with 'xOutwards properly'
+                x = np.array(x) - (x[len(profileExtraOut)] - x[0])
+
+                # # TODO temp
+                # figtemp, axtemp = plt.subplots()
+                # axtemp.plot(xOutwards, heightNearCL[:len(profileOutwards)],
+                #          label="Swelling fringe calculation",
+                #          color='C0');  # plot the swelling ratio outside droplet
+                # axtemp.plot(np.array(x) - (x[len(profileExtraOut)] - x[0]), (unwrapped * 1000) - (unwrapped[len(profileExtraOut)] * 1000 - heightNearCL[len(profileOutwards)]), label="Interference fringe calculation",
+                #          color='C1')
+                # axtemp.set(xlabel=r'Distance ($\mu$m)', ylabel = 'Height (nm)')
+                # axtemp.legend(loc='best')
+                # plt.show()
+                # # TODO temp
+
+                #big function for 4-panel plot: Intensity, height, wrapped profile, CA colormap
                 ax1, fig1 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL,
                                                            offsetDropHeight, peaks, profile,
                                                            profileOutwards, r2, startIndex, unwrapped,
@@ -1907,7 +1938,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 xBrushAndDroplet = np.arange(0,
                                              len(profileOutwards) + extraPartIndroplet)  # distance (nr of datapoints (NOT pixels!))
                 yBrushAndDroplet = profileOutwards + profile[
-                                                     0:extraPartIndroplet]  # intensity data of brush & some datapoints within dropelt
+                                                     0:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
                 # Big function below: for calculating the height profile manually outside droplet by peak selection from intensity profile
                 heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet, yBrushAndDroplet,
                                                                       deltatFromZeroSeconds[n], path, n, k,
@@ -2141,16 +2172,17 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #TODO in doing so, some plots are not created (correctly), which results in errors later  e.g. im1 = ax1[1, 1].scatter()...
                 if IMPORTEDCOORDS:
                     #Get all normal vectors. We'll use only some of them later for plotting purposes :
-                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr = get_normalsV4(useablexlist, useableylist,
+                    smallExtraOutwardsVector = 50
+                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist,
                                                                                             lengthVector,
-                                                                                            outwardsLengthVector)
+                                                                                            outwardsLengthVector, smallExtraOutwardsVector)
 
                     ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks = coordsToIntensity_CAv2(
                         FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT)
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, smallExtraOutwardsVector)
 
                 else:
                     # One of the main functions:
@@ -2705,6 +2737,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
 def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks, profile, profileOutwards,
                                    r2, startIndex, unwrapped, wrapped, x, xOutwards):
+    """"
+    #for 4-panel plot:  Intensity vs datapoint,
+                        height vs distance,
+                        wrapped profile vs datapoint,
+                        CA colormap x,y-coord
+    """
     fig1, ax1 = plt.subplots(2, 2)
     ax1[0, 0].plot(profileOutwards + profile, 'k');
     if xOutwards[-1] != 0:
