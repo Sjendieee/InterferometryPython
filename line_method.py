@@ -292,12 +292,12 @@ def timeFormat(t):
     :param t: input time (seconds, float or int)
     :return out: formatted time (string)
     """
-    if t < 90:
+    if t < 120:
         out = f"{round(t)}s"
     elif t < 3600:
-        out = f"{round(t / 60)}min"
+        out = f"{np.int(np.floor(t / 60))}min {np.int(np.mod(t, 60))}s"
     else:
-        out = f"{round(t / 3600)}hrs"
+        out = f"{np.int(np.floor(t / 3600))}hrs {np.int(np.floor(t/60))}m {np.int(np.mod(t, 60))}s"
     return out
 
 def method_line(config, **kwargs):
