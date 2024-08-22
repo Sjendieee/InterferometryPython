@@ -1065,7 +1065,7 @@ def linearFitLinearRegimeOnly(xarr, yarr, sensitivityR2, k):
     # r2 = r2_score(yarr, np.poly1d(coef1)(xarr))
     # #if r2 < sensitivityR2:
     # #    print(f"{k}: R^2 of fit is worse than {sensitivityR2}, namely: {r2:.4f}. This fit is not to be trusted")
-
+    logging.info("Linear fitting for CA in progress")
     minimalnNrOfDatapoints = round(len(yarr) * (2/4))
     residualLastTime = 10000        #some arbitrary high value to have the first iteration work
     for i in range(0, len(yarr)-minimalnNrOfDatapoints):    #iterate over the first 2/4 of the datapoints as a starting value
@@ -1076,7 +1076,7 @@ def linearFitLinearRegimeOnly(xarr, yarr, sensitivityR2, k):
             break
         residualLastTime = residuals
     if i == (len(yarr)-minimalnNrOfDatapoints-1):
-        print(f"Apparently no the difference in squared sum differs a lot for all 2/4th first datapoints. "
+        print(f"Apparently the difference in squared sum differs a lot for all 2/4th first datapoints. "
               f"\nTherefore the data is fitted from 2/4th of the data onwards.")
 
     return startLinRegimeIndex, coef1, r2
@@ -1799,7 +1799,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     y_ks = []
     for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
         try:
-            xOutwards = [0]
+            xOutwards = [0]     #x length pointing outwards of droplet, for possible swelling analysis
             profileOutwards = []
             if outwardsLengthVector != 0:
                 profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],
@@ -1862,12 +1862,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
                     if extraPartIndroplet >= outwardsLengthVector:
                         logging.critical(f'This will break. OutwardsLengthVector ({outwardsLengthVector}) must be longer than extraPartInDroplet ({extraPartIndroplet}).')
-                    heightNearCL, heightRatioNearCL = swellingRatioNearCL(
-                        np.arange(0, len(profileOutwards) + extraPartIndroplet),
+                    heightNearCL, heightRatioNearCL = swellingRatioNearCL(np.arange(0, len(profileOutwards) + extraPartIndroplet),
                         profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k,
                         outwardsLengthVector)
-                    # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
 
+                    # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
                     offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
                     offsetDropHeight = (unwrapped[len(profileExtraOut)] - heightNearCL[len(profileOutwards)] / 1000)
                     offsetDropHeight = (unwrapped[0] - heightNearCL[-smallExtraOutwardsVector] / 1000)
@@ -2053,7 +2052,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     # A list of vector numbers, for which an outwardsVector will be shown & heights can be plotted
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
-    plotHeightCondition = lambda xlist: [round(len(xlist) / 2), 300]
+    plotHeightCondition = lambda xlist: [300, 4000]        #don't use 'round(len(xlist)', as this one always used automatically
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [20]  # TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
@@ -2177,6 +2176,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                                                                             lengthVector,
                                                                                             outwardsLengthVector, smallExtraOutwardsVector)
 
+                    logging.info("Starting to extract information from IMPORTED COORDS.\n"
+                                 f"Plotting for vector nrs: {plotHeightCondition(useablexlist)} & {round(len(useablexlist)/2)}")
                     ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks = coordsToIntensity_CAv2(
                         FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
@@ -2829,7 +2830,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
