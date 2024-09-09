@@ -1,64 +1,133 @@
+import logging
+import time
+
 import cv2
 import numpy as np
-from line_method import click_event, coordinates_on_line
-##linmethod: pointa = 1766, 1782; pointb = 1928, 1916
-# Read RGB image
-img = cv2.imread('I:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104\\rawslicesimage\\rawslicesimage_Basler_a2A5328-15ucBAS__40087133__20230406_131652896_0009_analyzed_.png')
-imgblack = cv2.imread('C:\\Users\\Sander PC\\PycharmProjects\\InterferometryPython\\black square.png')
-print(f"square size {img.shape}")
-resizedimg = cv2.resize(img, [2400, 1500], interpolation = cv2.INTER_AREA)
-squareSize = 10
-resizedImagBlack = cv2.resize(imgblack, [squareSize, squareSize], interpolation = cv2.INTER_AREA)
+from matplotlib import pyplot as plt
 
-pixellocationLarge = 4000
 
-#x_offset = 468
-#y_offset = 114
+def showPlot(SHOWPLOTS_SHORT):
+    if SHOWPLOTS_SHORT == 0:
+        pass
+    elif SHOWPLOTS_SHORT == 1:
+        plt.show(block=False)
+        plt.pause(3)
+    elif SHOWPLOTS_SHORT == 2:
+        plt.show()
+    else:
+        logging.critical(f"Wrong 'SHOWPLOTS_SHORT' value. Plotting will probably go wrong now.")
+    plt.close('all')
 
-a = 0.827846
-b = -183.776
-limits = [466, 1937, 112, 1385]     #xmin xmin ymin ymax
-coordinates, l = coordinates_on_line(a, b, limits)      #INCORRECT VGM. ZELF BEREKEND=1852
-print(f"Length of line is {l}. (Image in plot)")
+def showPlot(display_mode, figures):
+    """
+    Display one or more plots with the specified display mode.
 
-x_coords = [1766, 1928]
-y_coords = [1782, 1916]
-aL = (y_coords[1]-y_coords[0])/(x_coords[1]-x_coords[0])
-bL = y_coords[0] - a * x_coords[0]
-limitsL = [0, 5328, 0, 4608]
-coordinatesLarge, lLarge = coordinates_on_line(aL, bL, limitsL)
-print(f"Length of line is {lLarge}. (Large plot). a ={aL}, b = {bL}")
+    Parameters:
+    - display_mode: A string that specifies the display mode. It can be:
+        - 'none': Do not display the plots.
+        - 'timed': Display the plots for 3 seconds.
+        - 'manual': Display the plots until manually closed.
+    - figures: A list of matplotlib figure objects to be displayed.
+    """
+    if display_mode == 'none':
+        return
 
-ratioLines = lLarge / 1852
-pixelLocNew = pixellocationLarge / ratioLines
-print(f"ratioLines = {ratioLines}, pixelLocLarge = {pixellocationLarge}, pixelLocNew = {pixelLocNew}")
-#pixely = round(a*(pixelLocNew+466) + b)
+    for fig in figures:
+        fig.show()
 
-#x_offset = round(pixelLocNew)  + 466
-#y_offset = pixely
+    if display_mode == 'timed':
+        plt.pause(3)
+        for fig in figures:
+            plt.close(fig)
+    elif display_mode == 'manual':
+        plt.show()
+    else:
+        raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
 
-c = pixelLocNew     #c = length of line (schuine zijde)
-#x_offset = round((-a*b + np.sqrt(c**2 + a**2 * c**2 - b**2)) / (1+a**2))
-x_offset = round(c / (np.sqrt(1+a**2)) + 466 - squareSize/2)            #-squareSize/2 to centre it
-pixely = round(a*(x_offset) + b)
-y_offset = pixely
-print(f"pixelLocNew={pixelLocNew} x={x_offset}, y = {y_offset}")
 
-resizedimg[y_offset:y_offset+resizedImagBlack.shape[0], x_offset:x_offset+resizedImagBlack.shape[1]] = resizedImagBlack
-cv2.imshow('image', resizedimg)
-right_clicks = []
-def click_event(event, x, y, flags, params):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        right_clicks.append([x, y])
-    if len(right_clicks) == 2:
-        cv2.destroyAllWindows()
+def showPlot2(display_mode, figures):
+    """
+    Display one or more plots with the specified display mode.
 
-cv2.setMouseCallback('image', click_event)
-cv2.waitKey(0)
+    Parameters:
+    - display_mode: A string that specifies the display mode. It can be:
+        - 'none': Do not display the plots.
+        - 'timed': Display the plots for 3 seconds.
+        - 'manual': Display the plots until manually closed.
+    - figures: A list of matplotlib figure objects to be displayed.
+    """
+    if display_mode == 'none':
+        return
 
-P1 = np.array(right_clicks[0])
-P2 = np.array(right_clicks[1])
-print(f"Selected coordinates: {P1=}, {P2=}.")
-print(f"Selected coordinates: P1 = [{P1[0]:.0f}, {P1[1]:.0f}], P2 = [{P2[0]:.0f}, {P2[1]:.0f}]")
+    if display_mode == 'timed':
+        for fig in figures:
+            fig.show()
+        plt.pause(3)  # Display plots for 3 seconds
+        for fig in figures:
+            plt.close(fig)
+    elif display_mode == 'manual':
+        # Show only the specified figures
+        for fig in figures:
+            fig.show()
+            # Display the figures until manually closed
+            #plt.show(fig)
+    else:
+        raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
 
-cv2.destroyAllWindows()
+
+def showPlot3(figures, mode='manual', duration=3, show_index=None):
+    """
+    Displays specific plots based on the mode and index provided.
+
+    Parameters:
+    - figures: List of figure objects.
+    - mode: 'timed' to display for a fixed duration or 'manual' to keep open until closed.
+    - duration: Time in seconds to display plots if mode is 'timed'.
+    - show_index: Index of the plot to be displayed. Only applicable for the 'manual' mode.
+    """
+
+    if mode == 'timed':
+        # Display all figures for a fixed duration
+        for fig in figures:
+            fig.show()  # Show the figure
+        plt.pause(duration)
+        plt.close('all')
+
+    elif mode == 'manual':
+        if show_index is not None and 0 <= show_index < len(figures):
+            # Hide all figures first
+            for i, fig in enumerate(figures):
+                if i != show_index:
+                    fig.canvas.manager.window.hide()  # Hide the figure window
+            # Show the selected figure
+            figures[show_index].canvas.manager.window.show()  # Show the figure window
+            figures[show_index].canvas.draw()
+            plt.show(block=True)  # Keep the plot open until closed manually
+        else:
+            print("Invalid index provided for manual display.")
+
+
+def main():
+    x = [1,2,3,4,5]
+    y = [1,2,3,4,5]
+    z = [5,4,3,2,1]
+    SHOWPLOTS_SHORT = 1
+
+    fig1, ax1 = plt.subplots()
+    ax1.plot(x,y)
+    fig2, ax2 = plt.subplots()
+    ax2.plot(x,z)
+    fig4, ax4 = plt.subplots()
+    ax4.plot(x, [9,7,5,4,2])
+
+    showPlot3([fig1,fig2, fig4], 'manual', show_index=1)
+    #display_plots([fig1,fig2], 'timed')
+
+    fig3, ax3 = plt.subplots()
+    ax3.plot(x,np.array(y)+np.array(z), '*')
+    #showPlot2('timed',[fig3])
+
+
+if __name__ == "__main__":
+    main()
+    exit()

@@ -2029,7 +2029,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [46]
+    usedImages = [57]
     thresholdSensitivityStandard = [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -2038,7 +2038,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 4
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial")
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
-    outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
+    outwardsLengthVector = 0      #0 if no swelling profile to be measured., 590
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 'timed'  # 'none' Don't show plots&images at all; 'timed' = show images for only 3 seconds; 'manual' = remain open untill clicked away manually
@@ -2171,6 +2171,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #TODO temporary solution to import already filtered coordinates. Completely skip the obtaining coords & vectors part.
                 #TODO in doing so, some plots are not created (correctly), which results in errors later  e.g. im1 = ax1[1, 1].scatter()...
                 if IMPORTEDCOORDS:
+                    # If coordinates have been imported already
                     #Get all normal vectors. We'll use only some of them later for plotting purposes :
                     smallExtraOutwardsVector = 50
                     x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist,
@@ -2185,11 +2186,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, smallExtraOutwardsVector)
 
                 else:
+                    #If the CL coordinates have not been imported (e.g. for new img file)
                     # One of the main functions:
                     # Should yield the normal for every point: output is original x&y coords (x0,y0)
                     # corresponding normal coordinate inwards to droplet x,y (defined as dx and dy)
                     # and normal x,y coordinate outwards of droplet (dxneg & dyneg)
-                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector)
+                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector)
                     print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                     tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
 
@@ -2854,6 +2856,9 @@ def main():
 
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
     #path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
+
+    #P12MA dodecane - tilted stage
+    path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
 
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
