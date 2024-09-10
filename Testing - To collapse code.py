@@ -1065,7 +1065,6 @@ def linearFitLinearRegimeOnly(xarr, yarr, sensitivityR2, k):
     # r2 = r2_score(yarr, np.poly1d(coef1)(xarr))
     # #if r2 < sensitivityR2:
     # #    print(f"{k}: R^2 of fit is worse than {sensitivityR2}, namely: {r2:.4f}. This fit is not to be trusted")
-    logging.info("Linear fitting for CA in progress")
     minimalnNrOfDatapoints = round(len(yarr) * (2/4))
     residualLastTime = 10000        #some arbitrary high value to have the first iteration work
     for i in range(0, len(yarr)-minimalnNrOfDatapoints):    #iterate over the first 2/4 of the datapoints as a starting value
@@ -2023,12 +2022,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     :param wavelength_laser: wavelength of used light (unit=nm)
     :param outwardsLengthVector: length of normal vector over which intensity profile data is taken    (pointing OUTWARDS of droplet, so for swelling ratio analysis)
     """
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')     #configuration for printing logging messages. Can be removed safely
+
     #blockSize	Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on.
     #C Constant subtracted from the mean or weighted mean.
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [57]
+    usedImages = [35]       #36, 57
     thresholdSensitivityStandard = [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -2130,11 +2131,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, usablecontour=usableContour, fitgapspolynomial=FITGAPS_POLYOMIAL)
             #in any other case
             else:
-                coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"coordinatesListFilePath_{n}.txt")
-                filtered_coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"filtered_coordinatesListFilePath_{n}.txt")
+                coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"coordinatesListFilePath_{n}.txt")         #file for all contour coordinates
+                filtered_coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"filtered_coordinatesListFilePath_{n}.txt")   #file for manually filtered contour coordinates
                 #If allowing importing known coords:
                 #-if filtered coordinates etc. already exist, import those
                 if (MANUALPICKING in [1, 3]) and os.path.exists(filtered_coordinatesListFilePath):
+
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, vectorsFinal, angleDegArr = getfilteredContourCoordsFromDatafile(img, filtered_coordinatesListFilePath)
                     xArrFinal = useablexlist
                     yArrFinal = useableylist
@@ -2145,12 +2147,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 elif (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
                     IMPORTEDCOORDS = True
+                    FILTERED = False
                     #TODO ^ where to do filtering? -> check where filtering in code
                 #-if not allowing, or coords not known yet:
                 else:
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
                         getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
                     IMPORTEDCOORDS = False
+                    FILTERED = False
 
 
             imgshape = resizedimg.shape #tuple (height, width, channel)
@@ -2169,10 +2173,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                            2)  # draws 1 red good contour around the outer halo fringe
                 #TODO temporary solution to import already filtered coordinates. Completely skip the obtaining coords & vectors part.
                 #TODO in doing so, some plots are not created (correctly), which results in errors later  e.g. im1 = ax1[1, 1].scatter()...
+                smallExtraOutwardsVector = 50
                 if IMPORTEDCOORDS:
+                    logging.info("USING IMPORTED coordinates to determine normal vectors")
                     # If coordinates have been imported already
                     #Get all normal vectors. We'll use only some of them later for plotting purposes :
-                    smallExtraOutwardsVector = 50
+
                     x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist,
                                                                                             lengthVector,
                                                                                             outwardsLengthVector, smallExtraOutwardsVector)
@@ -2192,7 +2198,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # Should yield the normal for every point: output is original x&y coords (x0,y0)
                     # corresponding normal coordinate inwards to droplet x,y (defined as dx and dy)
                     # and normal x,y coordinate outwards of droplet (dxneg & dyneg)
-                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector)
+                    logging.info("USING CHOSEN CONTACT LINE to determine normal vectors")
+                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
                     print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                     tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
 
@@ -2218,182 +2225,193 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     #cv2.imwrite(os.path.join(analysisFolder, f"rawImage_x0y0Arr_blue{n}.png"), tempimg)
 
                     #TODO Important function!
-                    for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
-                        try:
-                            xOutwards = [0]
-                            profileOutwards = []
-                            lineLengthPixelsOutwards = 0
-                            if outwardsLengthVector != 0:
-                                profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k],
-                                                                                                    dxnegarr[k],
-                                                                                                    dynegarr[k],
-                                                                                                    outwardsLengthVector,
-                                                                                                    greyresizedimg)
-                                xOutwards = np.linspace(0, lineLengthPixelsOutwards,
-                                                        len(profileOutwards)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
-                                profileOutwards.reverse()  # correct stitching of in-&outwards profiles requires reversing of the outwards profile
+                    ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks = coordsToIntensity_CAv2(
+                        FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
+                        deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
+                        heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
+                        plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr,
+                        xArrFinal, y0arr,
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr,
+                        smallExtraOutwardsVector)
 
-                            # resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
-                            if k % 25 == 0 or k in plotHeightCondition:  # only plot 1/25th of the vectors to not overcrowd the image
-                                if k in plotHeightCondition:
-                                    colorInwards = (255, 0, 0)
-                                    colorOutwards = (255, 0, 0)
-                                else:
-                                    colorInwards = (0, 255, 0)
-                                    colorOutwards = (0, 0, 255)
-                                resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]),
-                                                      colorInwards,
-                                                      2)  # draws 1 good contour around the outer halo fringe
-                                if outwardsLengthVector != 0:  # if a swelling profile is desired, also plot it in the image
-                                    resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]),
-                                                          ([dxnegarr[k], dynegarr[k]]),
-                                                          colorOutwards,
-                                                          2)  # draws 1 good contour around the outer halo fringe
-                            # intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
-                            profile, lineLengthPixels = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k],
-                                                                                lengthVector,
-                                                                                greyresizedimg)
+                    #TODO decripated: changed to coordsToIntensity_CAv2(..)
+                    # for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
+                    #     try:
+                    #         xOutwards = [0]
+                    #         profileOutwards = []
+                    #         lineLengthPixelsOutwards = 0
+                    #         if outwardsLengthVector != 0:
+                    #             profileOutwards, lineLengthPixelsOutwards = profileFromVectorCoords(x0arr[k], y0arr[k],
+                    #                                                                                 dxnegarr[k],
+                    #                                                                                 dynegarr[k],
+                    #                                                                                 outwardsLengthVector,
+                    #                                                                                 greyresizedimg)
+                    #             xOutwards = np.linspace(0, lineLengthPixelsOutwards,
+                    #                                     len(profileOutwards)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
+                    #             profileOutwards.reverse()  # correct stitching of in-&outwards profiles requires reversing of the outwards profile
+                    #
+                    #         # resizedimg = cv2.polylines(resizedimg, np.array([[x0arr[k], y0arr[k]], [dxarr[k], dyarr[k]]]), False, (0, 255, 0), 2)  # draws 1 good contour around the outer halo fringe#
+                    #         if k % 25 == 0 or k in plotHeightCondition:  # only plot 1/25th of the vectors to not overcrowd the image
+                    #             if k in plotHeightCondition:
+                    #                 colorInwards = (255, 0, 0)
+                    #                 colorOutwards = (255, 0, 0)
+                    #             else:
+                    #                 colorInwards = (0, 255, 0)
+                    #                 colorOutwards = (0, 0, 255)
+                    #             resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]),
+                    #                                   colorInwards,
+                    #                                   2)  # draws 1 good contour around the outer halo fringe
+                    #             if outwardsLengthVector != 0:  # if a swelling profile is desired, also plot it in the image
+                    #                 resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]),
+                    #                                       ([dxnegarr[k], dynegarr[k]]),
+                    #                                       colorOutwards,
+                    #                                       2)  # draws 1 good contour around the outer halo fringe
+                    #         # intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
+                    #         profile, lineLengthPixels = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k],
+                    #                                                             lengthVector,
+                    #                                                             greyresizedimg)
+                    #
+                    #         # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
+                    #         #
+                    #         # unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileOutwards + profile, lineLengthPixelsOutwards + lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
+                    #         unwrapped, x, wrapped, peaks = intensityToHeightProfile(profile, lineLengthPixels,
+                    #                                                                 conversionXY,
+                    #                                                                 conversionZ, FLIPDATA)
+                    #         x += xOutwards[-1]
+                    #         # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
+                    #         # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
+                    #         startIndex, coef1, r2 = linearFitLinearRegimeOnly(x, unwrapped, sensitivityR2, k)
+                    #         # startIndex += len(profileOutwards)
+                    #
+                    #         if r2 > sensitivityR2:  # R^2 should be very high, otherwise probably e.g. near pinning point
+                    #             a_horizontal = 0
+                    #             angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
+                    #             angleDeg = math.degrees(angleRad)
+                    #             if angleDeg > 45:  # Flip measured CA degree if higher than 45.
+                    #                 angleDeg = 90 - angleDeg
+                    #             xArrFinal.append(x0arr[k])
+                    #             yArrFinal.append(y0arr[k])
+                    #             vectorsFinal.append(vectors[k])
+                    #             angleDegArr.append(angleDeg)
+                    #         else:
+                    #             omittedVectorCounter += 1  # TEMP: to check how many vectors should not be taken into account because the r2 value is too low
+                    #
+                    #         # plot 1 profile of each image with intensity, wrapped, height & resulting CA
+                    #         if k == round(len(x0arr) / 2):
+                    #             offsetDropHeight = 0
+                    #             # TODO WIP: swelling or height profile outside droplet
+                    #             if xOutwards[-1] != 0:
+                    #                 extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
+                    #                 heightNearCL, heightRatioNearCL = swellingRatioNearCL(
+                    #                     np.arange(0, len(profileOutwards) + extraPartIndroplet),
+                    #                     profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path,
+                    #                     n, k,
+                    #                     outwardsLengthVector)
+                    #                 # Stitching together swelling height & droplet CA height
+                    #                 offsetDropHeight = heightNearCL[
+                    #                                        -1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
+                    #             unwrapped = offsetDropHeight + unwrapped
+                    #
+                    #             ax1, fig1 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL,
+                    #                                                        offsetDropHeight, peaks, profile,
+                    #                                                        profileOutwards, r2, startIndex, unwrapped,
+                    #                                                        wrapped, x, xOutwards)
+                    #
+                    #         # plot various height profiles in a seperate figure
+                    #         # every 1/th of the image, an image is plotted
+                    #         # TODO WIP: swelling or height profile outside droplet
+                    #         # TODO this part below allows for anchoring at a set distance
+                    #         # if xOutwards[-1] != 0 and k in plotHeightCondition:
+                    #         #     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
+                    #         #     heightNearCL, heightRatioNearCL = swellingRatioNearCL(
+                    #         #         np.arange(0, len(profileOutwards) + extraPartIndroplet),
+                    #         #         profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
+                    #         #     heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3) #apply a savgol filter for data smoothing
+                    #         #     if heightPlottedCounter == 0:
+                    #         #         distanceOfEqualHeight = 10         #can be changed: distance at which the profiles must overlap. xOutwards[-1]
+                    #         #         indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                    #         #         equalHeight = heightNearCL[indexOfEqualHeight]
+                    #         #         x_ax_heightsCombined = []
+                    #         #         y_ax_heightsCombined = []
+                    #         #         x_ks = []
+                    #         #         y_ks = []
+                    #         #
+                    #         #         ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize = 15, zorder = len(x0arr), label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
+                    #         #         ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
+                    #         #         ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet-1], facecolor='blue', alpha=0.3)
+                    #         #     else:
+                    #         #         indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                    #         #         heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight] - equalHeight)  #to set all height profiles at some index to the same height
+                    #         #     x_ks.append(x0arr[k])
+                    #         #     y_ks.append(y0arr[k])
+                    #         #     x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet-1)]]))
+                    #         #     y_ax_heightsCombined.append(heightNearCL)
+                    #         #     heightPlottedCounter += 1  # increment counter
+                    #
+                    #         # TODO WIP: swelling or height profile outside droplet
+                    #         # TODO this part below sets the anchor at some index within the droplet regime
+                    #         if xOutwards[-1] != 0 and k in plotHeightCondition:
+                    #             extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
+                    #             xBrushAndDroplet = np.arange(0,
+                    #                                          len(profileOutwards) + extraPartIndroplet)  # distance (nr of datapoints (NOT pixels!))
+                    #             yBrushAndDroplet = profileOutwards + profile[
+                    #                                                  0:extraPartIndroplet]  # intensity data of brush & some datapoints within dropelt
+                    #             # Big function below: for calculating the height profile manually outside droplet by peak selection from intensity profile
+                    #             heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet,
+                    #                                                                   yBrushAndDroplet,
+                    #                                                                   deltatFromZeroSeconds[n], path, n,
+                    #                                                                   k,
+                    #                                                                   outwardsLengthVector)
+                    #             heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10,
+                    #                                                       3)  # apply a savgol filter for data smoothing
+                    #
+                    #             if heightPlottedCounter == 0:
+                    #                 distanceOfEqualHeight = 10  # can be changed: distance at which the profiles must overlap. xOutwards[-1]
+                    #                 indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                    #                 equalHeight = heightNearCL[indexOfEqualHeight]
+                    #                 x_ax_heightsCombined = []
+                    #                 y_ax_heightsCombined = []
+                    #                 x_ks = []
+                    #                 y_ks = []
+                    #
+                    #                 ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize=15,
+                    #                                         zorder=len(x0arr),
+                    #                                         label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
+                    #                 ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
+                    #                 ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet - 1],
+                    #                                            facecolor='blue', alpha=0.3)
+                    #             else:
+                    #                 indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
+                    #                 heightNearCL = heightNearCL - (heightNearCL[
+                    #                                                    indexOfEqualHeight] - equalHeight)  # to set all height profiles at some index to the same height
+                    #             x_ks.append(x0arr[k])
+                    #             y_ks.append(y0arr[k])
+                    #             x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet - 1)]]))
+                    #             y_ax_heightsCombined.append(heightNearCL)
+                    #             heightPlottedCounter += 1  # increment counter
+                    #
+                    #             # Stitching together swelling height & droplet CA height
+                    #             # heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
+                    #             # heightNearCL = heightNearCL - (heightNearCL[(- 1 - extraPartIndroplet)] - (unwrapped[0] * 1000))
+                    #             offsetDropHeight = heightNearCL[
+                    #                                    -1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
+                    #             unwrapped = offsetDropHeight + unwrapped
+                    #
+                    #             ax10, fig10 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL,
+                    #                                                          offsetDropHeight, peaks, profile,
+                    #                                                          profileOutwards, r2, startIndex, unwrapped,
+                    #                                                          wrapped, x, xOutwards)
+                    #             fig10.suptitle(f"Data profiles: imageNr {n}, vectorNr {k}", size=14)
+                    #             fig10.tight_layout()
+                    #             fig10.subplots_adjust(top=0.88)
+                    #             fig10.savefig(
+                    #                 os.path.join(analysisFolder, f"Height profiles - imageNr {n}, vectorNr {k}.png"),
+                    #                 dpi=600)
+                    #             plt.close(fig10)
+                    #     except:
+                    #         logging.critical(f"!{k}: Analysing each coordinate & normal vector broke!")
+                    #         print(traceback.format_exc())
 
-                            # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
-                            #
-                            # unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileOutwards + profile, lineLengthPixelsOutwards + lineLengthPixels, conversionXY, conversionZ, FLIPDATA)
-                            unwrapped, x, wrapped, peaks = intensityToHeightProfile(profile, lineLengthPixels,
-                                                                                    conversionXY,
-                                                                                    conversionZ, FLIPDATA)
-                            x += xOutwards[-1]
-                            # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
-                            # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
-                            startIndex, coef1, r2 = linearFitLinearRegimeOnly(x, unwrapped, sensitivityR2, k)
-                            # startIndex += len(profileOutwards)
-
-                            if r2 > sensitivityR2:  # R^2 should be very high, otherwise probably e.g. near pinning point
-                                a_horizontal = 0
-                                angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
-                                angleDeg = math.degrees(angleRad)
-                                if angleDeg > 45:  # Flip measured CA degree if higher than 45.
-                                    angleDeg = 90 - angleDeg
-                                xArrFinal.append(x0arr[k])
-                                yArrFinal.append(y0arr[k])
-                                vectorsFinal.append(vectors[k])
-                                angleDegArr.append(angleDeg)
-                            else:
-                                omittedVectorCounter += 1  # TEMP: to check how many vectors should not be taken into account because the r2 value is too low
-
-                            # plot 1 profile of each image with intensity, wrapped, height & resulting CA
-                            if k == round(len(x0arr) / 2):
-                                offsetDropHeight = 0
-                                # TODO WIP: swelling or height profile outside droplet
-                                if xOutwards[-1] != 0:
-                                    extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
-                                    heightNearCL, heightRatioNearCL = swellingRatioNearCL(
-                                        np.arange(0, len(profileOutwards) + extraPartIndroplet),
-                                        profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path,
-                                        n, k,
-                                        outwardsLengthVector)
-                                    # Stitching together swelling height & droplet CA height
-                                    offsetDropHeight = heightNearCL[
-                                                           -1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
-                                unwrapped = offsetDropHeight + unwrapped
-
-                                ax1, fig1 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL,
-                                                                           offsetDropHeight, peaks, profile,
-                                                                           profileOutwards, r2, startIndex, unwrapped,
-                                                                           wrapped, x, xOutwards)
-
-                            # plot various height profiles in a seperate figure
-                            # every 1/th of the image, an image is plotted
-                            # TODO WIP: swelling or height profile outside droplet
-                            # TODO this part below allows for anchoring at a set distance
-                            # if xOutwards[-1] != 0 and k in plotHeightCondition:
-                            #     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
-                            #     heightNearCL, heightRatioNearCL = swellingRatioNearCL(
-                            #         np.arange(0, len(profileOutwards) + extraPartIndroplet),
-                            #         profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k)
-                            #     heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3) #apply a savgol filter for data smoothing
-                            #     if heightPlottedCounter == 0:
-                            #         distanceOfEqualHeight = 10         #can be changed: distance at which the profiles must overlap. xOutwards[-1]
-                            #         indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
-                            #         equalHeight = heightNearCL[indexOfEqualHeight]
-                            #         x_ax_heightsCombined = []
-                            #         y_ax_heightsCombined = []
-                            #         x_ks = []
-                            #         y_ks = []
-                            #
-                            #         ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize = 15, zorder = len(x0arr), label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
-                            #         ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
-                            #         ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet-1], facecolor='blue', alpha=0.3)
-                            #     else:
-                            #         indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
-                            #         heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight] - equalHeight)  #to set all height profiles at some index to the same height
-                            #     x_ks.append(x0arr[k])
-                            #     y_ks.append(y0arr[k])
-                            #     x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet-1)]]))
-                            #     y_ax_heightsCombined.append(heightNearCL)
-                            #     heightPlottedCounter += 1  # increment counter
-
-                            # TODO WIP: swelling or height profile outside droplet
-                            # TODO this part below sets the anchor at some index within the droplet regime
-                            if xOutwards[-1] != 0 and k in plotHeightCondition:
-                                extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
-                                xBrushAndDroplet = np.arange(0,
-                                                             len(profileOutwards) + extraPartIndroplet)  # distance (nr of datapoints (NOT pixels!))
-                                yBrushAndDroplet = profileOutwards + profile[
-                                                                     0:extraPartIndroplet]  # intensity data of brush & some datapoints within dropelt
-                                # Big function below: for calculating the height profile manually outside droplet by peak selection from intensity profile
-                                heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet,
-                                                                                      yBrushAndDroplet,
-                                                                                      deltatFromZeroSeconds[n], path, n,
-                                                                                      k,
-                                                                                      outwardsLengthVector)
-                                heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10,
-                                                                          3)  # apply a savgol filter for data smoothing
-
-                                if heightPlottedCounter == 0:
-                                    distanceOfEqualHeight = 10  # can be changed: distance at which the profiles must overlap. xOutwards[-1]
-                                    indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
-                                    equalHeight = heightNearCL[indexOfEqualHeight]
-                                    x_ax_heightsCombined = []
-                                    y_ax_heightsCombined = []
-                                    x_ks = []
-                                    y_ks = []
-
-                                    ax_heightsCombined.plot(distanceOfEqualHeight, equalHeight, '.', markersize=15,
-                                                            zorder=len(x0arr),
-                                                            label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
-                                    ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
-                                    ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet - 1],
-                                                               facecolor='blue', alpha=0.3)
-                                else:
-                                    indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
-                                    heightNearCL = heightNearCL - (heightNearCL[
-                                                                       indexOfEqualHeight] - equalHeight)  # to set all height profiles at some index to the same height
-                                x_ks.append(x0arr[k])
-                                y_ks.append(y0arr[k])
-                                x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet - 1)]]))
-                                y_ax_heightsCombined.append(heightNearCL)
-                                heightPlottedCounter += 1  # increment counter
-
-                                # Stitching together swelling height & droplet CA height
-                                # heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
-                                # heightNearCL = heightNearCL - (heightNearCL[(- 1 - extraPartIndroplet)] - (unwrapped[0] * 1000))
-                                offsetDropHeight = heightNearCL[
-                                                       -1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
-                                unwrapped = offsetDropHeight + unwrapped
-
-                                ax10, fig10 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL,
-                                                                             offsetDropHeight, peaks, profile,
-                                                                             profileOutwards, r2, startIndex, unwrapped,
-                                                                             wrapped, x, xOutwards)
-                                fig10.suptitle(f"Data profiles: imageNr {n}, vectorNr {k}", size=14)
-                                fig10.tight_layout()
-                                fig10.subplots_adjust(top=0.88)
-                                fig10.savefig(
-                                    os.path.join(analysisFolder, f"Height profiles - imageNr {n}, vectorNr {k}.png"),
-                                    dpi=600)
-                                plt.close(fig10)
-                        except:
-                            logging.critical(f"!{k}: Analysing each coordinate & normal vector broke!")
-                            print(traceback.format_exc())
                     print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
                     logging.warning(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
 
