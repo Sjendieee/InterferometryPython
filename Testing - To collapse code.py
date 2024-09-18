@@ -2127,7 +2127,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [35]       #36, 57
+    usedImages = [57]       #36, 57
     thresholdSensitivityStandard = [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
