@@ -1904,8 +1904,12 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                                                 greyresizedimg)
 
             #TODO incoorp. functionality profile + bit outside drop to check for correctness of CA & finding the linear regime
-            profileExtraOut, lineLengthPixelsExtraOut, _ = profileFromVectorCoords(x0arr[k], y0arr[k], dxExtraOutarr[k], dyExtraOutarr[k],
+            profileExtraOut = []
+            lineLengthPixelsExtraOut = 0
+            if smallExtraOutwardsVector != 0:
+                profileExtraOut, lineLengthPixelsExtraOut, _ = profileFromVectorCoords(x0arr[k], y0arr[k], dxExtraOutarr[k], dyExtraOutarr[k],
                                                                               smallExtraOutwardsVector, greyresizedimg)
+
             profileExtraOut.reverse()
             profileExtraOut = profileExtraOut[:-1]  #remove the last datapoint, as it's the same as the start of the CA profile
             # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
@@ -2112,8 +2116,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [57]       #36, 57
-    thresholdSensitivityStandard = [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
+    usedImages = [38]       #36, 57
+    thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
@@ -2790,6 +2794,7 @@ def main():
 
     #P12MA dodecane - tilted stage
     path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
+    path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M2 tilted drop"
 
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
