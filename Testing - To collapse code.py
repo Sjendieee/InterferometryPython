@@ -1160,9 +1160,9 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(xarr, yarr, sensitivityR2, k
     stepj = round(minimalnNrOfDatapointsi/10)
     startLinRegimeIndex = 0
     # TODO TEMP for getting some quick datanalysis can be removed
-    if k in [1690, 6338, 4225]:           # k == round(len(xarr) / 2)
+    if k in [1690, 6338, 4225]:       #which vector to plot for    # k == round(len(xarr) / 2)
         ###plot linear fits for variable i ranges
-        for i in [12, 30, 50, 70, 100]:
+        for i in [12, 30, 50, 70, 100]:     #which starting index to plot for
             fig, ax = plt.subplots()
             ax.plot(yarr, '.', label='data')
             j = -4
@@ -1173,20 +1173,20 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(xarr, yarr, sensitivityR2, k
             ax.set_title(f'k={k}. Fit range index = {i} - {len(xarr) + j}')
             ax.set(xlabel='index (-)', ylabel='Some height (um?)')
             ax.legend(loc='best')
-            fig.savefig(f"C:\\Downloads\\linfit - vec{k} i {i}.png", dpi=900)
+            #fig.savefig(f"C:\\Downloads\\linfit - vec{k} i {i}.png", dpi=900)
             plt.close(fig)
 
         ###plot r2's
         fig, ax = plt.subplots()
         r2 = [];
         j = -4
-        h = np.arange(10, 100, 1)
-        for i in h:
+        i_range = np.arange(10, 100, 1)
+        for i in i_range:
             coef1, residuals, _, _, _ = np.polyfit(xarr[i:j], yarr[i:j], 1, full=True)
             r2.append(r2_score(yarr[i:i + 30], np.poly1d(coef1)(xarr[i:i + 30])))
-        ax.plot(h, r2)
+        ax.plot(i_range, r2)
         ax.set(title= 'R^2 plot: vary starting index of linear fit-end of dataset', xlabel = 'starting index i of linear fit', ylabel = 'Calculated R^2 value')
-        fig.savefig(f"C:\\Downloads\\r2 plot - vec{k}.png", dpi = 600)
+        #fig.savefig(f"C:\\Downloads\\r2 plot - vec{k}.png", dpi = 600)
         plt.close(fig)
 
     sensitivityR2 = 0.997
@@ -1924,6 +1924,18 @@ def determineMiddleCoord(xArrFinal, yArrFinal):
     return [int(middleX), int(middleY)]
 
 
+def matchingCAIntensityPeak(x_units, y_intensity, h_profile):
+    spacing_peaks = 5 #at least 5 pixels between peaks
+    prominence_peaks = 20
+    peaks, _ = scipy.signal.find_peaks(y_intensity, height=130, distance = spacing_peaks, prominence = prominence_peaks)  # obtain indeces om maxima
+    minima, _ = scipy.signal.find_peaks(-np.array(y_intensity), height=-130, distance = spacing_peaks,  prominence = prominence_peaks)  # obtain indeces om maxima
+    # figtemp, axtemp = plt.subplots()
+    # axtemp.plot(y_intensity)
+    # axtemp.plot(peaks, np.array(y_intensity)[peaks], '.', markersize = 8)
+    # plt.show()
+
+    return peaks[3]
+
 def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
                          lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
@@ -1963,6 +1975,12 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     y_ax_heightsCombined = []
     x_ks = []
     y_ks = []
+
+    matchedPeakIndexArr = []
+
+    x_totalProfileCombined = []
+    y_totalIntensityProfileCombined = []
+    y_totalHeightProfileCombined = []
 
     # [4000, round(len(x0arr) / 2)]:#
     for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
@@ -2054,10 +2072,21 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         profileOutwards + profile[0:extraPartIndroplet], deltatFromZeroSeconds[n], path, n, k,
                         outwardsLengthVector)
 
+                    #For matching the 4th (or something) peak of droplet profile in combined height profiles later
+                    matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet, heightNearCL)
+                    matchedPeakIndexArr.append(matchedPeakIndex)
+
                     # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
                     offsetDropHeight = heightNearCL[-1 - extraPartIndroplet] / 1000  # height at start of droplet, in relation to the swollen height of PB
                     offsetDropHeight = (unwrapped[len(profileExtraOut)] - heightNearCL[len(profileOutwards)] / 1000)
                     offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL[-extraPartIndroplet] / 1000))
+
+                    x_ks.append(x0arr[k])
+                    y_ks.append(y0arr[k])
+                    x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet - 1)]]))
+                    y_totalIntensityProfileCombined.append(profileOutwards + profile[0:extraPartIndroplet])
+                    y_ax_heightsCombined.append(heightNearCL)
+                    heightPlottedCounter += 1  # increment counter
 
                 #unwrapped = offsetDropHeight + unwrapped
 
@@ -2125,7 +2154,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
             if xOutwards[-1] != 0 and k in plotHeightCondition:
                 extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
                 xBrushAndDroplet = np.arange(0,
-                                             len(profileOutwards) + extraPartIndroplet)  # distance (nr of datapoints (NOT pixels!))
+                                             len(profileOutwards) + extraPartIndroplet)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
                 yBrushAndDroplet = profileOutwards + profile[
                                                      0:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
                 # Big function below: for calculating the height profile manually outside droplet by peak selection from intensity profile
@@ -2134,6 +2163,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                                                       outwardsLengthVector)
                 heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10,
                                                           3)  # apply a savgol filter for data smoothing
+
+                # For matching the 4th (or something) peak of droplet profile in combined height profiles later
+                matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet, heightNearCL)
+                matchedPeakIndexArr.append(matchedPeakIndex)
 
                 if heightPlottedCounter == 0:
                     distanceOfEqualHeight = 10  # can be changed: distance at which the profiles must overlap. xOutwards[-1]
@@ -2152,8 +2185,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 x_ks.append(x0arr[k])
                 y_ks.append(y0arr[k])
                 x_ax_heightsCombined.append(np.concatenate([xOutwards, x[:(extraPartIndroplet - 1)]]))
+                y_totalIntensityProfileCombined.append(profileOutwards + profile[0:extraPartIndroplet])
                 y_ax_heightsCombined.append(heightNearCL)
                 heightPlottedCounter += 1  # increment counter
+
 
                 # Stitching together swelling height & droplet CA height
                 # heightNearCL = heightNearCL - (heightNearCL[(-1-extraPartIndroplet)] - (unwrapped[len(profileOutwards)] * 1000))
@@ -2168,6 +2203,31 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 xshift = (x[len(profileExtraOut)] - x[0])
                 x = np.array(x) - xshift
                 #TODO tot hier
+
+
+                #TODO TEMP voor trying overlap 3d intensity peak & height profiles
+                if k == 6338:
+                    print(f"pausin")
+                    CA_s = np.array(angleDegArr)[1690, 4225, 6338]
+                    figtemp, axtemp = plt.subplots(1,2)
+                    overlapping_indices = np.array(matchedPeakIndexArr)
+                    refIndex = overlapping_indices[0]
+                    refX_at_index = x_ax_heightsCombined[0][refIndex]
+                    refH_at_index =  y_ax_heightsCombined[0][refIndex]
+
+                    axtemp[0].plot(x_ax_heightsCombined[0], y_totalIntensityProfileCombined[0], label=f'Data 1 (reference set)')
+                    axtemp[1].plot(x_ax_heightsCombined[0], y_ax_heightsCombined[0], label = f'Data 1 (reference set), CA: {CA_s[0]}')
+                    axtemp[1].plot(refX_at_index, refH_at_index, '.', label = 'Reference datapoint')
+                    for nr_dataset, overlapIndex in enumerate(overlapping_indices[1:]):
+                        nr_dataset = nr_dataset + 1
+                        offsetX = x_ax_heightsCombined[nr_dataset][overlapIndex] - refX_at_index
+                        offsetY = y_ax_heightsCombined[nr_dataset][overlapIndex] - refH_at_index
+
+                        axtemp[0].plot(x_ax_heightsCombined[nr_dataset] - offsetX, y_totalIntensityProfileCombined[nr_dataset], label = f'Data {nr_dataset+1}')
+                        axtemp[1].plot(x_ax_heightsCombined[nr_dataset] - offsetX, y_ax_heightsCombined[nr_dataset] - offsetY, label = f'Data {nr_dataset+1}, CA: {CA_s[nr_dataset+1]}')
+                    axtemp[1].legend()
+                    axtemp[0].set_title('Intensity profiles, shifted'); axtemp[1].set_title("Height profiles, overlapped")
+                    plt.show()
 
                 ax10, fig10 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL,
                                                            offsetDropHeight, peaks, profile,
@@ -2896,7 +2956,7 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
