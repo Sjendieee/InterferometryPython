@@ -526,8 +526,8 @@ def idkPostLastExtremum(xdata, ydata, indexPeak1, indexPeak2):
         x_range = np.linspace(np.pi, 2 * np.pi, 1000)
         # Check if any of the last intensity data is higher than the last extremum -> then use the max of that data
         # TODO this method is not ideal, because it is unsure if this is actually a maximum, but it's a better approximation than not doing it at all
-        if any(ydata[indexPeak1] < ydata[indexPeak2:-1]):
-            localmax = max(ydata[indexPeak2:-1])
+        if any(ydata[indexPeak1] < ydata[indexPeak2:]):#TODO check: removed -1
+            localmax = max(ydata[indexPeak2:])#TODO check: removed -1
             a = abs((localmax - ydata[indexPeak2])) / 2
             b = (localmax + ydata[indexPeak2]) / 2
             print(f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
@@ -538,8 +538,8 @@ def idkPostLastExtremum(xdata, ydata, indexPeak1, indexPeak2):
         x_range = np.linspace(0, np.pi, 1000)
         # Check if any of the last intensity data is lower than the last extremum -> then use the min of that data
         # TODO this method is not ideal, because it is unsure if this is actually a maximum, but it's a better approximation than not doing it at all
-        if any(ydata[indexPeak1] > ydata[indexPeak2:-1]):
-            localmin = min(ydata[indexPeak2:-1])
+        if any(ydata[indexPeak1] > ydata[indexPeak2:]):#TODO check: removed -1
+            localmin = min(ydata[indexPeak2:])#TODO check: removed -1
             a = abs((localmin - ydata[indexPeak2])) / 2
             b = (localmin + ydata[indexPeak2]) / 2
             print(f"\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
@@ -549,9 +549,10 @@ def idkPostLastExtremum(xdata, ydata, indexPeak1, indexPeak2):
 
     h_range = np.linspace(0, 90.9, 1000)
     I_modelx = a * np.cos(x_range) + b
-    indicesToEvaluate = range(indexPeak2, len(xdata)-1)
+    #indicesToEvaluate = range(indexPeak2, len(xdata))         #TODO check: removed -1 from len(xdata)-1
+    indicesToEvaluate = np.arange(indexPeak2, len(xdata))
     h = []
-    for i, index in enumerate(indicesToEvaluate):
+    for index in indicesToEvaluate:
         diffInI = np.abs(np.subtract(I_modelx, ydata[index]))
         minIndexInmodelX = np.where(diffInI == np.min(diffInI))[0][0]
         h.append(h_range[minIndexInmodelX])

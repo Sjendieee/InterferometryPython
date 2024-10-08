@@ -1358,14 +1358,14 @@ def givemeZ(xin, yin, zin, xout, yout, conversionXY, analysisFolder, n, imgshape
 
 #TODO probably the path is not working as intended
 #TODO Seems to be working just fine?
-def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber, outwardsLengthVector):
+def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber, outwardsLengthVector, extraPartIndroplet):
     """
     :param xdata: np.aray of x-position data (unit=pixels)
     :param ydata: np.array of y-Intensity data
     :param elapsedtime: elapsed time with respect to t=0 (unit=seconds, format = int or float)
     :param imgNumber: image number of analysed tiff file in folder. Required for saving & importing peak-picking data
     :param vectorNumber: vector number k analysed. Required for saving & importing peak-picking data
-    :return height: np.array with absolute heights.
+    :return height: np.array with absolute heights (nm).
     :return h_ratio: np.array with swelling ratios.
     """
     EVALUATERIGHTTOLEFT = True         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
@@ -1385,7 +1385,7 @@ def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber
     colorscheme = 'plasma'; cmap = plt.get_cmap(colorscheme); colorGradient = np.linspace(0, 1, len(knownHeightArr))
     dryBrushThickness = 160 #TODO: for now, set the known dry height of all profiles to 160. Hopefully outwardsLengthVector is long enough that it is hardly swelling at the end
     idx = imgNumber             #idx is the image number being investigated
-    idxx = 0    #in the OG code, idxx is used for the knownheight array and only incremented when an desired idx is investigated. Such that for e.g. 4 idx's to be investigated, knownHeigthArr[idxx] is used
+    idxx = 0    #in the OG code, idxx is used for the knownheight array and only incremented when a desired idx is investigated. Such that for e.g. 4 idx's to be investigated, knownHeigthArr[idxx] is used
     intensityProfileZoomConverted = ydata
     knownPixelPosition = 30     #TODO random pixel near end of outwardsLengthVector for now, just to test if entire function works
     normalizeFactor = 1
@@ -1397,7 +1397,7 @@ def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber
     height, h_ratio = heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
                                  axswel0, axswel1, cmap, colorGradient, dryBrushThickness, elapsedtime, figswel0, figswel1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
-                                 range1, range2, source, xshifted, vectorNumber, outwardsLengthVector, unitXY="pixels")
+                                 range1, range2, source, xshifted, vectorNumber, outwardsLengthVector, unitXY="pixels", extraPartIndroplet=extraPartIndroplet)
     return height, h_ratio
 
 #TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
@@ -1923,17 +1923,17 @@ def matchingCAIntensityPeak(x_units, y_intensity, h_profile):
     prominence_peaks = 20
     peaks, _ = scipy.signal.find_peaks(y_intensity, height=130, distance = spacing_peaks, prominence = prominence_peaks)  # obtain indeces om maxima
     minima, _ = scipy.signal.find_peaks(-np.array(y_intensity), height=-130, distance = spacing_peaks,  prominence = prominence_peaks)  # obtain indeces om maxima
-    # figtemp, axtemp = plt.subplots()
-    # axtemp.plot(y_intensity)
-    # axtemp.plot(peaks, np.array(y_intensity)[peaks], '.', markersize = 8)
-    # plt.show()
+    figtemp, axtemp = plt.subplots()
+    axtemp.plot(y_intensity)
+    axtemp.plot(peaks, np.array(y_intensity)[peaks], '.', markersize = 8)
+    plt.show()
 
     return peaks[3]
 
 def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
                          lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
-                         resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, smallExtraOutwardsVector):
+                         resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector):
     """
 
     :param FLIPDATA:
@@ -1975,7 +1975,6 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     x_totalProfileCombined = []
     y_totalIntensityProfileCombined = []
     y_totalHeightProfileCombined = []
-    extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for calculating swelling profile outside droplet
     # [4000, round(len(x0arr) / 2)]:#
     for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
         try:
@@ -2018,7 +2017,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
             #TODO incoorp. functionality profile + bit outside drop to check for correctness of CA & finding the linear regime
             profileExtraOut = []
             lineLengthPixelsExtraOut = 0
-            if smallExtraOutwardsVector != 0:
+            if smallExtraOutwardsVector != 0:   #extract intensity profile a bit outside the drop
                 profileExtraOut, lineLengthPixelsExtraOut, _ = profileFromVectorCoords(x0arr[k], y0arr[k], dxExtraOutarr[k], dyExtraOutarr[k],
                                                                               smallExtraOutwardsVector, greyresizedimg)
 
@@ -2028,7 +2027,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
             unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
                                                                     conversionZ, FLIPDATA)
 
-            x += xOutwards[-1]
+            x += xOutwards[-1]          #shift x to match with the end of xOutwards TODO commented for now, as I think this same operation is performed later as well
+
             # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
             # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
             startIndex, coef1, r2, GoodFit = linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(x, unwrapped, sensitivityR2, k, smallExtraOutwardsVector)
@@ -2060,7 +2060,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                 #If plotting swelling, determine swellingprofile outside drop
                 if xOutwards[-1] != 0:
-                    heightNearCL = combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
+                    heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr = combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
                                                                outwardsLengthVector, path, profile,
                                                                profileOutwards, extraPartIndroplet)
 
@@ -2069,11 +2069,16 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                     x_ks.append(x0arr[k])
                     y_ks.append(y0arr[k])
-                    x_ax_heightsCombined.append(np.concatenate([xOutwards, x[1:extraPartIndroplet]]))
-                    y_totalIntensityProfileCombined.append(profileOutwards + profile[1:extraPartIndroplet])
-                    y_ax_heightsCombined.append(heightNearCL)
+                    x_ax_heightsCombined.append(np.concatenate([xOutwards, x[1:extraPartIndroplet]]))       #units= um
+                    y_totalIntensityProfileCombined.append(yBrushAndDroplet)                                #units= intensity (-)
+                    y_ax_heightsCombined.append(heightNearCL)                                               #units= nm
 
-                    xOutwards = xOutwards[:-smallExtraOutwardsVector]; profileOutwards = profileOutwards[:-smallExtraOutwardsVector]        #TODO CHECK waarom dit niet ":-extraPartIndroplet" is??!
+                    # TODO check dit: nu gewoon overgenomen van eerder. Check wat nog meer nodig is/ wat overbodig is in functie
+                    # #remove overlapping datapoints to do proper plotting later:
+                    # remove either the extra vectors inside of droplet ('xOutwards', 'profileOutwards')    (distance x, and intensity resp.)
+                    xOutwards = xOutwards[:-smallExtraOutwardsVector]; profileOutwards = profileOutwards[:-smallExtraOutwardsVector]  # TODO CHECK waarom dit niet ":-extraPartIndroplet" is??!
+                    # or extra vectors inside droplet ('x', 'unwrapped')
+                    #x = x[extraPartIndroplet:]; profile = profile[extraPartIndroplet:]
 
                 # set equal height of swelling profile & droplet
                 unwrapped = unwrapped - offsetDropHeight
@@ -2235,14 +2240,18 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
 def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n, outwardsLengthVector,
                                 path, profile, profileOutwards, extraPartIndroplet):
-    xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
-    yBrushAndDroplet = profileOutwards + profile[0:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
+    """
+    Convert (or import) the intensity data on a line to a height profile.
+    Combines the brush profile (from profileOutwards) with some datapoints inside the droplet (extraPartIndroplet) for more fringes.
+    """
+
+    xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet-1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
+    yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
     if extraPartIndroplet >= outwardsLengthVector:
         logging.critical(f'This will break. OutwardsLengthVector ({outwardsLengthVector}) must be longer than extraPartInDroplet ({extraPartIndroplet}).')
     # Function below determines swelling ratio outside droplet by manual fringe finding followed by inter&extrapolation.
     # This height is then only relative to 'itself', su must be corrected & stitched to droplet contact angle profile.
-    heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet, yBrushAndDroplet, deltatFromZeroSeconds[n], path, n, k,
-                                                          outwardsLengthVector)
+    heightNearCL, heightRatioNearCL = swellingRatioNearCL(xBrushAndDroplet, yBrushAndDroplet, deltatFromZeroSeconds[n], path, n, k,outwardsLengthVector, extraPartIndroplet)
 
     # TODO check if I really want savgol filtering
     heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3)  # apply a savgol filter for data smoothing
@@ -2250,7 +2259,7 @@ def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n
     # For matching the 4th (or something) peak of droplet profile in combined height profiles later
     matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet, heightNearCL)
     matchedPeakIndexArr.append(matchedPeakIndex)
-    return heightNearCL
+    return heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr
 
 
 def showPlot(display_mode, figures):
@@ -2305,7 +2314,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
-    smallExtraOutwardsVector = 50    #small vector e.g. '25', pointing outwards from CL. Goal: overlap some height fitting from CA analysis inside w/ swelling profile outside. #TODO working code, but profile  outside CL has lower frequency than fringes inside, and this seems to mess with the phase wrapping & unwrapping. So end of height profile is flat-ish..
+
+    extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
+    smallExtraOutwardsVector = 50    #small vector e.g. '25', pointing outwards from CL (for wrapped calculation). Goal: overlap some height fitting from CA analysis inside w/ swelling profile outside. #TODO working code, but profile  outside CL has lower frequency than fringes inside, and this seems to mess with the phase wrapping & unwrapping. So end of height profile is flat-ish..
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 'timed'  # 'none' Don't show plots&images at all; 'timed' = show images for only 3 seconds; 'manual' = remain open untill clicked away manually
@@ -2463,7 +2474,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, smallExtraOutwardsVector)
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector)
 
                 else:
                     #If the CL coordinates have not been imported (e.g. for new img file)
@@ -2472,7 +2483,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # corresponding normal coordinate inwards to droplet x,y (defined as dx and dy)
                     # and normal x,y coordinate outwards of droplet (dxneg & dyneg)
                     logging.info("USING CHOSEN CONTACT LINE to determine normal vectors")
-                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
+                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, extraPartIndroplet, smallExtraOutwardsVector)
                     print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                     tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
 
@@ -2964,7 +2975,7 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    path = "E:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
