@@ -1918,29 +1918,84 @@ def determineMiddleCoord(xArrFinal, yArrFinal):
     return [int(middleX), int(middleY)]
 
 
-def matchingCAIntensityPeak(x_units, y_intensity, h_profile):
+
+def matchingCAIntensityPeak(x_units, y_intensity):
+    """
+    Return the index of the 4th maximum peak from the dry brush -> droplet side.
+    The function finds the maxima automatically, removes 'fake' detected peaks, and then returns the 4th peak index.
+    :param x_units:
+    :param y_intensity:
+    :param h_profile:
+    :return:
+    """
+    peaks, minima = FindMinimaAndMaxima(x_units, y_intensity)
+    return peaks[3]
+
+def FindMinimaAndMaxima(x_units, y_intensity):
+    """
+    Return the indices of all maxima and minima of 'y_intensity'.
+    The function finds the extrema automatically, removes 'fake' detected peaks, and then returns the indices.
+    :param x_units:
+    :param y_intensity:
+    :return:
+    """
     y_intensity = np.array(y_intensity)
     spacing_peaks = 5 #at least 5 pixels between peaks
     prominence_peaks = 20
     peaks, _ = scipy.signal.find_peaks(y_intensity, height=130, distance = spacing_peaks, prominence = prominence_peaks)  # obtain indeces om maxima
-    peaks = removeNonPeak(peaks, y_intensity)
     minima, _ = scipy.signal.find_peaks(-y_intensity, height=-130, distance = spacing_peaks,  prominence = prominence_peaks)  # obtain indeces om maxima
-    minima = removeNonPeak(minima, -y_intensity)
+    peaks, minima = removeLeftLocalExtrama(peaks, minima, y_intensity)
+    peaks = removeLeftNonPeak(peaks, y_intensity)
+    minima = removeLeftNonPeak(minima, -y_intensity)
+
     figtemp, axtemp = plt.subplots()
     axtemp.plot(y_intensity)
     axtemp.plot(peaks, y_intensity[peaks], '.', markersize = 8)
     axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
-    plt.show()
+    axtemp.set(title='FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)', ylabel='Intensity (-)')
+    #plt.show()
 
-    return peaks[3]
+    return peaks, minima
 
-def removeNonPeak(peaks, y_intensity):
+def removeLeftNonPeak(peaks, y_intensity):
+    """
+    Remove the most left peak if it's just a local maximum.
+    Check is done by comparing the peak intensity to the intensity of the drop fringes.
+    :param peaks:
+    :param y_intensity:
+    :return:
+    """
     mean_y_peaks = np.mean(y_intensity[peaks[1:]])
     if (mean_y_peaks - y_intensity[peaks[0]]) > 5:  #if far left peak height is lower intensity (w/ error of e.g.5) than drop fringes intensity, it's not a real peak and will be removed from list
         newPeaks = peaks[1:]
     else:
         newPeaks = peaks
     return newPeaks
+
+def removeLeftLocalExtrama(peaks, minima, y_intensity: np.array):
+    """
+    Remove, if present, multiple local maxima or minima on the left of an intensity profile
+    :param peaks:
+    :param minima:
+    :param y_intensity:
+    :return: array with adjusted minima or maxima
+    """
+    # final peak is known, might be multiple local minima that need removing
+    if peaks[0] > minima[0]:
+        #locate indices of possible local extrema
+        i_extrema = np.where(np.array(minima) < peaks[0])
+        #find index of minimum of those values
+        i_loc_min = np.argmin(y_intensity[i_extrema])
+        newminima = np.concatenate(i_loc_min, minima[i_extrema[-1]+1])
+        newpeaks = peaks
+    else:   #local maxima might need removing
+        # locate indices of possible local extrema
+        i_extrema = np.where(np.array(peaks) < minima[0])
+        # find index of minimum of those values
+        i_loc_max = np.argmax(y_intensity[i_extrema])
+        newpeaks = np.array([i_loc_max, peaks[i_extrema[-1]+]1])
+        newminima = minima
+    return newpeaks, newminima
 
 def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
@@ -2260,12 +2315,15 @@ def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n
 
     xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet-1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
     yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
-    ax.plot(xBrushAndDroplet, yBrushAndDroplet, 'ob')
-    yBrushAndDroplet = list(scipy.signal.savgol_filter(profileOutwards, len(profileOutwards)//10, 3)) + profile[1:extraPartIndroplet] # apply a savgol filter for data smoothing
+    ax.plot(xBrushAndDroplet, yBrushAndDroplet, 'ob', label = 'raw data')
+    #TODO filter until the first peak from the left
+    peaks, minima = FindMinimaAndMaxima(xBrushAndDroplet, yBrushAndDroplet)
+    yBrushAndDroplet = list(scipy.signal.savgol_filter(yBrushAndDroplet[0:peaks[0]], len(yBrushAndDroplet)//10, 3)) + yBrushAndDroplet[peaks[0]:] # apply a savgol filter for data smoothing
     # TODO check if I really want savgol filtering on input data: peaks of
-    ax.plot(xBrushAndDroplet, yBrushAndDroplet, '.')
+    ax.plot(xBrushAndDroplet, yBrushAndDroplet, '.', label= 'smoothened before 1st peak')
+    ax.set(title = 'combineInsideAndOutsideDrop function', xlabel = 'index (-)', ylabel = 'intensity(-)')
+    ax.legend()
     plt.show()
-
     if extraPartIndroplet >= outwardsLengthVector:
         logging.critical(f'This will break. OutwardsLengthVector ({outwardsLengthVector}) must be longer than extraPartInDroplet ({extraPartIndroplet}).')
     # Function below determines swelling ratio outside droplet by manual fringe finding followed by inter&extrapolation.
@@ -2276,7 +2334,7 @@ def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n
     heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3)  # apply a savgol filter for data smoothing
 
     # For matching the 4th (or something) peak of droplet profile in combined height profiles later
-    matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet, heightNearCL)
+    matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet)
     matchedPeakIndexArr.append(matchedPeakIndex)
     return heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr
 
@@ -2994,7 +3052,7 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
