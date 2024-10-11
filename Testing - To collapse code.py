@@ -1919,16 +1919,28 @@ def determineMiddleCoord(xArrFinal, yArrFinal):
 
 
 def matchingCAIntensityPeak(x_units, y_intensity, h_profile):
+    y_intensity = np.array(y_intensity)
     spacing_peaks = 5 #at least 5 pixels between peaks
     prominence_peaks = 20
     peaks, _ = scipy.signal.find_peaks(y_intensity, height=130, distance = spacing_peaks, prominence = prominence_peaks)  # obtain indeces om maxima
-    minima, _ = scipy.signal.find_peaks(-np.array(y_intensity), height=-130, distance = spacing_peaks,  prominence = prominence_peaks)  # obtain indeces om maxima
+    peaks = removeNonPeak(peaks, y_intensity)
+    minima, _ = scipy.signal.find_peaks(-y_intensity, height=-130, distance = spacing_peaks,  prominence = prominence_peaks)  # obtain indeces om maxima
+    minima = removeNonPeak(minima, -y_intensity)
     figtemp, axtemp = plt.subplots()
     axtemp.plot(y_intensity)
-    axtemp.plot(peaks, np.array(y_intensity)[peaks], '.', markersize = 8)
+    axtemp.plot(peaks, y_intensity[peaks], '.', markersize = 8)
+    axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
     plt.show()
 
     return peaks[3]
+
+def removeNonPeak(peaks, y_intensity):
+    mean_y_peaks = np.mean(y_intensity[peaks[1:]])
+    if (mean_y_peaks - y_intensity[peaks[0]]) > 5:  #if far left peak height is lower intensity (w/ error of e.g.5) than drop fringes intensity, it's not a real peak and will be removed from list
+        newPeaks = peaks[1:]
+    else:
+        newPeaks = peaks
+    return newPeaks
 
 def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
@@ -2244,9 +2256,16 @@ def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n
     Convert (or import) the intensity data on a line to a height profile.
     Combines the brush profile (from profileOutwards) with some datapoints inside the droplet (extraPartIndroplet) for more fringes.
     """
+    fig, ax = plt.subplots()
 
     xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet-1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
     yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
+    ax.plot(xBrushAndDroplet, yBrushAndDroplet, 'ob')
+    yBrushAndDroplet = list(scipy.signal.savgol_filter(profileOutwards, len(profileOutwards)//10, 3)) + profile[1:extraPartIndroplet] # apply a savgol filter for data smoothing
+    # TODO check if I really want savgol filtering on input data: peaks of
+    ax.plot(xBrushAndDroplet, yBrushAndDroplet, '.')
+    plt.show()
+
     if extraPartIndroplet >= outwardsLengthVector:
         logging.critical(f'This will break. OutwardsLengthVector ({outwardsLengthVector}) must be longer than extraPartInDroplet ({extraPartIndroplet}).')
     # Function below determines swelling ratio outside droplet by manual fringe finding followed by inter&extrapolation.
@@ -2975,7 +2994,7 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
