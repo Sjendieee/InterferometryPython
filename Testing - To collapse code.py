@@ -2381,27 +2381,37 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
     fig2, ax2 = plt.subplots()
     #TODO coords to phi here:
-    middleOfDrop = [2290, 2246]
+    #middleOfDrop = [2290, 2246] #For v3, nr32
+    middleOfDrop = [3331, 2119] #for misschien v2, nr46
     phi, rArray = coordsToPhi(x0arr, abs(np.subtract(resizedimg.shape[0], y0arr)), middleOfDrop[0], middleOfDrop[1])
     idk1, idk2 = convertPhiToazimuthal(phi)
-    # vector_nrs = np.arange(0, len(x0arr))
-    # ax2.plot(vector_nrs, peakdistanceFromCL, '.')
-    # ax2.set(title = 'Distance of first fringe peak outside CL', xlabel = 'line nr. in clockwise direction', ylabel = 'distance (um)')
+    vector_nrs = np.arange(0, len(x0arr))
+    ax2.plot(vector_nrs, peakdistanceFromCL, '.')
+    ax2.set(title = 'Distance of first fringe peak outside CL', xlabel = 'line nr. in clockwise direction', ylabel = 'distance (um)')
+    fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} lines.png'), dpi=600)
+    plt.show()
+
+    fig2, ax2 = plt.subplots()
     ax2.plot(phi, peakdistanceFromCL, '.')
     ax2.set(title='Distance of first fringe peak outside CL', xlabel='Phi (rad)', ylabel='distance (um)')
+    fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
     plt.show()
+
 
     fig2, ax2 = plt.subplots()
     ax2.plot(idk2, peakdistanceFromCL, '.')
     ax2.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
+    fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} azi.png'), dpi=600)
+
     plt.show()
 
     fig3, ax3 = plt.subplots()
-    im3 = ax3.scatter(x0arr,  abs(np.subtract(resizedimg.shape[0], y0arr)), c=peakdistanceFromCL, cmap='jet', vmin=5, vmax=17)
+    im3 = ax3.scatter(x0arr,  abs(np.subtract(resizedimg.shape[0], y0arr)), c=peakdistanceFromCL, cmap='jet', vmin=5, vmax=16)
     ax3.set_xlabel("X-coord");
     ax3.set_ylabel("Y-Coord");
     ax3.set_title(f"Spatial Distance from First Drop Fringe Peak Outside CL ")
     fig3.colorbar(im3)
+    fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
     plt.show()
 
 
@@ -2484,7 +2494,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [32]       #36, 57
+    usedImages = [46]       #36, 57
     thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -2514,7 +2524,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     # A list of vector numbers, for which an outwardsVector (if desired) will be shown & heights can be plotted
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
-    plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
+    #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
+
+    plotHeightCondition = lambda xlist: [900, 4000]        #don't use 'round(len(xlist)/2)', as this one always used automatically
+
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20, 40]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
@@ -3138,7 +3151,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
@@ -3157,7 +3170,7 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    #####path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
