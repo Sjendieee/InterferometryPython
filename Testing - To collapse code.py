@@ -1418,9 +1418,9 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     profile = []
     if dxarrcoord - x0arrcoord == 0:  # 'flat' vector in x-dir: constant x, variable y
         xarr = np.ones(lengthVector) * x0arrcoord
-        if y0arrcoord > dyarrcoord:
-            yarr = np.arange(dyarrcoord, y0arrcoord)
-        else:
+        if y0arrcoord > dyarrcoord: #line is pointing up in the image (x,y=0,0 is top left of image)
+            yarr = np.arange(y0arrcoord, dyarrcoord,-1)
+        else:   #line is pointing down
             yarr = np.arange(y0arrcoord, dyarrcoord)
         coords = list(zip(xarr.astype(int), yarr.astype(int))) #list of [(x,y), (x,y), ....]
         lineLengthPixels = lengthVector
@@ -1931,7 +1931,7 @@ def matchingCAIntensityPeak(x_units, y_intensity, minIndex_maxima, minIndex_mini
     peaks, minima = FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima)
     return peaks[3]
 
-def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima):
+def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1):
     """
     Return the indices of all maxima and minima of 'y_intensity'.
     The function finds the extrema automatically, removes 'fake' detected peaks, and then returns the indices.
@@ -1941,34 +1941,37 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima):
     :param minIndex_maxima: index below which NO maxima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MAXIMA below a certain index
     :return:
     """
+    temp_indexToShowPlot = 1000
     I_peaks = 130   #inteensity above which peaks must be found.
     I_minima = 130  #intensity below which minima must be found
     y_intensity = np.array(y_intensity)
     spacing_peaks = 5 #at least 5 pixels between peaks
-    prominence_peaks = I_peaks - I_minima#minimum difference between an extermum & the baseline (which for here is always near a minumum). So I input the difference between expected  expected
+    prominence_peaks = I_peaks - I_minima#minimum difference between an extremum & the baseline (which for here is always near a minimum). So I input the difference between expected  expected
     if prominence_peaks < 15:
         prominence_peaks = 15
     #Find peaks based on expected intensity values, minimum spacing of peaks, and prominence
     peaks, _ = scipy.signal.find_peaks(y_intensity, height=I_peaks, distance = spacing_peaks, prominence = prominence_peaks)  # obtain indeces of maxima
     minima, _ = scipy.signal.find_peaks(-y_intensity, height=-I_minima, distance = spacing_peaks,  prominence = prominence_peaks)  # obtain indeces of minima
 
-    # figtemp, axtemp = plt.subplots()
-    # axtemp.plot(y_intensity)
-    # axtemp.plot(peaks, y_intensity[peaks], '.', markersize=8)
-    # axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
-    # axtemp.set(title='Unfiltered FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)', ylabel='Intensity (-)')
-    # plt.show(); plt.close()
+    if vectornr > temp_indexToShowPlot:
+        figtemp, axtemp = plt.subplots()
+        axtemp.plot(y_intensity)
+        axtemp.plot(peaks, y_intensity[peaks], '.', markersize=8)
+        axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
+        axtemp.set(title='Unfiltered FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)', ylabel='Intensity (-)')
+        plt.show(); plt.close()
 
     #Filter min & maxima below a given corresponding index
     peaks, minima = filterExtremaBelowIndex(peaks, minima, minIndex_maxima, minIndex_minima)
 
-    # figtemp, axtemp = plt.subplots()
-    # axtemp.plot(y_intensity)
-    # axtemp.plot(peaks, y_intensity[peaks], '.', markersize=8)
-    # axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
-    # axtemp.set(title=f'Filtered below index max: {minIndex_maxima}, min: {minIndex_minima}.\n FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)',
-    #            ylabel='Intensity (-)')
-    # plt.show(); plt.close()
+    if vectornr > temp_indexToShowPlot:
+        figtemp, axtemp = plt.subplots()
+        axtemp.plot(y_intensity)
+        axtemp.plot(peaks, y_intensity[peaks], '.', markersize=8)
+        axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
+        axtemp.set(title=f'Filtered below index max: {minIndex_maxima}, min: {minIndex_minima}.\n FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)',
+                   ylabel='Intensity (-)')
+        plt.show(); plt.close()
 
     peaks, minima = removeLeftLocalExtrama(peaks, minima, y_intensity)
 
@@ -1989,6 +1992,115 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima):
     # axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
     # axtemp.set(title='Filtered "left peak" FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)', ylabel='Intensity (-)')
     # plt.show()
+
+    return peaks, minima
+
+def FindMinimaAndMaxima_v2(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1, lenIn = 0, lenOut = 0):
+    """
+    Return the indices of all maxima and minima of 'y_intensity'.
+    Divide plot into 2 regimes: left side = before most absolute min or maximum (whichever is more to the right)
+    right side: after the index above.
+    As such, on the left we can use a higher prominence, peak spacing and intensity values.
+    On the right (where the drop, closely spaced, fringes are, a lower prominence & spacing is used)
+
+    The function finds the extrema automatically, removes 'fake' detected peaks, and then returns the indices.
+    :param x_units:
+    :param y_intensity: array (or lsit) with intensity values
+    :param minIndex_minima: index below which NO minima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MINIMA below a certain index
+    :param minIndex_maxima: index below which NO maxima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MAXIMA below a certain index
+    :return:
+    """
+    temp_indexToShowPlot = 9000
+    #look for the abs min and max outside the droplet, but close to the CL:
+    #From half of the swelling profile till the CL position
+
+    range1 = round(lenOut/2)
+    abs_min_index = range1 + np.argmin(y_intensity[range1:lenOut])  #index of absolute minimum
+    abs_max_index = range1 + np.argmax(y_intensity[range1:lenOut])  #index of absolute maximum
+    i_transition = max(abs_min_index, abs_max_index)    #transition index is highest of those two.
+
+    I_peaks_left = y_intensity[abs_max_index]-20  # intensity above which peaks must be found: in range of 20 intensity points of abs max
+    I_minima_left = y_intensity[abs_min_index] + 20  # intensity below which minima must be found: in range of 20 intensity points of abs min
+    spacing_peaks_left = 50  # at least 5 pixels between peaks
+    prominence_left = 30 #minimum difference between an extremum & the baseline (which for here is always near a minimum).
+
+    I_peaks_right = 130   #intensity above which peaks must be found.
+    I_minima_right = 130  #intensity below which minima must be found
+    spacing_peaks_right = 6  # at least 5 pixels between peaks
+    prominence_right = 15
+
+    y_intensity = np.array(y_intensity, dtype='int32')
+
+    #TODO check hier weer peak finding wanneer de distance > 20 (zie onderaan)
+    #Find peak indices based on expected intensity values, minimum spacing of peaks, and prominence
+    #Left side of i_transition:
+    #peaks_left, _ = scipy.signal.find_peaks(y_intensity[:i_transition], height=I_peaks_left, distance = spacing_peaks_left, prominence = prominence_left)  # obtain indeces of maxima
+    peaks_left, _ = scipy.signal.find_peaks(y_intensity, height=I_peaks_left, distance = spacing_peaks_left, prominence = prominence_left)  # obtain indeces of maxima
+    peaks_left = peaks_left[peaks_left <= i_transition]
+
+    #minima_left, _ = scipy.signal.find_peaks(-y_intensity[:i_transition], height=-I_minima_left, distance = spacing_peaks_left,  prominence = prominence_left)  # obtain indeces of minima
+    minima_left, _ = scipy.signal.find_peaks(-y_intensity, height=-I_minima_left, distance = spacing_peaks_left,  prominence = prominence_left)  # obtain indeces of minima
+    minima_left = minima_left[minima_left <= i_transition]
+
+    # Right side of i_transition:
+    peaks_right, _ = scipy.signal.find_peaks(y_intensity, height=I_peaks_right, distance=spacing_peaks_right, prominence=prominence_right)  # obtain indeces of maxima
+    peaks_right = peaks_right[peaks_right >= i_transition]
+    minima_right, _ = scipy.signal.find_peaks(-y_intensity, height=-I_minima_right, distance=spacing_peaks_right, prominence=prominence_right)  # obtain indeces of minima
+    minima_right = minima_right[minima_right >= i_transition]
+
+    peaks = np.unique(np.concatenate((peaks_left, peaks_right)))    #Combine left & right peaks. remove duplicate peak if present
+    minima = np.unique(np.concatenate((minima_left, minima_right)))
+
+    if vectornr > temp_indexToShowPlot:
+        figtemp, axtemp = plt.subplots()
+        axtemp.plot(y_intensity)
+        axtemp.plot(peaks_left, y_intensity[peaks_left], 'o', markersize=8, label = 'left')
+        axtemp.plot(minima_left, y_intensity[minima_left], 'o', markersize=8, label = 'left')
+        axtemp.plot(peaks_right, y_intensity[peaks_right], '.', markersize=8, label = 'right')
+        axtemp.plot(minima_right, y_intensity[minima_right], '.', markersize=8, label = 'right')
+        axtemp.set(title=f'Unfiltered FindMinimaAndMaxima {vectornr}: intensities, min- & maxima\n i_transition={i_transition}', xlabel='Index (-)', ylabel='Intensity (-)')
+        axtemp.legend()
+        plt.show()
+        plt.close()
+
+    #Filter min & maxima below a given corresponding index
+    peaks, minima = filterExtremaBelowIndex(peaks, minima, minIndex_maxima, minIndex_minima)
+
+    if vectornr > temp_indexToShowPlot:
+        figtemp, axtemp = plt.subplots()
+        axtemp.plot(y_intensity)
+        axtemp.plot(peaks, y_intensity[peaks], '.', markersize=8)
+        axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
+        axtemp.set(title=f'Filtered below index max: {minIndex_maxima}, min: {minIndex_minima}.\n FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)',
+                   ylabel='Intensity (-)')
+        plt.show();
+        plt.close()
+
+    peaks, minima = removeLeftLocalExtrama(peaks, minima, y_intensity)
+
+    if vectornr > temp_indexToShowPlot:
+        figtemp, axtemp = plt.subplots()
+        axtemp.plot(y_intensity)
+        axtemp.plot(peaks, y_intensity[peaks], '.', markersize=8)
+        axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
+        axtemp.set(title='Filtered local extrema left side. \nFindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)',
+                   ylabel='Intensity (-)')
+        plt.show();
+        plt.close()
+
+    peaks = removeLeftNonPeak(peaks, y_intensity)
+    minima = removeLeftNonPeak(minima, -y_intensity)
+
+    if vectornr > temp_indexToShowPlot:
+        figtemp, axtemp = plt.subplots()
+        axtemp.plot(y_intensity)
+        axtemp.plot(peaks, y_intensity[peaks], '.', markersize = 8)
+        axtemp.plot(minima, y_intensity[minima], '.', markersize=8)
+        axtemp.set(title='Filtered "left peak" FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)', ylabel='Intensity (-)')
+        plt.show()
+
+    if x_units[peaks[3]] - x_units[peaks[2]] > 20:
+        print(f"we pasuin")
 
     return peaks, minima
 
@@ -2368,7 +2480,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 if k == 3892:
                     print(f"pausin")
                 try:
-                    peaks, minima = FindMinimaAndMaxima(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima)
+                    peaks, minima = FindMinimaAndMaxima_v2(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima, vectornr = k, lenIn = extraPartIndroplet, lenOut = len(profileOutwards))
                     peakdistanceFromCL.append(xBrushAndDroplet[peaks[3]] - xBrushAndDroplet[peaks[2]])
 
                 except: #TODO remove this at some point - when peakdistanceFromCL fully funcitnoal
@@ -2710,7 +2822,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr,
                         xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr,
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet,
                         smallExtraOutwardsVector, minIndex_maxima, minIndex_minima)
 
                     print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
@@ -3151,7 +3263,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "D:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
