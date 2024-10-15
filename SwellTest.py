@@ -675,7 +675,7 @@ def makeImagesManualTimeAdjustFromPureIntensity(profile, timeFromStart, source, 
         ax2.tick_params(axis='y')
         #ax1.set_ylim(bottom=dry_thickness)
         #ax2.set_ylim(bottom=1)
-        fig1.show()
+        #fig1.show()
         fig1.savefig(os.path.join(source, f"Swellingimages\\HeightProfile{pixelLocation}.png"), dpi=300)
     else:
         print(f"No minimum and maximum were found. Only a single extremum at {equallySpacedTimeFromStart[minAndMaxOrdered]}")
