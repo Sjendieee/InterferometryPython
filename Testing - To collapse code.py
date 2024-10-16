@@ -25,6 +25,8 @@ from matplotlib.widgets import RectangleSelector
 #from matplotlib.animation import PillowWriter
 from matplotlib.animation import FFMpegWriter
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits import mplot3d
+
 from scipy import integrate
 from scipy.interpolate import interpolate
 from scipy.optimize import curve_fit
@@ -2281,13 +2283,18 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     figvid, axvid = plt.subplots()
     metadata = dict(title='Intensity Movie', artist = 'Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
-    ffmpegPath = 'C:\\Users\\ReuvekampSW\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'
+
+    #ffmpegPath = 'C:\\Users\\ReuvekampSW\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'    #UT desktop
+    ffmpegPath = 'C:\\Users\\Sander PC\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'      #thuis PC
+
     if os.path.exists(ffmpegPath):
         plt.rcParams['animation.ffmpeg_path'] = ffmpegPath
     else:
         logging.critical("No good path to ffmpeg.exe.\n Corret path, or install from e.g. https://www.gyan.dev/ffmpeg/builds/#git-master-builds")
 
-    fig3D, ax3D = plt.subplots()
+    #fig3D, ax3D = plt.subplots(projection='3d')
+    fig3D = plt.figure()
+    ax3D = fig3D.add_subplot(111, projection = '3d')
 
     # [4000, round(len(x0arr) / 2)]:#
     with writer.saving(figvid, "Intensity.mp4", 300):
@@ -2493,15 +2500,17 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     yCoordsProfile = np.concatenate((np.flip(yCoordsOutside), yCoordsInside))
 
                     # TODO filter until the first peak from the left
-                    if k == 3892:
+                    if k == 0:
                         print(f"pausin")
+                        cmap_minval = 0
+                        cmap_maxval = 1
                     try:
                         peaks, minima, y_intensity_smoothened = FindMinimaAndMaxima_v2(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima, vectornr = k, lenIn = extraPartIndroplet, lenOut = len(profileOutwards))
                         if len(peaks) == 0 or len(minima) == 0:     #if either list is empty, fill 0 for now
                             peakdistanceFromCL.append(0)
                         else:
                             peakdistanceFromCL.append(xBrushAndDroplet[peaks[3]] - xBrushAndDroplet[peaks[2]])
-                            if k % 1000  == 0:  #TODO for movie plotting purposes only - can be removed
+                            if k % 15  == 0:  #TODO for movie plotting purposes only - can be removed
                                 axvid.set(ylim=[45, 220], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
                                 axvid.plot(xBrushAndDroplet, y_intensity_smoothened)
                                 axvid.plot(xBrushAndDroplet[peaks], y_intensity_smoothened[peaks], 'o')
@@ -2510,11 +2519,15 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                 axvid.clear()
 
                                 heightNearCL, heightRatioNearCL = swellingRatioNearCL_knownpeaks(xBrushAndDroplet, y_intensity_smoothened, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector, extraPartIndroplet, peaks, minima)
-                                xCoordsProfile_reduced = [xCoordsProfile[i] for i in range(0, len(heightNearCL), 2)] #plot half the data
-                                yCoordsProfile_reduced = [yCoordsProfile[i] for i in range(0, len(heightNearCL), 2)] #plot half the data
-                                heightNearCL_reduced = [heightNearCL[i] for i in range(0, len(heightNearCL), 2)] #plot half the data
+                                xCoordsProfile_reduced = [xCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
+                                yCoordsProfile_reduced = [yCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
+                                heightNearCL_reduced = [heightNearCL[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
 
-                                ax3D.scatter(xCoordsProfile_reduced, resizedimg.shape[0]-np.array(yCoordsProfile_reduced), c = heightNearCL_reduced, cmap='jet')
+                                ax3D.scatter3D(xCoordsProfile_reduced, resizedimg.shape[0]-np.array(yCoordsProfile_reduced), heightNearCL_reduced, c = heightNearCL_reduced, cmap='jet')
+                                if min(heightNearCL_reduced) < cmap_minval:
+                                    cmap_minval = min(heightNearCL_reduced)
+                                if max(heightNearCL_reduced) > cmap_maxval:
+                                    cmap_maxval = max(heightNearCL_reduced)
                                 print(f"{k} 3d plotted")
 
                     except: #TODO remove this at some point - when peakdistanceFromCL fully funcitnoal
@@ -2528,7 +2541,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     # Create the color bar
     #cax = fig3D.add_axes([0.94, 0.1, 0.05, 0.75])  # [left, bottom, width 5% of figure width, height 75% of figure height]
     #cax.set_title('H (nm)')
-    cbar = fig3D.colorbar(matplotlib.cm.ScalarMappable(cmap = 'jet'), label='height (nm)', orientation='vertical')
+    cbar = fig3D.colorbar(matplotlib.cm.ScalarMappable(norm = plt.Normalize(cmap_minval, cmap_maxval), cmap = 'jet'), label='height (nm)', orientation='vertical')
     fig3D.set_size_inches(12.8/1.5, 9.6/1.5)
     plt.show()
 
@@ -3306,7 +3319,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
