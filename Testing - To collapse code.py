@@ -979,7 +979,7 @@ def determineLensPresets(imgFolderPath, wavelength_laser, refr_index):
     conversionsXY = [1e6, 1e3, 1, 1e-3, 1]  # standard unit is um
     conversionsZ = [1, 1e-3, 1e-6, 1e-9, 1]  # standard unit is nm
 
-    choices = ["ZEISS_OLYMPUSX2", "ZEISS_ZEISSX5", "ZEISS_ZEISSX10", "SR_NIKON_NIKONX10_PIEZO"]
+    choices = ["ZEISS_OLYMPUSX2", "ZEISS_ZEISSX5", "ZEISS_ZEISSX10", "SR_NIKON_NIKONX10_PIEZO", "EnqL_ZEISSX20"]
     answer = easygui.choicebox("What lens preset was used?", choices=choices)
     if answer == choices[0]:
         preset = 672
@@ -989,6 +989,8 @@ def determineLensPresets(imgFolderPath, wavelength_laser, refr_index):
         preset = 3695
     elif answer == choices[3]:
         preset = 3662
+    elif answer == choices[4]:
+        preset = 7360
     choices_outputUnits = ['nm', 'um', 'mm', 'm', 'pixels']
     unitZ = easygui.choicebox("What output z-unit (nm recommended)?", choices=choices_outputUnits)
     unitXY = easygui.choicebox("What output xy-unit (mm recommended)?", choices=choices_outputUnits)
@@ -2284,8 +2286,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     metadata = dict(title='Intensity Movie', artist = 'Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
 
-    #ffmpegPath = 'C:\\Users\\ReuvekampSW\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'    #UT desktop
-    ffmpegPath = 'C:\\Users\\Sander PC\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'      #thuis PC
+    ffmpegPath = 'C:\\Users\\ReuvekampSW\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'    #UT desktop
+    #ffmpegPath = 'C:\\Users\\Sander PC\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'      #thuis PC
 
     if os.path.exists(ffmpegPath):
         plt.rcParams['animation.ffmpeg_path'] = ffmpegPath
@@ -2510,8 +2512,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                             peakdistanceFromCL.append(0)
                         else:
                             peakdistanceFromCL.append(xBrushAndDroplet[peaks[3]] - xBrushAndDroplet[peaks[2]])
-                            if k % 15  == 0:  #TODO for movie plotting purposes only - can be removed
-                                axvid.set(ylim=[45, 220], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
+                            if k % 25  == 0:  #TODO for movie plotting purposes only - can be removed
+                                axvid.set(ylim=[45, 230], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
                                 axvid.plot(xBrushAndDroplet, y_intensity_smoothened)
                                 axvid.plot(xBrushAndDroplet[peaks], y_intensity_smoothened[peaks], 'o')
                                 axvid.plot(xBrushAndDroplet[minima], y_intensity_smoothened[minima], 'o')
@@ -2523,6 +2525,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                 yCoordsProfile_reduced = [yCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
                                 heightNearCL_reduced = [heightNearCL[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
 
+                                #x_3d_units = np.array(xCoordsProfile_reduced) * conversionXY       #in mm
+                                #y_3d_units = np.array(resizedimg.shape[0]-np.array(yCoordsProfile_reduced)) * conversionXY       #in mm
                                 ax3D.scatter3D(xCoordsProfile_reduced, resizedimg.shape[0]-np.array(yCoordsProfile_reduced), heightNearCL_reduced, c = heightNearCL_reduced, cmap='jet')
                                 if min(heightNearCL_reduced) < cmap_minval:
                                     cmap_minval = min(heightNearCL_reduced)
@@ -2545,13 +2549,25 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     fig3D.set_size_inches(12.8/1.5, 9.6/1.5)
     plt.show()
 
+    try:
+        pickle.dump(ax3D, open("plot3d.pickle", "wb"))
+    except:
+        logging.critical(f"3D pickle dump did not work")
+
     fig2, ax2 = plt.subplots()
     #TODO coords to phi here:
-    #middleOfDrop = [2290, 2246] #For v3, nr32
-    middleOfDrop = [3331, 2119] #for misschien v2, nr46
-    phi, rArray = coordsToPhi(x0arr, abs(np.subtract(resizedimg.shape[0], y0arr)), middleOfDrop[0], middleOfDrop[1])
+    middleOfDrop = [2290, 2246] #For v3, nr32
+    #middleOfDrop = [3331, 2119] #for misschien v2, nr46
+
+    if len(peakdistanceFromCL) != len(x0arr):   #TODO temp solution. check why
+        logging.critical((f"For some reason x0arr{len(x0arr)} is not as long as peakdistanceFromCL={len(peakdistanceFromCL)}. \nCheck WHY!"))
+        vector_nrs = np.arange(0, len(peakdistanceFromCL))
+        phi, rArray = coordsToPhi(x0arr[:-1], abs(np.subtract(resizedimg.shape[0], y0arr))[:-1], middleOfDrop[0], middleOfDrop[1])
+    else:
+        vector_nrs = np.arange(0, len(x0arr))
+        phi, rArray = coordsToPhi(x0arr, abs(np.subtract(resizedimg.shape[0], y0arr)), middleOfDrop[0], middleOfDrop[1])
     idk1, idk2 = convertPhiToazimuthal(phi)
-    vector_nrs = np.arange(0, len(x0arr))
+
     ax2.plot(vector_nrs, peakdistanceFromCL, '.')
     ax2.set(title = 'Distance of first fringe peak outside CL', xlabel = 'line nr. in clockwise direction', ylabel = 'distance (um)')
     fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} lines.png'), dpi=600)
@@ -2561,6 +2577,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     ax2.plot(phi, peakdistanceFromCL, '.')
     ax2.set(title='Distance of first fringe peak outside CL', xlabel='Phi (rad)', ylabel='distance (um)')
     fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
+
+    try:
+        pickle.dump(ax2, open("plot_distance_phi.pickle", "wb"))
+    except:
+        logging.critical(f"ax2pickle dump did not work")
     plt.show()
 
 
@@ -2568,7 +2589,6 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     ax2.plot(idk2, peakdistanceFromCL, '.')
     ax2.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
     fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} azi.png'), dpi=600)
-
     plt.show()
 
     fig3, ax3 = plt.subplots()
@@ -2579,7 +2599,6 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     fig3.colorbar(im3)
     fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
     plt.show()
-
 
     return ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks
 
@@ -2662,7 +2681,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [46]       #36, 57
+    usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -2670,7 +2689,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
-    lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
+    lengthVector = 100  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
 
     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
@@ -2694,11 +2713,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
 
-    plotHeightCondition = lambda xlist: [900, 4000]        #don't use 'round(len(xlist)/2)', as this one always used automatically
+    #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
 
+    plotHeightCondition = lambda xlist: []          #Enqing dataset
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
-    N_for_fitting = [5, 20, 40]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
+    N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
 
 
     """"End primary changeables"""
@@ -3338,7 +3358,7 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    #####path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
@@ -3352,6 +3372,10 @@ def main():
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
     #path = "E:\\2023_07_31_PODMA_Basler2x_dodecane_2_2_3_WEDGE_1coverslip spacer____MOVEMENT"
+
+
+    #For Enqing:
+    #path = "M:\\Enqing\\Halo_Zeiss20X"
 
     #Zeiss = 520nm, Nikon=533nm
     primaryObtainCARoutine(path, wavelength_laser=520)

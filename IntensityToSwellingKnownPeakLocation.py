@@ -171,8 +171,7 @@ def heightFromIntensityProfileV3(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
                 h_newrange = np.add(idkPostLastExtremum(datax, dataI, extremum1, extremum2),
                                     h_1stextremum + (i + 1) * 90.9)  # TODO removed: "do some -1 stuff with the extremum1&2 because f how indexes work when parsing"
                 # xrange = np.concatenate([xrange, datax])
-                xrange = np.concatenate(
-                    [xrange, np.array(xshifted)[extremum2:len(xshifted)]])
+                xrange = np.concatenate([xrange, np.array(xshifted)[extremum2:len(xshifted)]])
                 h = np.concatenate([h, h_newrange])
 
         # once entire height profile is calculated, convert to 'correct' height profile
