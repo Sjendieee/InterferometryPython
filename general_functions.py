@@ -152,6 +152,14 @@ def check_outputfolder(config):
     folders = {}
 
     folders['save'] = config.get("SAVING", "SAVEFOLDER")
+    if folders['save'] == 'source':
+        source = config.get("GENERAL", "source")
+        if os.path.isdir(source):
+            folder = source
+        else:
+            folder = os.path.dirname(source)
+        folders['save'] = folder
+
     if not os.path.exists(folders['save']):
         os.mkdir(folders['save'])
 

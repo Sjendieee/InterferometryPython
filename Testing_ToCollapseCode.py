@@ -2066,7 +2066,6 @@ def FindMinimaAndMaxima_v2(x_units, y_intensity, minIndex_maxima, minIndex_minim
 
     y_intensity = np.array(y_intensity, dtype='int32')
 
-
     #look for the abs min and max outside the droplet, but close to the CL:
     #From half of the swelling profile till the CL position
     lowerLimit_I = 30       #any intensity below 'value' must be an artifact

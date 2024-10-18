@@ -99,12 +99,13 @@ def main():
                                                   conversionFactorZ=conversionFactorZ, unitXY=unitXY, unitZ=unitZ,
                                                   Folders=Folders, savename=savename)
             elif config.get('GENERAL', 'ANALYSIS_METHOD').lower() == 'line':
-                unwrapped_object, pA, pB = method_line(config, im_gray=im_gray, im_raw=im_raw,
+                unwrapped_object, pA, pB, i_range_chosenpixels = method_line(config, im_gray=im_gray, im_raw=im_raw,
                                                conversionFactorXY=conversionFactorXY,
                                                conversionFactorZ=conversionFactorZ, unitXY=unitXY, unitZ=unitZ,
                                                Folders=Folders, savename=savename, timeelapsed=timeelapsed)
                 stats['pointsA'] = pA
                 stats['pointsB'] = pB
+                stats['i_range_chosenpixels'] = i_range_chosenpixels    #indices (in eventual profile) of actual chosen pixels in image.
 
                 # Save unwrapped image = main result
             wrappedPath = False

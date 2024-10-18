@@ -8,6 +8,8 @@ Adapted from SwellingRatioAnalysisv2_testing.py
 """
 
 import csv
+from datetime import datetime
+import json
 import logging
 import os
 import traceback
@@ -459,6 +461,18 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
     return h, h_ratio
 
 def main():
+    """
+    Determine the height of a (swelling) thin film from the absolute intensity of said film over a given range by following the fringes /
+    maxima-minima.
+
+    This swellingratio analysis allows for investigation of Intensity vs. Distance, at a single timestep.
+    This results in a swelling profile for every timestep.
+    Adapted from SwellingRatioAnalysisv2_testing.py
+    """
+
+    __author__ = 'Sander Reuvekamp'
+    __version__ = '1.0'
+
     """"Changeables: """
     #source = "F:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysis_v2\\PROC_20230612121104"
     #source = "C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\export\\PROC_20230724185238"  # hexadecane, NO filtering in /main.py, no contrast enhance
@@ -467,13 +481,14 @@ def main():
     #source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"   #dodecane swelling profiles, not filtering no contrast enhance
     #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
     #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617"  # tetradecane split, imbed
-    source = "M:\\Enqing\\Halo_Zeiss20X\\Img5\\Line4"
+    source = "M:\\Enqing\\Halo_Zeiss20X\\Img3\\Line4"
 
-    range1 = 0       #2320       #start x left for plotting
-    range2 = 4300       # len(swellingProfile)
+    extraRangeInDroplet = 100
+    range1 = 2586 - extraRangeInDroplet       #2320       #start x left for plotting
+    range2 = 688    # len(swellingProfile)
 
     #####Enqing monochromatic images
-    knownPixelPosition = 1#range2 - range1 - 1  # pixellocation at which the brush height is known at various times
+    knownPixelPosition = range2 - range1 - 1  # pixellocation at which the brush height is known at various times
     dryBrushThickness = 160  # 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
     idxArrToUse = [0]  # id of csv files to use
     knownHeightArr = [160]  # Known brush swelling at pixellocation in nm for certain timesteps   #in nm
@@ -514,24 +529,28 @@ def main():
     # #knownHeightArr = [181, 584, 610, 611, 631]
     # zeroImage = 0       #1 to use the first image ONLY as a background reference, 0 to also analyse it.
 
-    outputFormatXY = 'mm'       #'pix' or 'mm'
-    #XLIM - True; Xlim = []
-    YLIM = True; Ylim = [-50, 650]  #ylim for swelling profiles (only used when plotting absolute swelling height)
+    #Below: evaluation of peaks: change as necessary!
+    EVALUATERIGHTTOLEFT = False         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
+    MANUALPEAKSELECTION = True     #use peaks selected by manual picking (thus not the automatic peakfinder).
+    USESAVEDPEAKS = False        #True: use previously manually selected peaks.  False: opens interative plot, in which peak regions can be selected
+    REMOVEBACKGROUNDNOISE = False        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
+
+    #Below: plotting purposes. Change whether to output & format
     PLOTSWELLINGRATIO = False        #True for swelling ratio, False for height profiles
     SAVEFIG = True
     SHOWFIG = True
 
-    EVALUATERIGHTTOLEFT = True         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
-    MANUALPEAKSELECTION = True     #use peaks selected by manual picking (thus not the automatic peakfinder).
-    USESAVEDPEAKS = True        #True: use previously manually selected peaks.  False: opens interative plot, in which peak regions can be selected
-    REMOVEBACKGROUNDNOISE = False        #Divide by the intensity of 1st image. If this is set to True, set normalizeFactor to 1
+    #Below: plotting purposes (output format). Generally no need to change
     normalizeFactor = 1               #normalize intensity by camera intensity range: 256, or use 1 if not normalizing
     FLIP = True                 #True=flip data after h analysis to have the height increase at the left
     MOVMEAN = 5              #average the intensity values to obtain a smoother profile (at a loss of peak intensity)
     SEPERATEPLOTTING = True     #true to plot the intensity profiles in seperate figures
     colorscheme = 'plasma'
-    """"End of changeables"""
+    outputFormatXY = 'mm'       #'pix' or 'mm'
+    #XLIM - True; Xlim = []
+    YLIM = True; Ylim = [-50, 650]  #ylim for swelling profiles (only used when plotting absolute swelling height)
 
+    """"End of changeables"""
 
     config = ConfigParser()
     configName = [f for f in glob.glob(os.path.join(source, f"config*"))]
@@ -814,6 +833,34 @@ def main():
     except Exception:
         logging.critical(f"Some error occured. Traceback provided")
         print(traceback.format_exc())
+
+    # Save statistics
+    proc = f"PROC_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    stats = {}  # save statistics of this analysis
+    stats['About'] = {}
+    stats['About']['__author__'] = __author__
+    stats['About']['__version__'] = __version__
+    stats['startDateTime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f %z')
+    stats['source'] = source
+    stats['range1'] = range1
+    stats['range2'] = range2
+    stats['knownPixelPosition'] = knownPixelPosition
+    stats['dryBrushThickness'] = dryBrushThickness
+    stats['idxArrToUse'] = idxArrToUse
+    stats['knownHeightArr'] = knownHeightArr
+    stats['zeroImage'] = zeroImage
+    stats['EVALUATERIGHTTOLEFT'] = EVALUATERIGHTTOLEFT
+    stats['REMOVEBACKGROUNDNOISE'] = REMOVEBACKGROUNDNOISE
+    stats['MOVMEAN'] = MOVMEAN
+    stats['conversionFactorXY'] = conversionFactorXY
+    stats['conversionFactorZ'] = conversionFactorZ
+    stats['unitXY'] = unitXY
+    stats['unitZ'] = unitZ
+    stats['analysis'] = {}
+
+    with open(os.path.join(source, f"{proc}_h-profile settings.json"), 'w') as f:
+        json.dump(stats, f, indent=4)
 
 if __name__ == "__main__":
     main()

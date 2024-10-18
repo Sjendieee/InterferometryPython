@@ -382,9 +382,19 @@ def method_line(config, **kwargs):
         # transpose to account for coordinate system in plotting (reversed y)
         profiles[jdx] = [np.transpose(im_gray)[pnt] for pnt in coordinates]
 
-
-
     logging.info(f"All {SliceWidth*2+1} profiles are extracted from image.")
+
+    #To return the index range of the actual selected points in image:
+    #p1 = [i == tuple(P1) for i in all_coordinates[SliceWidth]]   #make list of where the coordinates are equal to the input coordinate
+    #i_p1 = np.where(p1)[0][0]  #return index where this was True
+    i_p1 = np.argmin(np.sum(abs(np.array(all_coordinates[SliceWidth]) - np.array(P1)), axis=1))
+
+    #p2 = [i == tuple(P2) for i in all_coordinates[SliceWidth]]  # make list of where the coordinates are equal to the input coordinate
+    #i_p2 = np.where(p2)[0][0]
+    i_p2 = np.argmin(np.sum(abs(np.array(all_coordinates[SliceWidth]) - np.array(P2)), axis=1))
+    logging.info(f"Chosen profile from pixel-to-pixel ranges from: \n"
+                 f"i = [{i_p1}, {i_p2}]")
+
     # slices may have different lengths, and thus need to be aligned. We take the center of the image as the point to do
     # this. For each slice, we calculate the point (pixel) that is closest to this AlignmentPoint. We then make sure
     # that for all slices these alignments line up.
@@ -525,4 +535,4 @@ def method_line(config, **kwargs):
         logging.debug('PDF saving done.')
     logging.info(f"Saving done.")
 
-    return unwrapped, P1, P2
+    return unwrapped, P1, P2, [int(i_p1), int(i_p2)]

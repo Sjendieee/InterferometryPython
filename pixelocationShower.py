@@ -20,22 +20,55 @@ This part is to show dots of pixellocations for all swellingImages, without clic
 #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230927143637_condens"        #tetradecane split, imbed & condens
 #source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
 
-
 #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"        #tetradecane split, imbed & condens
-source = "M:\\Enqing\\Halo_Zeiss20X\\Img5\\Line4"
+source = "M:\\Enqing\\Halo_Zeiss20X\\Img2\\Line4"
+
+nAllImages = [0]        #images to plot line for
+pixellocationLarge = range(2586-100, 688)     #pixellocations to plot for. Can be a single value, or a range (which will draw a line)
+showPixelLocationLegend = False         #show in a legend the pixellocation (usefull when only 1 or a few pixels are plotted)
+#INPUT EDGES OF THE LINE WITH BORDER OF IMAGE IN PLOT AS (P1 = [x,y])
+#Check this in e.g. paint.net with the cursor
+#Eqning dataset
+P1 = [740, 109]
+P2 = [1413, 1385]
+
+#     #For hexadecane, v1
+# P1 = [466, 206]
+# P2 = [1892, 1382]
+    #For hexadecane, condens only
+#P1 = [466, 414]
+#P2 = [1933, 418]
+    #For dodecane
+# P1 = [467, 611]
+# P2 = [1932, 302]
+    #Dodecane v2
+#P1 = [467, 472]
+#P2 = [1933, 444]
+    #tetradecane
+#P1 = [1460, 114]
+#P2 = [1684, 1382]
+    #hexadecaneV2 evap conds
+#P1 = [817, 114]
+#P2 = [910, 1382]
+    #hexadecanev2 conds only
+#P1 = [467, 439]
+#P2 = [1933, 475]
+    #tetradecane split, imbed
+# P1 = [689, 114]
+# P2 = [1130, 1381]
+    #tetradecane split, condens
+# P1 = [461, 360]
+# P2 = [1933, 363]
+    #hexadecane 09_22 split, imbed
+# P1 = [1097, 114]
+# P2 = [467, 1040]
 
 # TODO make sure this path is correct as well to the square to be inputted
 imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\Documents\\InterferometryPython\\red square.png')
 #imgblack = cv2.imread('C:\\Users\\ReuvekampSW\\PycharmProjects\\InterferometryPython\\red square.png')
 imgList = [f for f in glob.glob(os.path.join(source, f"rawslicesimage\\*.png"))]
-pixellocationLarge = range(0, 4300)
-showPixelLocationLegend = False
 CLICKEVENT = False
 n = 0
-#nAllImages = np.arange(0, len(imgList),1)
-#nAllImages = [0, 62, 122, 212, 332]
-#nAllImages = range(0, 393, 5)
-nAllImages = [0]
 print(f"Total amount of images in folder: {len(imgList)}. \nTotal amount of images used: {len(nAllImages)}")
 for imgPath in imgList:
     if n in nAllImages:
@@ -56,43 +89,6 @@ for imgPath in imgList:
                 summation = sum(1 for line in f)
             return summation-1
 
-        #P1 and P2 along the draw line of Image in plot.
-        #INPUT EDGES OF THE LINE WITH BORDER OF IMAGE IN PLOT AS (P1 = [x,y])
-        #Check this in e.g. paint.net with the cursor
-        #Eqning dataset
-        P1 = [644, 111]
-        P2 = [1865, 1383]
-
-        #     #For hexadecane, v1
-        # P1 = [466, 206]
-        # P2 = [1892, 1382]
-            #For hexadecane, condens only
-        #P1 = [466, 414]
-        #P2 = [1933, 418]
-            #For dodecane
-        # P1 = [467, 611]
-        # P2 = [1932, 302]
-            #Dodecane v2
-        #P1 = [467, 472]
-        #P2 = [1933, 444]
-            #tetradecane
-        #P1 = [1460, 114]
-        #P2 = [1684, 1382]
-            #hexadecaneV2 evap conds
-        #P1 = [817, 114]
-        #P2 = [910, 1382]
-            #hexadecanev2 conds only
-        #P1 = [467, 439]
-        #P2 = [1933, 475]
-            #tetradecane split, imbed
-        # P1 = [689, 114]
-        # P2 = [1130, 1381]
-            #tetradecane split, condens
-        # P1 = [461, 360]
-        # P2 = [1933, 363]
-            #hexadecane 09_22 split, imbed
-        # P1 = [1097, 114]
-        # P2 = [467, 1040]
 
         a, b = calcLineEquation([P1[0], P2[0]], [P1[1], P2[1]])
         limits = [466, 1937, 112, 1385]     #xmin xmin ymin ymax of image in plot. Should always be same
