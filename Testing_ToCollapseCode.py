@@ -2285,8 +2285,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     metadata = dict(title='Intensity Movie', artist = 'Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
 
-    ffmpegPath = 'C:\\Users\\ReuvekampSW\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'    #UT desktop
-    #ffmpegPath = 'C:\\Users\\Sander PC\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'      #thuis PC
+    #ffmpegPath = 'C:\\Users\\ReuvekampSW\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'    #UT desktop
+    ffmpegPath = 'C:\\Users\\Sander PC\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'      #thuis PC
 
     if os.path.exists(ffmpegPath):
         plt.rcParams['animation.ffmpeg_path'] = ffmpegPath
@@ -2296,9 +2296,14 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     #fig3D, ax3D = plt.subplots(projection='3d')
     fig3D = plt.figure()
     ax3D = fig3D.add_subplot(111, projection = '3d')
+    metadata2 = dict(title='3D Height Movie', artist='Sjendieee')
+    writer2 = FFMpegWriter(fps=15, metadata=metadata2)
+    x3d_matrix = []
+    y3d_matrix = []
+    z3d_matrix = []
 
     # [4000, round(len(x0arr) / 2)]:#
-    with writer.saving(figvid, "Intensity.mp4", 300):
+    with writer.saving(figvid, "Height.mp4", 300) as a, writer2.saving(fig3D, "3D_height.mp4", 300) as b:
         for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
             try:
                 xOutwards = [0]     #x length pointing outwards of droplet, for possible swelling analysis
@@ -2512,21 +2517,33 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         else:
                             peakdistanceFromCL.append(xBrushAndDroplet[peaks[3]] - xBrushAndDroplet[peaks[2]])
                             if k % 25  == 0:  #TODO for movie plotting purposes only - can be removed
-                                axvid.set(ylim=[45, 230], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
-                                axvid.plot(xBrushAndDroplet, y_intensity_smoothened)
-                                axvid.plot(xBrushAndDroplet[peaks], y_intensity_smoothened[peaks], 'o')
-                                axvid.plot(xBrushAndDroplet[minima], y_intensity_smoothened[minima], 'o')
-                                writer.grab_frame()
-                                axvid.clear()
+                                #TODO for intensity plots & videos
+                                # axvid.set(ylim=[45, 230], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
+                                # axvid.plot(xBrushAndDroplet, y_intensity_smoothened)
+                                # axvid.plot(xBrushAndDroplet[peaks], y_intensity_smoothened[peaks], 'o')
+                                # axvid.plot(xBrushAndDroplet[minima], y_intensity_smoothened[minima], 'o')
+                                # writer.grab_frame()
+                                # axvid.clear()
 
                                 heightNearCL, heightRatioNearCL = swellingRatioNearCL_knownpeaks(xBrushAndDroplet, y_intensity_smoothened, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector, extraPartIndroplet, peaks, minima)
                                 xCoordsProfile_reduced = [xCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
                                 yCoordsProfile_reduced = [yCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
                                 heightNearCL_reduced = [heightNearCL[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
 
+                                axvid.set(ylim=[0, 1200], xlabel='Distance (um)', ylabel='Height(-)', title = f'Height profile: {k}')
+                                axvid.plot(xBrushAndDroplet, heightNearCL, 'b')
+                                writer.grab_frame()
+                                axvid.clear()
+
                                 #x_3d_units = np.array(xCoordsProfile_reduced) * conversionXY       #in mm
                                 #y_3d_units = np.array(resizedimg.shape[0]-np.array(yCoordsProfile_reduced)) * conversionXY       #in mm
                                 ax3D.scatter3D(xCoordsProfile_reduced, resizedimg.shape[0]-np.array(yCoordsProfile_reduced), heightNearCL_reduced, c = heightNearCL_reduced, cmap='jet')
+                                ax3D.set(xlabel='X-Coord', ylabel='Y-Coord', zlabel = 'Height (nm)', title=f'Spatial Height Profile Colormap ')
+                                x3d_matrix.append(xCoordsProfile_reduced)
+                                y3d_matrix.append(resizedimg.shape[0]-np.array(yCoordsProfile_reduced))
+                                z3d_matrix.append(heightNearCL_reduced)
+
+                                writer2.grab_frame()
                                 if min(heightNearCL_reduced) < cmap_minval:
                                     cmap_minval = min(heightNearCL_reduced)
                                 if max(heightNearCL_reduced) > cmap_maxval:
@@ -2540,31 +2557,35 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
             except:
                 logging.error(f"!{k}: Analysing each coordinate & normal vector broke!")
                 print(traceback.format_exc())
-    ax3D.set(xlabel = 'X-Coord', ylabel = 'Y-Coord', title = f'Spatial Height Profile Colormap n = {n}, or t = ...')   #{deltat_formatted[n]}
+    ax3D.set(xlabel = 'X-Coord', ylabel = 'Y-Coord', zlabel = 'Height (nm)', title = f'Spatial Height Profile Colormap n = {n}, or t = ...')   #{deltat_formatted[n]}
     # Create the color bar
     #cax = fig3D.add_axes([0.94, 0.1, 0.05, 0.75])  # [left, bottom, width 5% of figure width, height 75% of figure height]
     #cax.set_title('H (nm)')
     cbar = fig3D.colorbar(matplotlib.cm.ScalarMappable(norm = plt.Normalize(cmap_minval, cmap_maxval), cmap = 'jet'), label='height (nm)', orientation='vertical')
     fig3D.set_size_inches(12.8/1.5, 9.6/1.5)
-    plt.show()
-
     try:
-        pickle.dump(ax3D, open("plot3d.pickle", "wb"))
+        pickle.dump([fig3D, ax3D], open("plot3d.pickle", "wb"))
+        pickle.dump([x3d_matrix, y3d_matrix, z3d_matrix], open("plot3d_data.pickle", "wb"))
     except:
         logging.critical(f"3D pickle dump did not work")
+    plt.show()
 
     fig2, ax2 = plt.subplots()
     #TODO coords to phi here:
-    middleOfDrop = [2290, 2246] #For v3, nr32
-    #middleOfDrop = [3331, 2119] #for misschien v2, nr46
+    #middleOfDrop = [2290, 2246] #For v3, nr32
+    middleOfDrop = [3331, 2119] #for misschien v2, nr46
 
     if len(peakdistanceFromCL) != len(x0arr):   #TODO temp solution. check why
         logging.critical((f"For some reason x0arr{len(x0arr)} is not as long as peakdistanceFromCL={len(peakdistanceFromCL)}. \nCheck WHY!"))
         vector_nrs = np.arange(0, len(peakdistanceFromCL))
-        phi, rArray = coordsToPhi(x0arr[:-1], abs(np.subtract(resizedimg.shape[0], y0arr))[:-1], middleOfDrop[0], middleOfDrop[1])
+        x0arr_3dplotting = x0arr[:-1]
+        y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))[:-1]
+
     else:
         vector_nrs = np.arange(0, len(x0arr))
-        phi, rArray = coordsToPhi(x0arr, abs(np.subtract(resizedimg.shape[0], y0arr)), middleOfDrop[0], middleOfDrop[1])
+        x0arr_3dplotting = x0arr
+        y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))
+    phi, rArray = coordsToPhi(x0arr_3dplotting, y0arr_3dplotting, middleOfDrop[0], middleOfDrop[1])
     idk1, idk2 = convertPhiToazimuthal(phi)
 
     ax2.plot(vector_nrs, peakdistanceFromCL, '.')
@@ -2577,7 +2598,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     ax2.set(title='Distance of first fringe peak outside CL', xlabel='Phi (rad)', ylabel='distance (um)')
     fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
 
-    try:
+    try:        #TODO temp: dump this plot for easier data retrieval
         pickle.dump(ax2, open("plot_distance_phi.pickle", "wb"))
     except:
         logging.critical(f"ax2pickle dump did not work")
@@ -2591,12 +2612,16 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     plt.show()
 
     fig3, ax3 = plt.subplots()
-    im3 = ax3.scatter(x0arr,  abs(np.subtract(resizedimg.shape[0], y0arr)), c=peakdistanceFromCL, cmap='jet', vmin=5, vmax=16)
+    im3 = ax3.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet', vmin=5, vmax=16)
     ax3.set_xlabel("X-coord");
     ax3.set_ylabel("Y-Coord");
     ax3.set_title(f"Spatial Distance from First Drop Fringe Peak Outside CL ")
     fig3.colorbar(im3)
     fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
+    try:        #TODO temp: dump this plot for easier data retrieval
+        pickle.dump(ax2, open("plot_spatial_distance.pickle", "wb"))
+    except:
+        logging.critical(f"ax2pickle dump did not work")
     plt.show()
 
     return ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks
@@ -2680,7 +2705,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [32]       #36, 57
+    usedImages = [46]       #36, 57
     thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -3357,7 +3382,8 @@ def main():
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+
+    #####path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
