@@ -1,3 +1,9 @@
+#Same as Testing_ToCollapseCode.py
+#but with complete droplet profile plotted in the 3D plot
+#in 'coordsToIntensity_CAv2(...) '
+#Stitched together from
+#   swelling part:  heightNearCL,_ = swellingRatioNearCL_knownpeaks(...)
+#   &droplet profile: unwrapped,_,_,_ = intensityToHeightProfile(...)
 import itertools
 import os.path
 import pickle
@@ -2281,7 +2287,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
     peakdistanceFromCL = []     #distance of 1st peak outside CL. (um)
 
-    figvid, axvid = plt.subplots()
+    figvid, axvid = plt.subplots(2)
     metadata = dict(title='Intensity Movie', artist = 'Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
 
@@ -2390,9 +2396,12 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                     #If plotting swelling, determine swellingprofile outside drop
                     if xOutwards[-1] != 0:
-                        heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr = combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
+                        heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr = combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, n,
                                                                    outwardsLengthVector, path, profile,
                                                                    profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima)
+                        # For matching the 4th (or something) peak of droplet profile in combined height profiles later
+                        matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima)
+                        matchedPeakIndexArr.append(matchedPeakIndex)
 
                         # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
                         offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL[-extraPartIndroplet] / 1000))
@@ -2498,12 +2507,14 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet - 1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
                     yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
 
-                    #Make arrays with all x & y coords of Outside part
+
+                    #Make arrays with all x & y coords of Outside droplet part
                     xCoordsOutside = np.array([val[0] for val in coords_Outside])
                     yCoordsOutside = np.array([val[1] for val in coords_Outside])
-                    # Make arrays with all x & y coords of Outside part
-                    xCoordsInside = np.array([val[0] for val in coords_Profile[1:extraPartIndroplet]])
-                    yCoordsInside = np.array([val[1] for val in coords_Profile[1:extraPartIndroplet]])
+                    # Make arrays with all x & y coords of Inside droplet part
+                    xCoordsInside = np.array([val[0] for val in coords_Profile])
+                    yCoordsInside = np.array([val[1] for val in coords_Profile])
+
                     xCoordsProfile = np.concatenate((np.flip(xCoordsOutside), xCoordsInside))
                     yCoordsProfile = np.concatenate((np.flip(yCoordsOutside), yCoordsInside))
 
@@ -2519,23 +2530,66 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         else:
                             peakdistanceFromCL.append(xBrushAndDroplet[peaks[3]] - xBrushAndDroplet[peaks[2]])
                             if k % 25  == 0:  #TODO for movie plotting purposes only - can be removed
-                                #TODO for intensity plots & videos
-                                # axvid.set(ylim=[45, 230], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
-                                # axvid.plot(xBrushAndDroplet, y_intensity_smoothened)
-                                # axvid.plot(xBrushAndDroplet[peaks], y_intensity_smoothened[peaks], 'o')
-                                # axvid.plot(xBrushAndDroplet[minima], y_intensity_smoothened[minima], 'o')
-                                # writer.grab_frame()
-                                # axvid.clear()
-
+                                #HeightNearCL is now profile OutsideDrop + Inside drop[1:extrapartinDrop)]
                                 heightNearCL, heightRatioNearCL = swellingRatioNearCL_knownpeaks(xBrushAndDroplet, y_intensity_smoothened, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector, extraPartIndroplet, peaks, minima)
+
+                                #Height purely outside droplet (from chosen CL onwards)
+                                h_outsideDrop = heightNearCL[:-extraPartIndroplet]                  #z-height (nm)
+                                x_outsideDrop = xBrushAndDroplet[:-extraPartIndroplet]              #x-distance (index)
+                                #Height purely inside droplet (from chosen CL)
+                                h_insideDrop = unwrapped[len(profileExtraOut):] * 1000            #z-height (nm)
+                                x_insideDrop = np.arange(0,len(h_insideDrop)) + len(x_outsideDrop)  #x-distance (index)
+                                #Stitch heights together:
+                                h_insideDrop = h_insideDrop - (h_insideDrop[0] - h_outsideDrop[-1]) #set end and beginning of height arrays to same value
+                                heightNearCL = np.concatenate([h_outsideDrop, h_insideDrop])        #combine into 1 array
+                                xBrushAndDroplet_recombined = np.concatenate([x_outsideDrop, x_insideDrop])    #combine into 1 array
+
+                                ###TODO start
+                                if k == 0:  # set references
+                                    refIndex = peaks[3]
+                                    refX_at_index = xBrushAndDroplet_recombined[refIndex]
+                                    refH_at_index = heightNearCL[refIndex]
+                                else:  # offset the data
+                                    offsetX = xBrushAndDroplet_recombined[matchedPeakIndex] - refX_at_index
+                                    offsetY = heightNearCL[matchedPeakIndex] - refH_at_index
+                                    xBrushAndDroplet = xBrushAndDroplet - offsetX
+                                    x_insideDrop = x_insideDrop - offsetX
+                                    xBrushAndDroplet_recombined = xBrushAndDroplet_recombined - offsetX
+                                    heightNearCL = heightNearCL - offsetY
+
+                                if k == len(x0arr) - 1:  # For last one, also plot the data
+                                    pass
+                                ###TODO end
+
+                                #TODO for intensity plots & videos
+                                axvid[0].set(ylim=[45, 230], xlabel='Distance (pixel)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
+                                #Brush part: Brush + bit inside droplet
+                                axvid[0].plot(xBrushAndDroplet, y_intensity_smoothened)
+                                axvid[0].plot(xBrushAndDroplet[peaks], y_intensity_smoothened[peaks], 'o')
+                                axvid[0].plot(xBrushAndDroplet[minima], y_intensity_smoothened[minima], 'o')
+                                axvid[0].plot(xBrushAndDroplet[peaks[3]], y_intensity_smoothened[peaks[3]], 'o', label = 'Anchored x distance')
+                                axvid[0].axvspan(0, xBrushAndDroplet[-extraPartIndroplet], facecolor='orange', alpha=0.3, label='brush part')
+                                axvid[0].axvspan(xBrushAndDroplet[-extraPartIndroplet], xBrushAndDroplet[-1] , facecolor='orange', alpha=0.3, label='extraInDrop (brush part)')
+                                #Droplet part: pure droplet
+                                axvid[0].plot(x_insideDrop, profile, '.')
+                                axvid[0].axvspan(x_insideDrop[0], x_insideDrop[-1], facecolor='blue', alpha=0.3, label='droplet')
+
+                                #plot both profiles
+                                # plt.plot(x_outsideDrop, h_outsideDrop, 'o');
+                                # plt.plot(x_insideDrop, h_insideDrop, '.');
+                                # plt.show()
+
                                 xCoordsProfile_reduced = [xCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
                                 yCoordsProfile_reduced = [yCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
                                 heightNearCL_reduced = [heightNearCL[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
 
-                                axvid.set(ylim=[0, 1200], xlabel='Distance (um)', ylabel='Height(-)', title = f'Height profile: {k}')
-                                axvid.plot(xBrushAndDroplet, heightNearCL, 'b')
+                                axvid[1].set(ylim=[0, 2000], xlabel='Distance (index)', ylabel='Height(nm)', title = f'Height profile: {k}')
+                                axvid[1].plot(xBrushAndDroplet_recombined, heightNearCL, 'b')
+                                axvid.legend()
+                                plt.show()
                                 writer.grab_frame()
-                                axvid.clear()
+                                axvid[0].clear()
+                                axvid[1].clear()
 
                                 #x_3d_units = np.array(xCoordsProfile_reduced) * conversionXY       #in mm
                                 #y_3d_units = np.array(resizedimg.shape[0]-np.array(yCoordsProfile_reduced)) * conversionXY       #in mm
@@ -2629,7 +2683,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     return ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks
 
 
-def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n, outwardsLengthVector,
+def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, n, outwardsLengthVector,
                                 path, profile, profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima):
     """
     Convert (or import) the intensity data on a line to a height profile.
@@ -2659,10 +2713,7 @@ def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n
     # TODO check if I really want savgol filtering
     heightNearCL = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3)  # apply a savgol filter for data smoothing
 
-    # For matching the 4th (or something) peak of droplet profile in combined height profiles later
-    matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima)
-    matchedPeakIndexArr.append(matchedPeakIndex)
-    return heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr
+    return heightNearCL, xBrushAndDroplet, yBrushAndDroplet
 
 
 def showPlot(display_mode, figures):
@@ -3365,7 +3416,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
