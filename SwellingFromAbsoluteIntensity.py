@@ -481,14 +481,14 @@ def main():
     #source = "F:\\2023_02_17_PLMA_DoDecane_Basler2x_Xp1_24_S9_splitv2____DECENT_movedCameraEarly\\B_Analysis_V2\\PROC_20230829105238"   #dodecane swelling profiles, not filtering no contrast enhance
     #source = "E:\\2023_08_30_PLMA_Basler2x_dodecane_1_29_S2_ClosedCell\\B_Analysis2\\PROC_20230905134930"  # dodecane 2d
     #source = "D:\\2023_09_21_PLMA_Basler2x_tetradecane_1_29S2_split_ClosedCell\\B_Analysis\\PROC_20230922150617"  # tetradecane split, imbed
-    source = "M:\\Enqing\\Halo_Zeiss20X\\Img3\\Line4"
+    source = "M:\\Enqing\\Halo_Zeiss20X\\Img2\\Line1"
 
-    extraRangeInDroplet = 100
-    range1 = 2586 - extraRangeInDroplet       #2320       #start x left for plotting
-    range2 = 688    # len(swellingProfile)
+    extraRangeInDroplet = 300
+    range1 = 1249  - extraRangeInDroplet     #2320       #start x left for plotting
+    range2 = 7957     # len(swellingProfile)
 
     #####Enqing monochromatic images
-    knownPixelPosition = range2 - range1 - 1  # pixellocation at which the brush height is known at various times
+    knownPixelPosition = range2 - range1 - 1  #index pixellocation at which the brush height is known at various times. integer of intex
     dryBrushThickness = 160  # 160                 # dry brush thickness (measured w/ e.g. ellipsometry)
     idxArrToUse = [0]  # id of csv files to use
     knownHeightArr = [160]  # Known brush swelling at pixellocation in nm for certain timesteps   #in nm
@@ -580,15 +580,16 @@ def main():
                 elapsedtime = rows[0]
                 intensityProfile = rows[1:]
                 intensityProfile = mov_mean(intensityProfile, MOVMEAN)  #apply a moving average to the intensity array
+                lengthOfData = len(intensityProfile)
                 if EVALUATERIGHTTOLEFT:
                     intensityProfile.reverse()
                     if idx == idxArrToUse[0]:
-                        knownPixelPosition = knownPixelPosition + range1
-                        lengthOfData = len(intensityProfile)
+                        #knownPixelPosition = knownPixelPosition + range1       #TODO commented out
                         range2temp = lengthOfData - range1
                         range1 = lengthOfData - range2
                         range2 = range2temp
-                        knownPixelPosition = lengthOfData - knownPixelPosition - range1
+                        #knownPixelPosition = lengthOfData - knownPixelPosition - range1    #TODO commented out
+                        knownPixelPosition = range2 - range1 - 1
                 intensityProfileZoom = intensityProfile[range1:range2]      #only look at a certain range in the intensity profile
                 if REMOVEBACKGROUNDNOISE:           #divide intensity profile by intensity profile at t=0 to 'remove background noise'
                     if idx == 0:
@@ -845,6 +846,7 @@ def main():
     stats['source'] = source
     stats['range1'] = range1
     stats['range2'] = range2
+    stats['datalength'] = lengthOfData
     stats['knownPixelPosition'] = knownPixelPosition
     stats['dryBrushThickness'] = dryBrushThickness
     stats['idxArrToUse'] = idxArrToUse

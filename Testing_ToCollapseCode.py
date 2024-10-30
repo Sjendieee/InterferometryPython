@@ -35,7 +35,8 @@ from sklearn.metrics import r2_score
 from SwellingFromAbsoluteIntensity import heightFromIntensityProfileV2
 from IntensityToSwellingKnownPeakLocation import heightFromIntensityProfileV3
 
-
+__author__ = "Sander Reuvekamp"
+__version__ = "2.0"
 
 right_clicks = list()
 def click_event(event, x, y, flags, params):
@@ -84,7 +85,7 @@ def intersection_imageedge(a, b, limits):
     :param limits: image dimensions (x0, width, y0, height)
     :return: absolute length of slice (l) and border intersects booleans (top, bot, left, right).
 
-    Note: line MUST intersects the image edges, otherwise it throws an error.
+    Note: line MUST intersect the image edges, otherwise it throws an error.
     '''
     # define booleans for the 4 image limit intersections.
     top, bot, left, right = False, False, False, False
@@ -954,6 +955,13 @@ def importConversionFactors(procStatsJsonPath):
     return conversionZ, conversionXY, unitZ, unitXY
 
 def filePathsFunction(path, wavelength_laser=520, refr_index=1.434):
+    """
+
+    :param path:
+    :param wavelength_laser:
+    :param refr_index:
+    :return:
+    """
     if "json" in path:
         procStatsJsonPath = path
         imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
@@ -1762,11 +1770,19 @@ def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
 
 
 def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, boundaryPhi2, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted):
-    """"
+    """
+    Calculate the total horizontal force on a droplet by integrating along the contact line in various ways:
+    -Quad integration  : input function f(phi), from a-b   - (compute definite integral using a technique from Fortran library QUADPACK)
+    -Trapz integration : input = datapoints (x, y)  - (trapezoidal rule)
+
     input: cubicSplineFunction
     :param boundaryPhi1: positive phi value
     :param boundaryPhi2: negative phi value
     such that boundaryPhi2:boundaryPhi1 is the right side of droplet
+    :return total_force_quad:           Total horizontal force, integral on function f(phi)
+    :return error_quad:                 Error in ^
+    :return trapz_intForce_function:    Total horizontal force, integral on 'datapoints' from function f(phi) describing raw data  (so smoothened a bit, but also more datapoints available than raw data)
+    :return trapz_intForce_data:        Total horizontal force, integral on raw datapoints
     """
     print(f"BoundaryPhi 1 = {boundaryPhi1}, BoundaryPhi 2 = {boundaryPhi2}")
     #step = 0.05
@@ -1780,7 +1796,7 @@ def calculateForceOnDroplet(phi_Force_Function, phi_r_Function, boundaryPhi1, bo
         Ftot_func = lambda phi: phi_r_Function(phi) * phi_Force_Function(phi)
         total_force_quad, error_quad = integrate.quad(Ftot_func, -np.pi, np.pi, limit=1200)    #integrate over entire phi range
 
-        #Simposon integration
+        #Simpson integration
         # force_simpson = integrate.simpson(Ftot_func(phi_range), phi_range)
         # print(f"Force simpson integration = {force_simpson*1000:.7f} microN - step={step}")
 
@@ -2707,7 +2723,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [46]       #36, 57
+    usedImages = [70]       #36, 57
     thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -2715,7 +2731,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
-    lengthVector = 100  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
+    lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
 
     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
@@ -2772,8 +2788,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
         importedContourListData_i = []
 
     ndata = []
-    if not os.path.exists(
-            contactAngleListFilePath):  # Create a file for saving median contact angle, if not already existing
+    if not os.path.exists(contactAngleListFilePath):  # Create a file for saving median contact angle, if not already existing
         f = open(contactAngleListFilePath, 'w')
         f.write(f"file number (n), delta time from 0 (s), median CA (deg), Horizontal component force (mN), middle X-coord, middle Y-coord\n")
         f.close()
@@ -2783,7 +2798,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
         lines = f.readlines()
         for line in lines[1:]:
             data = line.split(',')
-            ndata.append(int(data[0]))
+            ndata.append(int(data[0]))      #add already analyzed img nr's into a list, so later we can check if this analysis already exists
+
+    #folder for saving analyzed data: txt files with forces, middle of drop positions, etc.
+    analysedData = os.path.join(analysisFolder, 'Analyzed Data')
+    if not os.path.exists(analysedData):
+        os.mkdir(analysedData)
+        print(f"created path: Analyzed data")
 
     angleDeg_afo_time = []  # for saving median CA's later
     totalForce_afo_time = []
@@ -2798,6 +2819,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
         raise Exception("One of either units is not correct for good conversion. Fix manually or implement in code")
     for n, img in enumerate(imgList):
         if n in usedImages:
+            stats = {}  # for saving relevant (analysed) data into a json data
+            stats['About'] = {}
+            stats['About']['__author__'] = __author__
+            stats['About']['__version__'] = __version__
+            stats['startDateTime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f %z')
+            stats['imgnr'] = n
+
             if n in importedContourListData_n and MANUALPICKING > 0:
                 try:
                     contouri = importedContourListData_i[importedContourListData_n.index(n)]
@@ -3247,8 +3275,26 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 if n not in ndata:  # if not already saved median CA, save to txt file.
                     CAfile = open(contactAngleListFilePath, 'a')
+                    #Write data to .txt file:
+                    #img nr. ; time from start (s); median CA (deg); horizontal component force (mN); middeleX-coord (pixel) ; middleY-coord (pixel)
                     CAfile.write(f"{n}, {usedDeltaTs[-1]}, {angleDeg_afo_time[-1]}, {totalForce_afo_time[-1]}, {middleCoord[0]}, {middleCoord[1]}\n")
                     CAfile.close()
+
+                    #TODO desired outputs:
+                    #Standard measurement specific info
+                    stats['timeFromStart'] = usedDeltaTs[-1]            #time since image 0 in (s)
+
+                    #middle coords 2 ways:
+                    #[mean surface area X & Y,  intersecting normal vectors: mean &   median X&Y]
+                    stats['middleCoords-surfaceArea'] = [middleCoord[0], middleCoord[1]]                #pixels
+                    stats['middleCoords-MeanIntersectingVectors'] = [meanmiddleX, meanmiddleY]          #pixels
+                    stats['middleCoords-MedianIntersectingVectors'] = [medianmiddleX, medianmiddleY]    #pixels
+                    #Forces: Quad integration on function + error, trapz on function, trapz on raw data
+                    stats['F_hor-quad-fphi'] = [total_force_quad, error_quad]       #force & error      mN
+                    stats['F-hor-trapz-fphi'] = trapz_intForce_function                                 #mN
+                    stats['F-hor-trapz-data'] = trapz_intForce_data                                     #mN
+                    with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'w') as f:
+                        json.dump(stats, f, indent=4)
 
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
                       "------------------------------------   previous image  --------------------------------------------")
@@ -3262,7 +3308,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
             plt.close() #close all existing figures
 
-    #once all images are analysed, plot obtained data together. Can also be done separately afterwards with the "CA_analysisRoutine()" in this file
+    #once all images are analysed, plot obtained data together. Can also be done separately afterward with the "CA_analysisRoutine()" in this file
     fig2, ax2 = plt.subplots()
     ax2.plot(np.divide(usedDeltaTs, 60), totalForce_afo_time)
     ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Horizontal component force (mN)"); ax2.set_title("Horizontal component force over Time")
@@ -3365,7 +3411,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
@@ -3385,7 +3431,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    #####path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 

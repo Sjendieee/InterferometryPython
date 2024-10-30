@@ -21,16 +21,16 @@ This part is to show dots of pixellocations for all swellingImages, without clic
 #source = "E:\\2023_09_22_PLMA_Basler2x_hexadecane_1_29S2_split\\B_Analysis\\PROC_20230927135916_imbed"          #hexadecane, imbed
 
 #source = "E:\\2023_04_06_PLMA_HexaDecane_Basler2x_Xp1_24_s11_split____GOODHALO-DidntReachSplit\\D_analysisv4\\PROC_20230724185238"        #tetradecane split, imbed & condens
-source = "M:\\Enqing\\Halo_Zeiss20X\\Img2\\Line4"
+source = "M:\\Enqing\\Halo_Zeiss20X\\Img2\\Line1"
 
 nAllImages = [0]        #images to plot line for
-pixellocationLarge = range(2586-100, 688)     #pixellocations to plot for. Can be a single value, or a range (which will draw a line)
+pixellocationLarge = range(1249-300, 7957)     #pixellocations to plot for. Can be a single value, or a range (which will draw a line)
 showPixelLocationLegend = False         #show in a legend the pixellocation (usefull when only 1 or a few pixels are plotted)
 #INPUT EDGES OF THE LINE WITH BORDER OF IMAGE IN PLOT AS (P1 = [x,y])
 #Check this in e.g. paint.net with the cursor
 #Eqning dataset
-P1 = [740, 109]
-P2 = [1413, 1385]
+P1 = [1477, 111]
+P2 = [1936, 1173]
 
 #     #For hexadecane, v1
 # P1 = [466, 206]
