@@ -1742,17 +1742,30 @@ def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr,
     return [x0arr[upwards_Index], y0arr[upwards_Index]], [x0arr[downwards_Index], y0arr[downwards_Index]]
 
 
-def determineTopAndBottomOfDropletCoords_SIMPLEMINMAX(vectors, x0arr, y0arr):
+def determineTopBottomLeftRight_DropletCoords(vectors, x0arr, y0arr):
     """"
+    Determine Top, bottom, left & right cooridnate simply by checking for the min & max arguments in x & y arrays.
+
     :param x0arr: input array with x coordinate values
     :param y0arr: input array with y coordinate values
     :param dxarr: input array with x coordinate values, at end of vector
     :param dyarr: input array with y coordinate values, at end of vector
     :return coords: [x, y] values of coordinates at minimum & maximum y-value
     """
+
     miny_index = np.argmin(y0arr)
     maxy_index = np.argmax(y0arr)
-    return [x0arr[maxy_index], y0arr[maxy_index]], [x0arr[miny_index], y0arr[miny_index]]
+    top_coord = [x0arr[maxy_index], y0arr[maxy_index]]
+    bottom_coord = [x0arr[miny_index], y0arr[miny_index]]
+
+    minx_index = np.argmin(x0arr)
+    maxx_index = np.argmax(x0arr)
+    left_coord = [x0arr[minx_index], y0arr[minx_index]]
+    right_coord = [x0arr[maxx_index], y0arr[maxx_index]]
+    return top_coord, bottom_coord, left_coord, right_coord
+
+
+
 
 def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
     """
@@ -2108,6 +2121,8 @@ def FindMinimaAndMaxima_v2(x_units, y_intensity, minIndex_maxima, minIndex_minim
 
         I_peaks_left = y_intensity[peak_outer_high]-20  # intensity above which peaks must be found: in range of 20 intensity points of abs max
         I_minima_left = y_intensity[minimum_outer_low] + 20  # intensity below which minima must be found: in range of 20 intensity points of abs min
+
+        #T
         spacing_peaks_left = 40  # at least 5 pixels between peaks
         prominence_left = 30 #minimum difference between an extremum & the baseline (which for here is always near a minimum).
 
@@ -2252,7 +2267,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
                          lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
                          resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS,
-                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima):
+                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord):
     """
 
     :param FLIPDATA:
@@ -2406,25 +2421,28 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                     #If plotting swelling, determine swellingprofile outside drop
                     if xOutwards[-1] != 0:
-                        heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr = combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
-                                                                   outwardsLengthVector, path, profile,
-                                                                   profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima)
+                        heightNearCL, xBrushAndDroplet, yBrushAndDroplet, matchedPeakIndexArr = intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
+                                                                                                                                       outwardsLengthVector, path, profile,
+                                                                                                                                       profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima)
 
-                        # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
-                        offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL[-extraPartIndroplet] / 1000))
-
-                        x_ks.append(x0arr[k])
-                        y_ks.append(y0arr[k])
+                        x_ks.append(x0arr[k])       #x-coord of 'chosen CL' current line
+                        y_ks.append(y0arr[k])       #y-coord of 'chosen CL' current line
                         x_ax_heightsCombined.append(np.concatenate([xOutwards, x[1:extraPartIndroplet]]))       #units= um
                         y_totalIntensityProfileCombined.append(yBrushAndDroplet)                                #units= intensity (-)
                         y_ax_heightsCombined.append(heightNearCL)                                               #units= nm
 
                         # TODO check dit: nu gewoon overgenomen van eerder. Check wat nog meer nodig is/ wat overbodig is in functie
                         # #remove overlapping datapoints to do proper plotting later:
-                        # remove either the extra vectors inside of droplet ('xOutwards', 'profileOutwards')    (distance x, and intensity resp.)
-                        xOutwards = xOutwards[:-smallExtraOutwardsVector]; profileOutwards = profileOutwards[:-smallExtraOutwardsVector]  # TODO CHECK waarom dit niet ":-extraPartIndroplet" is??!
-                        # or extra vectors inside droplet ('x', 'unwrapped')
+                        # remove either the extra vectors inside of droplet from the extended swelling profile: ('xOutwards', 'profileOutwards')    (distance x, and intensity resp.)
+                        #TODO deed dit: xOutwards = xOutwards[:-smallExtraOutwardsVector]; profileOutwards = profileOutwards[:-smallExtraOutwardsVector]  # TODO CHECK waarom dit niet ":-extraPartIndroplet" is??!
+
+                        # or overlapping vectors from droplet profile ('x', 'unwrapped')
                         #x = x[extraPartIndroplet:]; profile = profile[extraPartIndroplet:]
+
+                        # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
+                        offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL[-extraPartIndroplet] / 1000))
+
+                    #TODO: shift x-index of droplet profile to
 
                     # set equal height of swelling profile & droplet
                     unwrapped = unwrapped - offsetDropHeight
@@ -2586,12 +2604,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         pickle.dump([x3d_matrix, y3d_matrix, z3d_matrix], open("plot3d_data.pickle", "wb"))
     except:
         logging.critical(f"3D pickle dump did not work")
-    plt.show()
+    #plt.show()
+    showPlot(SHOWPLOTS_SHORT, [fig3D])
 
     fig2, ax2 = plt.subplots()
     #TODO coords to phi here:
-    #middleOfDrop = [2290, 2246] #For v3, nr32
-    middleOfDrop = [3331, 2119] #for misschien v2, nr46
 
     if len(peakdistanceFromCL) != len(x0arr):   #TODO temp solution. check why
         logging.critical((f"For some reason x0arr{len(x0arr)} is not as long as peakdistanceFromCL={len(peakdistanceFromCL)}. \nCheck WHY!"))
@@ -2603,53 +2620,55 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         vector_nrs = np.arange(0, len(x0arr))
         x0arr_3dplotting = x0arr
         y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))
-    phi, rArray = coordsToPhi(x0arr_3dplotting, y0arr_3dplotting, middleOfDrop[0], middleOfDrop[1])
+    phi, rArray = coordsToPhi(x0arr_3dplotting, y0arr_3dplotting, middleCoord[0], middleCoord[1])
     idk1, idk2 = convertPhiToazimuthal(phi)
 
     ax2.plot(vector_nrs, peakdistanceFromCL, '.')
     ax2.set(title = 'Distance of first fringe peak outside CL', xlabel = 'line nr. in clockwise direction', ylabel = 'distance (um)')
     fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} lines.png'), dpi=600)
-    plt.show()
-
-    fig2, ax2 = plt.subplots()
-    ax2.plot(phi, peakdistanceFromCL, '.')
-    ax2.set(title='Distance of first fringe peak outside CL', xlabel='Phi (rad)', ylabel='distance (um)')
-    fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
-
-    try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump(ax2, open("plot_distance_phi.pickle", "wb"))
-    except:
-        logging.critical(f"ax2pickle dump did not work")
-    plt.show()
-
-
-    fig2, ax2 = plt.subplots()
-    ax2.plot(idk2, peakdistanceFromCL, '.')
-    ax2.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
-    fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} azi.png'), dpi=600)
-    plt.show()
 
     fig3, ax3 = plt.subplots()
-    im3 = ax3.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet', vmin=5, vmax=16)
-    ax3.set_xlabel("X-coord");
-    ax3.set_ylabel("Y-Coord");
-    ax3.set_title(f"Spatial Distance from First Drop Fringe Peak Outside CL ")
-    fig3.colorbar(im3)
-    fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
+    ax3.plot(phi, peakdistanceFromCL, '.')
+    ax3.set(title='Distance of first fringe peak outside CL', xlabel='Phi (rad)', ylabel='distance (um)')
+    fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
+
     try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump(ax2, open("plot_spatial_distance.pickle", "wb"))
+        pickle.dump(ax3, open("plot_distance_phi.pickle", "wb"))
     except:
         logging.critical(f"ax2pickle dump did not work")
-    plt.show()
+
+
+    fig4, ax4 = plt.subplots()
+    ax4.plot(idk2, peakdistanceFromCL, '.')
+    ax4.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
+    fig4.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} azi.png'), dpi=600)
+    try:        #TODO temp: dump this plot for easier data retrieval
+        pickle.dump(ax4, open("plot_spatial_distance.pickle", "wb"))
+    except:
+        logging.critical(f"ax4pickle dump did not work")
+
+    fig5, ax5 = plt.subplots()
+    im5 = ax5.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet', vmin=5, vmax=16)
+    ax5.set_xlabel("X-coord");
+    ax5.set_ylabel("Y-Coord");
+    ax5.set_title(f"Spatial Distance from First Drop Fringe Peak Outside CL ")
+    fig5.colorbar(im5)
+    fig5.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
+
+    showPlot(SHOWPLOTS_SHORT, [fig2, fig3, fig4, fig5])
 
     return ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks
 
 
-def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n, outwardsLengthVector,
-                                path, profile, profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima):
+def intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n, outwardsLengthVector,
+                                           path, profile, profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima):
     """
     Convert (or import) the intensity data on a line to a height profile.
     Combines the brush profile (from profileOutwards) with some datapoints inside the droplet (extraPartIndroplet) for more fringes.
+    :returns: an array of height: swollen brush & bit of droplet
+    :return heightNearCL: array of (smoothened) height data, corresponding to xBrushAndDroplet
+    :return xBrushAndDroplet: array of distance of [Outside drop + extraPartIndroplet] (nr of datapoints (NOT pixels!))
+    :return yBrushAndDroplet: array of intensity values correcponding to ^
     """
     fig, ax = plt.subplots()
 
@@ -2661,7 +2680,7 @@ def combineInsideAndOutsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n
     yBrushAndDroplet = list(scipy.signal.savgol_filter(yBrushAndDroplet[0:peaks[0]], len(yBrushAndDroplet)//10, 3)) + yBrushAndDroplet[peaks[0]:] # apply a savgol filter for data smoothing
     # TODO check if I really want savgol filtering on input data: peaks of
     ax.plot(xBrushAndDroplet, yBrushAndDroplet, 'r.', label= 'smoothened before 1st peak')
-    ax.set(title = 'combineInsideAndOutsideDrop function', xlabel = 'index (-)', ylabel = 'intensity(-)')
+    ax.set(title = 'intensityToHeightOutside_bitInsideDrop function', xlabel = 'index (-)', ylabel = 'intensity(-)')
     ax.legend()
     #plt.show()
 
@@ -2757,7 +2776,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
 
-    plotHeightCondition = lambda xlist: []          #Enqing dataset
+    plotHeightCondition = lambda xlist: [5]
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
@@ -2845,6 +2864,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
             if MANUALPICKING == 2 and n != usedImages[0] and n - usedImages[list(usedImages).index(n) - 1] == everyHowManyImages:
                 useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
                     getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, usablecontour=usableContour, fitgapspolynomial=FITGAPS_POLYOMIAL)
+                # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
+                middleCoord = determineMiddleCoord(useablexlist, useableylist)  # determine middle coord by making use of "mean surface" area coordinate
             #in any other case
             else:
                 coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"coordinatesListFilePath_{n}.txt")         #file for all contour coordinates
@@ -2860,6 +2881,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
                     unfilteredCoordsx, unfilteredCoordsy, _, _, _ = getContourCoordsFromDatafile(img, coordinatesListFilePath)
+
                     middleCoord = determineMiddleCoord(unfilteredCoordsx, unfilteredCoordsy) #determine middle coord by making use of "mean surface" area coordinate
                     del unfilteredCoordsx, unfilteredCoordsy
 
@@ -2878,6 +2900,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
                     IMPORTEDCOORDS = False
                     FILTERED = False
+                    # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
+                    middleCoord = determineMiddleCoord(useablexlist, useableylist)  # determine middle coord by making use of "mean surface" area coordinate
 
 
             imgshape = resizedimg.shape #tuple (height, width, channel)
@@ -2911,7 +2935,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima)
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord)
 
                 else:
                     #If the CL coordinates have not been imported (e.g. for new img file)
@@ -2953,7 +2977,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr,
                         xArrFinal, y0arr,
                         yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet,
-                        smallExtraOutwardsVector, minIndex_maxima, minIndex_minima)
+                        smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord)
 
                     print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
                     logging.warning(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
@@ -2961,14 +2985,15 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 #coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords(x0arr, y0arr, dxarr, dyarr)
                 #TODO testing the 'easy way' of determining top&bottom with only min/max because other method fails sometimes?
-                coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords_SIMPLEMINMAX(vectorsFinal, xArrFinal, yArrFinal)
+                coordsBottom, coordsTop, coordLeft, coordRight = determineTopBottomLeftRight_DropletCoords(vectorsFinal, xArrFinal, yArrFinal)
                 print(f"Calculated top and bottom coordinates of the droplet to be:\n"
                       f"Top: x={coordsTop[0]}, y={coordsTop[1]}\n"
                       f"Bottom: x={coordsBottom[0]}, y={coordsBottom[1]}")
 
-
                 resizedimg = cv2.circle(resizedimg, (coordsBottom), 30, (255, 0, 0), -1)    #draw blue circle at calculated bottom/inflection point of droplet
                 resizedimg = cv2.circle(resizedimg, (coordsTop), 30, (0, 255, 0), -1)       #green
+                resizedimg = cv2.circle(resizedimg, (coordLeft), 30, (255, 0, 255), -1)    #purple
+                resizedimg = cv2.circle(resizedimg, (coordRight), 30, (0, 255, 255), -1)       #yellow
 
                 # determine middle of droplet & plot
                 middleX, middleY, meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
@@ -3277,7 +3302,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     CAfile = open(contactAngleListFilePath, 'a')
                     #Write data to .txt file:
                     #img nr. ; time from start (s); median CA (deg); horizontal component force (mN); middeleX-coord (pixel) ; middleY-coord (pixel)
-                    CAfile.write(f"{n}, {usedDeltaTs[-1]}, {angleDeg_afo_time[-1]}, {totalForce_afo_time[-1]}, {middleCoord[0]}, {middleCoord[1]}\n")
+                    CAfile.write(f"{n}, {usedDeltaTs[-1]:.2f}, {angleDeg_afo_time[-1]}:.4f, {totalForce_afo_time[-1]}, {middleCoord[0]}, {middleCoord[1]}\n")
                     CAfile.close()
 
                     #TODO desired outputs:
@@ -3289,6 +3314,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     stats['middleCoords-surfaceArea'] = [middleCoord[0], middleCoord[1]]                #pixels
                     stats['middleCoords-MeanIntersectingVectors'] = [meanmiddleX, meanmiddleY]          #pixels
                     stats['middleCoords-MedianIntersectingVectors'] = [medianmiddleX, medianmiddleY]    #pixels
+                    #outer pixel locations of top, bottom, left & right
+                    stats['OuterLeftPixel'] = coordLeft
+                    stats['OuterRightPixel'] =coordRight
+                    stats['TopPixel'] = coordsTop
+                    stats['BottomPixel'] = coordsBottom
                     #Forces: Quad integration on function + error, trapz on function, trapz on raw data
                     stats['F_hor-quad-fphi'] = [total_force_quad, error_quad]       #force & error      mN
                     stats['F-hor-trapz-fphi'] = trapz_intForce_function                                 #mN
