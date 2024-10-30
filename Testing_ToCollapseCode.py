@@ -2345,6 +2345,16 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     profileOutwards, lineLengthPixelsOutwards, fitInside, coords_Outside = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],
                                                                                         dynegarr[k], outwardsLengthVector,
                                                                                         greyresizedimg)
+                    #TODO temp 30-10-2024: checks to ensure x-distance is calculated correctly
+                    coords0 = coords_Outside[0]
+                    coordsEnd = coords_Outside[-1]
+                    lengthOfLine_pixels = np.sqrt((coords0[0] - coordsEnd[0])**2
+                                                  + (coords0[1] - coordsEnd[1])**2)
+                    lengthOfLine_units = lengthOfLine_pixels*conversionXY/1000
+                    logging.info(f"Lenght of line (pixels): {lengthOfLine_pixels}\n"
+                                 f"and in (um): {lengthOfLine_units}")
+                    #TODO end
+
 
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
                     # If not keep list empty and act as if we don't want the outside vector
