@@ -1463,6 +1463,13 @@ def swellingRatioNearCL_knownpeaks(xdata, ydata, elapsedtime, path, imgNumber, v
 #TODO ik denk dat constant x, var y nog niet goed kan werken: Output geen lineLength pixel & lengthVector moet langer zijn dan aantal punten van np.arrange (vanwege eerdere normalisatie)?
 def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, lengthVector, greyresizedimg):
     """
+    Returns the intensity profile between 2 coordinates a=[x0arrcoord, y0arrcoord] - b=[dxarrcoord, dyarrcoord].
+    The length between the 2 coordinates should be very similar to the set length of the line (e.g. 200)
+    Along the line between a-b, steps of 1 full pixel in horizontal (x) or vertical (y) (depending on a-b dx<>dy) w/ corresponding x or y are evaluated.
+    Therefore, the len() of returned 'profile' DOES NOT have to be that length!!
+    For horizontal&vertical lines len(profile) = lengtVector
+    For tilted lines, len(profile) < lengtVector    because less 1 pixel hor/vertical steps have to be evaluated to have a line of the desired length
+
     :param x0arrcoord:
     :param y0arrcoord:
     :param dxarrcoord:
@@ -1512,8 +1519,8 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     Lowpass & highpass values for filtering in frequency domain are important w/ respect to the obtain results.
     So far, I found generally 'lowpass = 1/2 profile length' & 'highpass = 2' work fine for CA fringes.
 
-    :param profile: intensity profile
-    :param lineLengthPixels: length of the
+    :param profile: intensity profile on line
+    :param lineLengthPixels: length of the line (pixels)
     :param conversionXY: conversion factor for pixels -> um in xy-plane
     :param conversionZ: conversion factor for pixels -> nm in z-plane
     :param FLIPDATA: boolean to reverse data in xy-plane (only for plotting purposes)
@@ -2342,6 +2349,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 xOutwards = [0]     #x length pointing outwards of droplet, for possible swelling analysis
                 profileOutwards = []
                 if outwardsLengthVector != 0:
+                    if k == 750:
+                        print(
+                            'pausin'
+                        )
                     profileOutwards, lineLengthPixelsOutwards, fitInside, coords_Outside = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],
                                                                                         dynegarr[k], outwardsLengthVector,
                                                                                         greyresizedimg)
@@ -2350,7 +2361,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     coordsEnd = coords_Outside[-1]
                     lengthOfLine_pixels = np.sqrt((coords0[0] - coordsEnd[0])**2
                                                   + (coords0[1] - coordsEnd[1])**2)
-                    lengthOfLine_units = lengthOfLine_pixels*conversionXY/1000
+                    lengthOfLine_units = lengthOfLine_pixels*conversionXY*1000
                     logging.info(f"Lenght of line (pixels): {lengthOfLine_pixels}\n"
                                  f"and in (um): {lengthOfLine_units}")
                     #TODO end
@@ -2398,7 +2409,9 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
                                                                         conversionZ, FLIPDATA)
 
-                x += xOutwards[-1]          #shift x to match with the end of xOutwards TODO commented for now, as I think this same operation is performed later as well
+                # shift x to match with the end of xOutwards.
+                #If xOutwardss = 0, no shift occurs. Otherwise, x[0] and xOutwards[-1] are overlapped.
+                x += xOutwards[-1]
 
                 # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
                 # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
@@ -2437,9 +2450,14 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                         x_ks.append(x0arr[k])       #x-coord of 'chosen CL' current line
                         y_ks.append(y0arr[k])       #y-coord of 'chosen CL' current line
-                        x_ax_heightsCombined.append(np.concatenate([xOutwards, x[1:extraPartIndroplet]]))       #units= um
-                        y_totalIntensityProfileCombined.append(yBrushAndDroplet)                                #units= intensity (-)
-                        y_ax_heightsCombined.append(heightNearCL)                                               #units= nm
+                        #below is weird looking, but correct! y is obtained through correctly stitched intensity profiles
+                        #x is just 'added' together from 2 profiles (x was shifted before). Since the 1st point was overlapped in that shift, we take 1:extraPartInDroplet .
+                        #xBrushAndDroplet_units = np.concatenate([xOutwards, x[1:extraPartIndroplet]])           #x-distance swelling profile + bit inside drop. units= um
+                        #Same as above, but more intuitively written
+                        xBrushAndDroplet_units = np.linspace(0, outwardsLengthVector + extraPartIndroplet - 1, len(heightNearCL)) * conversionXY * 1000# x-distance swelling profile + bit inside drop. units= um
+                        x_ax_heightsCombined.append(xBrushAndDroplet_units)
+                        y_totalIntensityProfileCombined.append(yBrushAndDroplet)                                #intensity profile. units= (-)
+                        y_ax_heightsCombined.append(heightNearCL)                                               #height profile brush & bit drop.    units= nm
 
                         # TODO check dit: nu gewoon overgenomen van eerder. Check wat nog meer nodig is/ wat overbodig is in functie
                         # #remove overlapping datapoints to do proper plotting later:
@@ -2449,7 +2467,12 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         # or overlapping vectors from droplet profile ('x', 'unwrapped')
                         #x = x[extraPartIndroplet:]; profile = profile[extraPartIndroplet:]
 
-                        # Determine difference in h between brush & droplet profile at 'profileExtraOut' distance from contour
+                        #Matching y with x distance:
+                        #   y variable (units)          x variable (units)              what location           how many extra datapoints
+                        #   unwrapped -                 x (shifted by now)              bitbrush+droplet        smallExtraOutwardsVector
+                        #   xBrushAndDroplet_units      heightNearCL                    brush+bitdroplet        extraPartIndroplet
+
+                        # Determine difference in h between brush+bitdroplet & bitbrush+droplet profile at 'profileExtraOut' distance from contour
                         offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL[-extraPartIndroplet] / 1000))
 
                     #TODO: shift x-index of droplet profile to
@@ -3471,7 +3494,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
