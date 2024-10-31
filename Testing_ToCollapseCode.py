@@ -2349,10 +2349,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 xOutwards = [0]     #x length pointing outwards of droplet, for possible swelling analysis
                 profileOutwards = []
                 if outwardsLengthVector != 0:
-                    if k == 750:
-                        print(
-                            'pausin'
-                        )
+                    #extracts intensity profile purely outside droplet.
                     profileOutwards, lineLengthPixelsOutwards, fitInside, coords_Outside = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],
                                                                                         dynegarr[k], outwardsLengthVector,
                                                                                         greyresizedimg)
@@ -2369,6 +2366,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
                     # If not keep list empty and act as if we don't want the outside vector
+                    # xOutwards is the x-distance (units) purely of swelling profile outside drop
                     if fitInside:
                         xOutwards = np.linspace(0, lineLengthPixelsOutwards,
                                             len(profileOutwards)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
@@ -2409,9 +2407,9 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
                                                                         conversionZ, FLIPDATA)
 
-                # shift x to match with the end of xOutwards.
+                # shift x (bitbursh+drop) to match with the end of xOutwards (brush).
                 #If xOutwardss = 0, no shift occurs. Otherwise, x[0] and xOutwards[-1] are overlapped.
-                x += xOutwards[-1]
+                x += xOutwards[-1] - x[smallExtraOutwardsVector-1]          #TODO check of dit goed geimplementeerd is -> check x,y plots & overlap drop&brush
 
                 # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
                 # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
@@ -2468,9 +2466,9 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         #x = x[extraPartIndroplet:]; profile = profile[extraPartIndroplet:]
 
                         #Matching y with x distance:
-                        #   y variable (units)          x variable (units)              what location           how many extra datapoints
-                        #   unwrapped -                 x (shifted by now)              bitbrush+droplet        smallExtraOutwardsVector
-                        #   xBrushAndDroplet_units      heightNearCL                    brush+bitdroplet        extraPartIndroplet
+                        #   y variable (units)          x variable (units=um)              what location           how many extra datapoints
+                        #   unwrapped - (um)            x (shifted at this point)          bitbrush+droplet        smallExtraOutwardsVector
+                        #   heightNearCL (nm)           xBrushAndDroplet_units             brush+bitdroplet        extraPartIndroplet
 
                         # Determine difference in h between brush+bitdroplet & bitbrush+droplet profile at 'profileExtraOut' distance from contour
                         offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL[-extraPartIndroplet] / 1000))
