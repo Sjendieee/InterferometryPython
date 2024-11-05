@@ -136,6 +136,33 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     #analyzeImages = np.array([find_nearest(timeFromStart, t)[1] for t in analyzeTimes])
     #print(analyzeImages)
 
+def showPlot(display_mode : str, figures : list):
+    """
+    Display one or more plots with the specified display mode.
+    Parameters:
+    :param display_mode: A string that specifies the display mode. It can be:
+        - 'none': Do not display the plots.
+        - 'timed': Display the plots for 3 seconds.
+        - 'manual': Display the plots until manually closed.
+    :param figures: A list of matplotlib figure objects to be displayed.
+    """
+
+    if display_mode == 'none':
+        return
+
+    if display_mode == 'timed':
+        for fig in figures:
+            fig.show()
+        plt.pause(3)
+        for fig in figures:
+            plt.close(fig)
+    elif display_mode == 'manual':
+        for fig in figures:
+            #fig.show()
+            plt.figure(fig.number)
+            plt.show(block=True)
+    else:
+        raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
 
 def selectMinimaAndMaxima(y, idx):
     """
@@ -147,7 +174,8 @@ def selectMinimaAndMaxima(y, idx):
     x = np.arange(0,len(y))
     ax.scatter(x, y)
     highlighter = Highlighter(ax, x, y)
-    plt.show()
+    showPlot('manual', [fig])   #TODO try - see if now only the above plot is shown (and not the million other ones that are still in the making)
+    #plt.show()
     selected_regions = highlighter.mask
     xrange1, yrange1 = x[selected_regions], y[selected_regions]
     outputExtrema = []
@@ -170,6 +198,7 @@ def selectMinimaAndMaxima(y, idx):
     else:
         logging.critical("Not enough extrema selected!")
     return outputExtrema
+
 def flipData(data):
     datamax = max(data)
     return [(-x + datamax) for x in data]

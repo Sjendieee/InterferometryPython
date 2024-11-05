@@ -2207,10 +2207,6 @@ def FindMinimaAndMaxima_v2(x_units, y_intensity, minIndex_maxima, minIndex_minim
             figtemp.set_size_inches(12.8, 9.6)
             figtemp.tight_layout
             plt.show()
-
-        if x_units[peaks[3]] - x_units[peaks[2]] > 20:
-            print(f"we pasuin {vectornr}")
-
     return peaks, minima, y_intensity
 
 def filterExtremaBelowIndex(peaks, minima, minIndex_maxima, minIndex_minima):
@@ -2338,10 +2334,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     ax3D = fig3D.add_subplot(111, projection = '3d')
     metadata2 = dict(title='3D Height Movie', artist='Sjendieee')
     writer2 = FFMpegWriter(fps=15, metadata=metadata2)
+    heightPlottedCounter_3dplot = 0
     x3d_matrix = []
     y3d_matrix = []
     z3d_matrix = []
-
     # [4000, round(len(x0arr) / 2)]:#
     with writer.saving(figvid, "Height.mp4", 300) as a, writer2.saving(fig3D, "3D_height.mp4", 300) as b:
         for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
@@ -2497,7 +2493,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         # TODO WIP: swelling or height profile outside droplet
                         # TODO this part below sets the anchor at some index within the droplet regime
                         if heightPlottedCounter == 0:
-                            distanceOfEqualHeight = 10  # can be changed: distance at which the profiles must overlap. xOutwards[-1]
+                            distanceOfEqualHeight = 10  # can be changed: distance (units) at which the profiles must overlap. xOutwards[-1]
                             indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
                             equalHeight = heightNearCL_smoothened[indexOfEqualHeight]
 
@@ -2567,12 +2563,19 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     #     profileOutwards, lineLengthPixelsOutwards, fitInside, _ = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k], dynegarr[k], outwardsLengthVector, greyresizedimg)
                     #     profileOutwards.reverse() # correct stitching of in-&outwards profiles requires reversing of the outwards profile
 
-                    #TODO removed: don't need to repeat. All of this is already done earlier correctly
-                    #xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet - 1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
-                    #xBrushAndDroplet_units = np.linspace(0, len(xBrushAndDroplet), )       #units (um)
-                    #xBrushAndDroplet_units = np.linspace(0, outwardsLengthVector + extraPartIndroplet - 1, len(heightNearCL)) * conversionXY * 1000  # x-distance swelling profile + bit inside drop. units= um
-                    #yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
-
+                    """
+                    Important variables here.
+                    Inside & outside droplet:
+                    - x & y coordinates of line     -> xCoordsProfile, yCoordsProfile
+                    - x-distance (index)            -> xBrushAndDroplet
+                    - x-distance (units)            -> xBrushAndDroplet_units
+                    - y-intensity (-)               -> yBrushAndDroplet
+                    - y-height (nm or um)           -> heightNearCL
+                    """
+                    #Set correct x & y profiles over total line
+                    xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet - 1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
+                    xBrushAndDroplet_units = np.linspace(0, outwardsLengthVector + extraPartIndroplet - 1, len(xBrushAndDroplet)) * conversionXY * 1000  # x-distance swelling profile + bit inside drop. units= um
+                    yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
 
                     #Make arrays with all x & y coords of Outside part
                     xCoordsOutside = np.array([val[0] for val in coords_Outside])
@@ -2589,21 +2592,42 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         cmap_minval = 0
                         cmap_maxval = 1
                     try:
+                        # Find peaks & minima automatically in [brush & part inside droplet], by automatic peakfinding.
                         peaks, minima, y_intensity_smoothened = FindMinimaAndMaxima_v2(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima, vectornr = k, lenIn = extraPartIndroplet, lenOut = len(profileOutwards))
                         if len(peaks) == 0 or len(minima) == 0:     #if either list is empty, fill 0 for now
                             peakdistanceFromCL.append(0)
                         else:
-                            peakdistanceFromCL.append(xBrushAndDroplet[peaks[3]] - xBrushAndDroplet[peaks[2]])
+                            peakdistanceFromCL.append(xBrushAndDroplet_units[peaks[3]] - xBrushAndDroplet_units[peaks[2]])
                             if k % 25  == 0:  #TODO for movie plotting purposes only - can be removed
                                 #TODO for intensity plots & videos
-                                axvid.set(ylim=[45, 230], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
-                                axvid.plot(xBrushAndDroplet, y_intensity_smoothened)
-                                axvid.plot(xBrushAndDroplet[peaks], y_intensity_smoothened[peaks], 'o')
-                                axvid.plot(xBrushAndDroplet[minima], y_intensity_smoothened[minima], 'o')
+                                axvid.set(ylim=[35, 240], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
+                                axvid.plot(xBrushAndDroplet_units, y_intensity_smoothened)
+                                axvid.plot(xBrushAndDroplet_units[peaks], y_intensity_smoothened[peaks], 'o')
+                                axvid.plot(xBrushAndDroplet_units[minima], y_intensity_smoothened[minima], 'o')
                                 writer.grab_frame()
                                 axvid.clear()
 
-                                heightNearCL, heightRatioNearCL = swellingRatioNearCL_knownpeaks(xBrushAndDroplet, y_intensity_smoothened, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector, extraPartIndroplet, peaks, minima)
+                                #Determine height profile in [brush & part inside droplet], by making use of peaks found before.
+                                heightNearCL, heightRatioNearCL = swellingRatioNearCL_knownpeaks(xBrushAndDroplet_units, y_intensity_smoothened, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector, extraPartIndroplet, peaks, minima)
+
+                                # TODO this part below sets the anchor at some index within the droplet regime
+                                # TODO But it's not (really) valid if even far away on one side it's more swollen than the other. So removed for now
+                                # if heightPlottedCounter_3dplot == 0:
+                                #     distanceOfEqualHeight_3dplot = 10  # can be changed: distance (units) at which the profiles must overlap. xOutwards[-1]
+                                #     indexOfEqualHeight_3dplot = np.argmin(abs(xBrushAndDroplet_units - distanceOfEqualHeight_3dplot))
+                                #     equalHeight_3dplot = heightNearCL[indexOfEqualHeight_3dplot]
+                                #
+                                #     ax_heightsCombined.plot(distanceOfEqualHeight_3dplot, equalHeight_3dplot, '.', markersize=15, zorder=len(x0arr))
+                                #     ax_heightsCombined.axvspan(0, xBrushAndDroplet_units[-1], facecolor='orange', alpha=0.3)
+                                #     ax_heightsCombined.axvspan(xBrushAndDroplet_units[-1], x[extraPartIndroplet - 1],
+                                #                                facecolor='blue',
+                                #                                alpha=0.3)
+                                # else:
+                                #     indexOfEqualHeight_3dplot = np.argmin(abs(xBrushAndDroplet_units - distanceOfEqualHeight_3dplot))
+                                #     heightNearCL = heightNearCL - (heightNearCL[indexOfEqualHeight_3dplot] - equalHeight_3dplot)  # to set all height profiles at some index to the same height
+                                # heightPlottedCounter += 1  # increment counter
+
+
                                 xCoordsProfile_reduced = [xCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
                                 yCoordsProfile_reduced = [yCoordsProfile[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
                                 heightNearCL_reduced = [heightNearCL[i] for i in range(0, len(heightNearCL), 3)] #plot half the data
@@ -2628,8 +2652,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                     cmap_maxval = max(heightNearCL_reduced)
                                 print(f"{k} 3d plotted")
 
-                    except: #TODO remove this at some point - when peakdistanceFromCL fully funcitnoal
-                        print(f'TEMPORARY {k};  just so peakdistanceFromCL has a catch function')
+                    except: #TODO remove this at some point - when peakdistanceFromCL fully functional
+                        print(f'TEMPORARY {k};  just so peakdistanceFromCL has a catch function: append "peakdistanceFromCL" = 0 te fill in something')
                         peakdistanceFromCL.append(0)
 
             except:
@@ -2675,7 +2699,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
 
     try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump(ax3, open("plot_distance_phi.pickle", "wb"))
+        pickle.dump(fig3, open("plot_distance_phi.pickle", "wb"))
     except:
         logging.critical(f"ax2pickle dump did not work")
 
@@ -2685,17 +2709,23 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     ax4.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
     fig4.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} azi.png'), dpi=600)
     try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump(ax4, open("plot_spatial_distance.pickle", "wb"))
+        pickle.dump(fig4, open("plot_spatial_distance.pickle", "wb"))
     except:
         logging.critical(f"ax4pickle dump did not work")
 
     fig5, ax5 = plt.subplots()
-    im5 = ax5.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet', vmin=5, vmax=16)
+    im5 = ax5.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet')#, vmin=5, vmax=16)
     ax5.set_xlabel("X-coord");
     ax5.set_ylabel("Y-Coord");
     ax5.set_title(f"Spatial Distance from First Drop Fringe Peak Outside CL ")
     fig5.colorbar(im5)
     fig5.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
+    try:        #TODO temp: dump this plot for easier data retrieval
+        pickle.dump(fig5, open("plot_spatial_distance-XY.pickle", "wb"))
+        pickle.dump([x0arr_3dplotting, y0arr_3dplotting, peakdistanceFromCL], open("plot_spatial_distance-XY_data.pickle", "wb"))
+    except:
+        logging.critical(f"ax5pickle dump did not work")
+
 
     showPlot(SHOWPLOTS_SHORT, [fig2, fig3, fig4, fig5])
 
@@ -2741,16 +2771,17 @@ def intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeak
     return heightNearCL_smoothened, xBrushAndDroplet, yBrushAndDroplet_smoothened, matchedPeakIndexArr
 
 
-def showPlot(display_mode, figures):
+def showPlot(display_mode : str, figures : list):
     """
     Display one or more plots with the specified display mode.
     Parameters:
-    - display_mode: A string that specifies the display mode. It can be:
+    :param display_mode: A string that specifies the display mode. It can be:
         - 'none': Do not display the plots.
         - 'timed': Display the plots for 3 seconds.
         - 'manual': Display the plots until manually closed.
-    - figures: A list of matplotlib figure objects to be displayed.
+    :param figures: A list of matplotlib figure objects to be displayed.
     """
+
     if display_mode == 'none':
         return
 
@@ -2783,7 +2814,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [70]       #36, 57
+    usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
@@ -3414,7 +3445,7 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
 
     #### Wrapped profile
     ax1[1, 0].plot(wrapped, 'k');
-    ax1[1, 0].axvspan(0, wrapped[-1], facecolor='orange', alpha=0.4, label='droplet')
+    ax1[1, 0].axvspan(0, len(wrapped)-1, facecolor='orange', alpha=0.4, label='droplet')
     ax1[1, 0].plot(peaks, wrapped[peaks], 'b.')
     ax1[1, 0].set_title("Wrapped profile (drop only)")
     # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
@@ -3426,10 +3457,10 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
         #ax1[0, 1].plot(xOutwards, heightNearCL[:len(profileOutwards)], label="Swelling fringe calculation", color='C0');  # plot the swelling ratio outside droplet
         ax1[0, 1].plot(xOutwards, heightNearCL, '--',  label="Swelling fringe calculation", color='C0');  # plot the swelling ratio outside droplet
     ax1[0, 1].plot(x, unwrapped * 1000, '-.', label="Interference fringe calculation", color='C1');
-    ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
     # '\nCA={angleDeg:.2f} deg. ' Initially had this in label below, but because of code order change angledeg is not defined yet
-    ax1[0, 1].plot(x, (np.poly1d(coef1)(x-xshift) - offsetDropHeight) * 1000, '--k', linewidth=2, label=f'Linear fit, R$^2$={r2:.3f}');
+    ax1[0, 1].plot(x, (np.poly1d(coef1)(x-xshift) - offsetDropHeight) * 1000, '--k', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}');
 
+    ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
     ax1[0, 1].plot(x[smallExtraOutwardsVector - 1], unwrapped[smallExtraOutwardsVector - 1] * 1000 , '.', label = 'Stitch location')    #TODO check of deze werkt naar behoren
 
 
@@ -3490,7 +3521,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    #path = "E:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    #path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
