@@ -136,45 +136,72 @@ def makeImages(profile, timeFromStart, source, pixelLocation):
     #analyzeImages = np.array([find_nearest(timeFromStart, t)[1] for t in analyzeTimes])
     #print(analyzeImages)
 
-def showPlot(display_mode : str, figures : list):
+def showPlot(display_mode: str, figures: list):
     """
     Display one or more plots with the specified display mode.
     Parameters:
+    - display_mode: A string that specifies the display mode. It can be:
     :param display_mode: A string that specifies the display mode. It can be:
         - 'none': Do not display the plots.
         - 'timed': Display the plots for 3 seconds.
         - 'manual': Display the plots until manually closed.
+    - figures: A list of matplotlib figure objects to be displayed.
     :param figures: A list of matplotlib figure objects to be displayed.
     """
 
     if display_mode == 'none':
         return
 
+    figs_min = []
+    figs_interest = []
+    print(plt.get_fignums())
+    for i in plt.get_fignums():
+        fig = plt.figure(i)
+        if not fig in figures:
+            figs_min.append(fig)
+        else:
+            figs_interest.append(fig)
+
     if display_mode == 'timed':
-        for fig in figures:
+        for fig in figs_interest:
             fig.show()
-        plt.pause(3)
-        for fig in figures:
+            fig.waitforbuttonpress(3)   #shows figure for 3 seconds by stopping loop (or click on figure)
             plt.close(fig)
+
     elif display_mode == 'manual':
-        for fig in figures:
-            #fig.show()
-            plt.figure(fig.number)
-            plt.show(block=True)
+        for fig in figs_interest:
+            fig.show()      #show figure, without managing event loop : code will continue to execute
+
+    elif display_mode == 'manual_interact':
+        for fig in figs_interest:
+            fig.show()
+            fig.ginput(n=20, timeout=0, show_clicks=False)
     else:
         raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
+    return
 
-def selectMinimaAndMaxima(y, idx):
+def selectMinimaAndMaxima(y : np.ndarray, idx) -> list:
     """
-    :param y:
+    :param y: np.array of y-data
     :param idx:
-    :return outputExtrema: indices of minima and maxima
+    :return outputExtrema: list with indices of minima and maxima
     """
     fig, ax = plt.subplots(figsize=(10, 10))
     x = np.arange(0,len(y))
     ax.scatter(x, y)
-    highlighter = Highlighter(ax, x, y)
-    showPlot('manual', [fig])   #TODO try - see if now only the above plot is shown (and not the million other ones that are still in the making)
+
+    fig.show()
+    closed = [False]
+    def on_close(event):
+        closed[0] = True
+    # Connect the close event to the figure
+    fig.canvas.mpl_connect('close_event', on_close)
+
+    highlighter = Highlighter(ax, x, y) #create highlighter object: allows to select points inside the given ax (corresponding figure)
+    # Run a loop to block until the figure is closed
+    while not closed[0]:
+        fig.canvas.flush_events()
+
     #plt.show()
     selected_regions = highlighter.mask
     xrange1, yrange1 = x[selected_regions], y[selected_regions]

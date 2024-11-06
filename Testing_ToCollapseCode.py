@@ -2650,7 +2650,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                     cmap_minval = min(heightNearCL_reduced)
                                 if max(heightNearCL_reduced) > cmap_maxval:
                                     cmap_maxval = max(heightNearCL_reduced)
-                                print(f"{k} 3d plotted")
+                                print(f"{k} / {len(x0arr)} 3d plotted")
 
                     except: #TODO remove this at some point - when peakdistanceFromCL fully functional
                         print(f'TEMPORARY {k};  just so peakdistanceFromCL has a catch function: append "peakdistanceFromCL" = 0 te fill in something')
