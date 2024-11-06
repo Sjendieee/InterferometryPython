@@ -2771,32 +2771,45 @@ def intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeak
     return heightNearCL_smoothened, xBrushAndDroplet, yBrushAndDroplet_smoothened, matchedPeakIndexArr
 
 
-def showPlot(display_mode : str, figures : list):
+def showPlot(display_mode: str, figures: list):
     """
     Display one or more plots with the specified display mode.
     Parameters:
+    - display_mode: A string that specifies the display mode. It can be:
     :param display_mode: A string that specifies the display mode. It can be:
         - 'none': Do not display the plots.
-        - 'timed': Display the plots for 3 seconds.
-        - 'manual': Display the plots until manually closed.
+        - 'timed': Display the plots for 3 seconds (or when clicked on the plot)
+        - 'manual': Display the plots until manually closed. Code continues to execute while plots are open.
+    - figures: A list of matplotlib figure objects to be displayed.
     :param figures: A list of matplotlib figure objects to be displayed.
     """
 
     if display_mode == 'none':
         return
 
-    for fig in figures:
-        fig.show()
+    figs_min = []
+    figs_interest = []
+    print(plt.get_fignums())
+    for i in plt.get_fignums():
+        fig = plt.figure(i)
+        if not fig in figures:
+            figs_min.append(fig)
+        else:
+            figs_interest.append(fig)
 
     if display_mode == 'timed':
-        plt.pause(3)
-        for fig in figures:
+        for fig in figs_interest:
+            fig.show()
+            fig.waitforbuttonpress(3)   #shows figure for 3 seconds by stopping loop (or click on figure)
             plt.close(fig)
+
     elif display_mode == 'manual':
-        plt.show()
+        for fig in figs_interest:
+            fig.show()      #show figure, without managing event loop : code will continue to execute
+
     else:
         raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
-
+    return
 
 def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     """

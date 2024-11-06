@@ -105,21 +105,10 @@ def showPlot_v3(display_mode: str, figures: list):
         else:
             figs_interest.append(fig)
 
-    # t_end = time.time() + 3
-    # for fig in figures:
-    #     while time.time() < t_end:
-    #         fig.show()
-    #         fig.waitforbuttonpress(3)
-    #         #plt.pause(3)
-
     if display_mode == 'timed':     #Stay in loop for 3 seconds to stop code from executing further
-        #t_end = time.time() + 1
         for fig in figs_interest:
             fig.show()
             fig.waitforbuttonpress(3)
-            # plt.figure(fig.number)
-            # plt.show(block=False)
-            # plt.pause(3)
             plt.close(fig)
 
     elif display_mode == 'manual':

@@ -143,8 +143,8 @@ def showPlot(display_mode: str, figures: list):
     - display_mode: A string that specifies the display mode. It can be:
     :param display_mode: A string that specifies the display mode. It can be:
         - 'none': Do not display the plots.
-        - 'timed': Display the plots for 3 seconds.
-        - 'manual': Display the plots until manually closed.
+        - 'timed': Display the plots for 3 seconds (or when clicked on the plot)
+        - 'manual': Display the plots until manually closed. Code continues to execute while plots are open.
     - figures: A list of matplotlib figure objects to be displayed.
     :param figures: A list of matplotlib figure objects to be displayed.
     """
@@ -172,10 +172,6 @@ def showPlot(display_mode: str, figures: list):
         for fig in figs_interest:
             fig.show()      #show figure, without managing event loop : code will continue to execute
 
-    elif display_mode == 'manual_interact':
-        for fig in figs_interest:
-            fig.show()
-            fig.ginput(n=20, timeout=0, show_clicks=False)
     else:
         raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
     return
