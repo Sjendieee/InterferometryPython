@@ -213,11 +213,14 @@ def selectMinimaAndMaxima(y : np.ndarray, idx) -> list:
         for i in range(0, len(extremaRanges),2):
             lowerlimitRange = extremaRanges[i]
             upperlimitRange = extremaRanges[i+1]
-            if y[(round((upperlimitRange + lowerlimitRange) / 2))] > ((y[upperlimitRange] + y[lowerlimitRange])/2):     #likely to be a maximum if the middle value in range > the mean of first&last value
-                tempPosition = np.argmax(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of maximum
-            else:
-                tempPosition = np.argmin(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of minimum
-            outputExtrema.append(tempPosition)
+            if lowerlimitRange == upperlimitRange:      #if only 1 value was selected, just append the index value immideately
+                outputExtrema.append(lowerlimitRange)
+            else:   #if a range is selected, check if minimum or maximum & append that y value
+                if y[(round((upperlimitRange + lowerlimitRange) / 2))] > ((y[upperlimitRange] + y[lowerlimitRange])/2):     #likely to be a maximum if the middle value in range > the mean of first&last value
+                    tempPosition = np.argmax(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of maximum
+                else:
+                    tempPosition = np.argmin(y[lowerlimitRange:upperlimitRange]) + lowerlimitRange  # position of minimum
+                outputExtrema.append(tempPosition)
     else:
         logging.critical("Not enough extrema selected!")
     return outputExtrema

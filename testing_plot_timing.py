@@ -141,13 +141,14 @@ def showPlot_v4(display_mode: str, fig, ax, x_data : np.ndarray, y_data : np.nda
             closed[0] = True
 
         # Connect the close event to the figure
-        fig.canvas.mpl_connect('close_event', on_close)
+        fig.canvas.mpl_conect('close_event', on_close)
 
         highlighter = Highlighter(ax, x_data, y_data)
 
         # Run a loop to block until the figure is closed
         while not closed[0]:
             fig.canvas.flush_events()
+
 
         selected_regions = highlighter.mask
 

@@ -2098,16 +2098,21 @@ def FindMinimaAndMaxima_v2(x_units, y_intensity, minIndex_maxima, minIndex_minim
     :param minIndex_maxima: index below which NO maxima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MAXIMA below a certain index
     :return:
     """
-    temp_indexToShowPlot = 9175
+    temp_indexToShowPlot = 10000
 
     y_intensity = np.array(y_intensity, dtype='int32')
 
     #look for the abs min and max outside the droplet, but close to the CL:
     #From half of the swelling profile till the CL position
     lowerLimit_I = 30       #any intensity below 'value' must be an artifact
-    if any(y_intensity < lowerLimit_I):
+    if any(y_intensity[:lenOut//2] < lowerLimit_I): #Check from 0:half brush part
         peaks = []
         minima = []
+        # fig, ax = plt.subplots()
+        # ax.plot(y_intensity, '.')
+        # plt.show()
+        logging.error(f"Some Intensity lower than lowerLimit_I - Probably dirt, so NO Peaks and Minima are parsed"
+                      f"CHECK if this is indeed dirt, or intensity is simply lower than {lowerLimit_I}. Then code needs change!")
     #np.where(y_intensity < LowerLimit_I)
     else:
         #smoothen y-data untill just outside CL (lenOut + e.g. -30 datapoints)=
@@ -2270,7 +2275,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
                          lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
                          resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS,
-                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord):
+                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered):
     """
 
     :param FLIPDATA:
@@ -2302,6 +2307,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     :param yArrFinal:
     :return:
     """
+    #Create folder in which pickle files will be dumped, if it doesn't exist already:
+    output_pickleFolder = os.path.join(analysisFolder, f"pickle dumps")
+    if not os.path.exists(output_pickleFolder):
+        os.mkdir(output_pickleFolder)
+
     x_ax_heightsCombined = []
     y_ax_heightsCombined = []
     x_ks = []
@@ -2315,9 +2325,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
     peakdistanceFromCL = []     #distance of 1st peak outside CL. (um)
 
+    #Mp4 video of plots in which intensities & automatically chosen min&maxima will be displayed, of lines around CL.
     figvid, axvid = plt.subplots()
     metadata = dict(title='Intensity Movie', artist = 'Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
+    outputPath_movie1 = os.path.join(analysisFolder, f"{n}-Intensity along CL.mp4")
 
     paths_ffmpeg = ['C:\\Users\\ReuvekampSW\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe',            #UT pc & laptop
             'C:\\Users\\Sander PC\\Desktop\\ffmpeg-7.1-essentials_build\\bin\\ffmpeg.exe'                       #thuis pc
@@ -2329,18 +2341,28 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     if not os.path.exists(ffmpeg_path):
         logging.critical("No good path to ffmpeg.exe.\n Correct path, or install from e.g. https://www.gyan.dev/ffmpeg/builds/#git-master-builds")
 
-    #fig3D, ax3D = plt.subplots(projection='3d')
+    #Mp4 video of scatterplots in which the automatically found height profiles are plotted in 3D.
     fig3D = plt.figure()
     ax3D = fig3D.add_subplot(111, projection = '3d')
     metadata2 = dict(title='3D Height Movie', artist='Sjendieee')
     writer2 = FFMpegWriter(fps=15, metadata=metadata2)
+    outputPath_movie2 = os.path.join(analysisFolder, f"{n}-Height profiles 3D.mp4")
+
     heightPlottedCounter_3dplot = 0
     x3d_matrix = []
     y3d_matrix = []
     z3d_matrix = []
+
     # [4000, round(len(x0arr) / 2)]:#
-    with writer.saving(figvid, "Height.mp4", 300) as a, writer2.saving(fig3D, "3D_height.mp4", 300) as b:
-        for k in range(0, len(x0arr)):  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
+    with writer.saving(figvid, outputPath_movie1, 300) as a, writer2.saving(fig3D, outputPath_movie2, 300) as b:
+        # The elements to combine
+        middle = np.array([k_half_unfiltered])              #TODO changed: round(len(x0arr) / 2) to k_half_unfiltered
+        left_part = np.arange(0, k_half_unfiltered)
+        right_part = np.arange(k_half_unfiltered + 1, len(x0arr))
+        # Concatenate into a single array
+        k_range = np.concatenate((middle, left_part, right_part))
+        logging.info(f"STARTING with k={k_range[0]}")
+        for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
             try:
                 xOutwards = [0]     #x length pointing outwards of droplet, for possible swelling analysis
                 profileOutwards = []
@@ -2349,15 +2371,6 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     profileOutwards, lineLengthPixelsOutwards, fitInside, coords_Outside = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],
                                                                                         dynegarr[k], outwardsLengthVector,
                                                                                         greyresizedimg)
-                    # #TODO temp 30-10-2024: checks to ensure x-distance is calculated correctly
-                    # coords0 = coords_Outside[0]
-                    # coordsEnd = coords_Outside[-1]
-                    # lengthOfLine_pixels = np.sqrt((coords0[0] - coordsEnd[0])**2
-                    #                               + (coords0[1] - coordsEnd[1])**2)
-                    # lengthOfLine_units = lengthOfLine_pixels*conversionXY*1000
-                    # logging.info(f"Lenght of line (pixels): {lengthOfLine_pixels}\n"
-                    #              f"and in (um): {lengthOfLine_units}")
-                    # #TODO end
 
 
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
@@ -2369,7 +2382,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     profileOutwards.reverse()  # correct stitching of in-&outwards profiles requires reversing of the outwards profile
 
 
-                if k in plotHeightCondition or k == round(len(x0arr)/2): #color & show the vectors of the desried swelling profiles & always the 'middle' vector
+                if k in plotHeightCondition or k == k_half_unfiltered: #color & show the vectors of the desried swelling profiles & always the 'middle' vector (of OG contour dataset)
                     colorInwards = (255, 0, 0)  # draw blue vectors for desired swelling profiles
                     colorOutwards = (255, 0, 0)
                     resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), colorInwards,
@@ -2415,7 +2428,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 if not GoodFit: #if the linear fit is not good, skip this vector and continue w/ next
                     omittedVectorCounter += 1  # TEMP: to check how many vectors should not be taken into account because the r2 value is too low
                     logging.warning(f"Fit inside drop was not good - skipping vector {k}")
-                    if k == round(len(x0arr) / 2):
+                    if k == k_half_unfiltered:
                         logging.critical("skipping the vector that would be plotted. This will break the programn for sure.")
                     continue
                 else:
@@ -2433,7 +2446,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 # Always plot 1 drop (and possibly swelling) profile with intensity, wrapped, height & resulting CA for k@half the datapoints
                 # If plotting swelling as well, combine that with drop profile into the same figure
                 # For the k's in plotHeightCondition, obtain the swelling ratios & plot them.
-                if k in plotHeightCondition or k == round(len(x0arr) / 2):
+                if k in plotHeightCondition or k == k_half_unfiltered:
                     offsetDropHeight = 0
                     heightNearCL_smoothened = []  # empty list, which is filled when determining the swelling profile outside droplet.
 
@@ -2483,7 +2496,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     #xshift = (x[len(profileExtraOut)] - x[0])
                     #x = np.array(x) - xshift
 
-                    if k == round(len(x0arr) / 2) or k in plotHeightCondition:      #TODO temp remove last part
+                    if k == k_half_unfiltered:
                         # big function for 4-panel plot: Intensity, height, wrapped profile, CA colormap
                         ax1, fig1 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL_smoothened,
                                                                    offsetDropHeight, peaks, profile,
@@ -2510,48 +2523,48 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
 
                 #TODO TEMP voor trying overlap 3d intensity peak & height profiles
-                if k == 6338:
-                    print(f"pausin")
-                    vectorsOfInterest = [1690, 4225, 6338]
-                    CA_s = [angleDegArr[i] for i in vectorsOfInterest]
-                    figtemp, axtemp = plt.subplots(1,2)
-                    overlapping_indices = np.array(matchedPeakIndexArr)
-                    refIndex = overlapping_indices[0]
-                    refX_at_index = x_ax_heightsCombined[0][refIndex]
-                    refH_at_index =  y_ax_heightsCombined[0][refIndex]
-
-                    axtemp[0].plot(x_ax_heightsCombined[0], y_totalIntensityProfileCombined[0], label=f'Data 1 (reference set)')
-                    axtemp[0].plot(x_ax_heightsCombined[0][refIndex], y_totalIntensityProfileCombined[0][refIndex], '.', markersize = 8, label=f'Reference datapoint 1')
-                    axtemp[1].plot(x_ax_heightsCombined[0], y_ax_heightsCombined[0], label = f'Data 1 (reference set), CA: {CA_s[0]:.3f}')
-                    axtemp[1].plot(refX_at_index, refH_at_index, '.', label = 'Reference datapoint')
-                    for nr_dataset, overlapIndex in enumerate(overlapping_indices[1:]):
-                        nr_dataset = nr_dataset + 1
-                        offsetX = x_ax_heightsCombined[nr_dataset][overlapIndex] - refX_at_index
-                        offsetY = y_ax_heightsCombined[nr_dataset][overlapIndex] - refH_at_index
-
-                        axtemp[0].plot(x_ax_heightsCombined[nr_dataset] - offsetX, y_totalIntensityProfileCombined[nr_dataset], label = f'Data {nr_dataset+1}')
-                        axtemp[0].plot(x_ax_heightsCombined[nr_dataset][overlapIndex] - offsetX, y_totalIntensityProfileCombined[nr_dataset][overlapIndex],'.', markersize=8, label=f'Reference datapoint {nr_dataset+1}')
-
-                        axtemp[1].plot(x_ax_heightsCombined[nr_dataset] - offsetX, y_ax_heightsCombined[nr_dataset] - offsetY, label = f'Data {nr_dataset+1}, CA: {CA_s[nr_dataset]:.3f}')
-                    axtemp[0].legend(); axtemp[1].legend()
-                    axtemp[0].set(title = 'Intensity profiles, shifted', xlabel = 'distance (um)', ylabel = 'intensity (-)'); axtemp[1].set(title = "Height profiles, overlapped", xlabel = 'distance (um)', ylabel = 'hieght (nm)')
-
-                    figtemp.set_size_inches(12.8, 4.8)
-                    figtemp.tight_layout()
-                    figtemp.savefig(os.path.join(analysisFolder, f"Combined Height profiles - imageNr {n}.png"), dpi=600)
-                    #TODO TEMP tot hier
-
-
-                    ax10, fig10 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL_smoothened,
-                                                               offsetDropHeight, peaks, profile,
-                                                               profileOutwards, r2, startIndex, unwrapped,
-                                                               wrapped, x, xOutwards, xshift, smallExtraOutwardsVector)
-
-                    fig10.suptitle(f"Data profiles: imageNr {n}, vectorNr {k}", size=14)
-                    fig10.tight_layout()
-                    fig10.subplots_adjust(top=0.88)
-                    fig10.savefig(os.path.join(analysisFolder, f"Height profiles - imageNr {n}, vectorNr {k}.png"), dpi=600)
-                    plt.close(fig10)
+                # if k == 6338:
+                #     print(f"pausin")
+                #     vectorsOfInterest = [1690, 4225, 6338]
+                #     CA_s = [angleDegArr[i] for i in vectorsOfInterest]
+                #     figtemp, axtemp = plt.subplots(1,2)
+                #     overlapping_indices = np.array(matchedPeakIndexArr)
+                #     refIndex = overlapping_indices[0]
+                #     refX_at_index = x_ax_heightsCombined[0][refIndex]
+                #     refH_at_index =  y_ax_heightsCombined[0][refIndex]
+                #
+                #     axtemp[0].plot(x_ax_heightsCombined[0], y_totalIntensityProfileCombined[0], label=f'Data 1 (reference set)')
+                #     axtemp[0].plot(x_ax_heightsCombined[0][refIndex], y_totalIntensityProfileCombined[0][refIndex], '.', markersize = 8, label=f'Reference datapoint 1')
+                #     axtemp[1].plot(x_ax_heightsCombined[0], y_ax_heightsCombined[0], label = f'Data 1 (reference set), CA: {CA_s[0]:.3f}')
+                #     axtemp[1].plot(refX_at_index, refH_at_index, '.', label = 'Reference datapoint')
+                #     for nr_dataset, overlapIndex in enumerate(overlapping_indices[1:]):
+                #         nr_dataset = nr_dataset + 1
+                #         offsetX = x_ax_heightsCombined[nr_dataset][overlapIndex] - refX_at_index
+                #         offsetY = y_ax_heightsCombined[nr_dataset][overlapIndex] - refH_at_index
+                #
+                #         axtemp[0].plot(x_ax_heightsCombined[nr_dataset] - offsetX, y_totalIntensityProfileCombined[nr_dataset], label = f'Data {nr_dataset+1}')
+                #         axtemp[0].plot(x_ax_heightsCombined[nr_dataset][overlapIndex] - offsetX, y_totalIntensityProfileCombined[nr_dataset][overlapIndex],'.', markersize=8, label=f'Reference datapoint {nr_dataset+1}')
+                #
+                #         axtemp[1].plot(x_ax_heightsCombined[nr_dataset] - offsetX, y_ax_heightsCombined[nr_dataset] - offsetY, label = f'Data {nr_dataset+1}, CA: {CA_s[nr_dataset]:.3f}')
+                #     axtemp[0].legend(); axtemp[1].legend()
+                #     axtemp[0].set(title = 'Intensity profiles, shifted', xlabel = 'distance (um)', ylabel = 'intensity (-)'); axtemp[1].set(title = "Height profiles, overlapped", xlabel = 'distance (um)', ylabel = 'hieght (nm)')
+                #
+                #     figtemp.set_size_inches(12.8, 4.8)
+                #     figtemp.tight_layout()
+                #     figtemp.savefig(os.path.join(analysisFolder, f"Combined Height profiles - imageNr {n}.png"), dpi=600)
+                #     #TODO TEMP tot hier
+                #
+                #
+                #     ax10, fig10 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL_smoothened,
+                #                                                offsetDropHeight, peaks, profile,
+                #                                                profileOutwards, r2, startIndex, unwrapped,
+                #                                                wrapped, x, xOutwards, xshift, smallExtraOutwardsVector)
+                #
+                #     fig10.suptitle(f"Data profiles: imageNr {n}, vectorNr {k}", size=14)
+                #     fig10.tight_layout()
+                #     fig10.subplots_adjust(top=0.88)
+                #     fig10.savefig(os.path.join(analysisFolder, f"Height profiles - imageNr {n}, vectorNr {k}.png"), dpi=600)
+                #     plt.close(fig10)
 
                 #TODO :
                 # 1) for every vector, determine peak positions near CL. Determine distance of 1st peak outside CL.
@@ -2596,6 +2609,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         peaks, minima, y_intensity_smoothened = FindMinimaAndMaxima_v2(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima, vectornr = k, lenIn = extraPartIndroplet, lenOut = len(profileOutwards))
                         if len(peaks) == 0 or len(minima) == 0:     #if either list is empty, fill 0 for now
                             peakdistanceFromCL.append(0)
+                            print(f'TEMPORARY {k}; NO Min or MAX found for 3D plotting. appending "peakdistanceFromCL" = 0 te fill in something')
                         else:
                             peakdistanceFromCL.append(xBrushAndDroplet_units[peaks[3]] - xBrushAndDroplet_units[peaks[2]])
                             if k % 25  == 0:  #TODO for movie plotting purposes only - can be removed
@@ -2665,9 +2679,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     #cax.set_title('H (nm)')
     cbar = fig3D.colorbar(matplotlib.cm.ScalarMappable(norm = plt.Normalize(cmap_minval, cmap_maxval), cmap = 'jet'), label='height (nm)', orientation='vertical')
     fig3D.set_size_inches(12.8/1.5, 9.6/1.5)
+
+
     try:
-        pickle.dump([fig3D, ax3D], open("plot3d.pickle", "wb"))
-        pickle.dump([x3d_matrix, y3d_matrix, z3d_matrix], open("plot3d_data.pickle", "wb"))
+        pickle.dump([x3d_matrix, y3d_matrix, z3d_matrix], open(os.path.join(output_pickleFolder, f"{k}-plot3d_data.pickle"), "wb"))
     except:
         logging.critical(f"3D pickle dump did not work")
     #plt.show()
@@ -2699,7 +2714,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
 
     try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump(fig3, open("plot_distance_phi.pickle", "wb"))
+        pickle.dump([phi, peakdistanceFromCL], open(os.path.join(output_pickleFolder, f"{k}-phi_distance.pickle"), "wb"))
     except:
         logging.critical(f"ax2pickle dump did not work")
 
@@ -2708,10 +2723,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     ax4.plot(idk2, peakdistanceFromCL, '.')
     ax4.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
     fig4.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} azi.png'), dpi=600)
-    try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump(fig4, open("plot_spatial_distance.pickle", "wb"))
-    except:
-        logging.critical(f"ax4pickle dump did not work")
+
 
     fig5, ax5 = plt.subplots()
     im5 = ax5.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet')#, vmin=5, vmax=16)
@@ -2721,8 +2733,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     fig5.colorbar(im5)
     fig5.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
     try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump(fig5, open("plot_spatial_distance-XY.pickle", "wb"))
-        pickle.dump([x0arr_3dplotting, y0arr_3dplotting, peakdistanceFromCL], open("plot_spatial_distance-XY_data.pickle", "wb"))
+        pickle.dump([x0arr_3dplotting, y0arr_3dplotting, peakdistanceFromCL], open(os.path.join(output_pickleFolder, "plot_spatial_distance-XY_data.pickle"), "wb"))
     except:
         logging.critical(f"ax5pickle dump did not work")
 
@@ -2789,7 +2800,6 @@ def showPlot(display_mode: str, figures: list):
 
     figs_min = []
     figs_interest = []
-    print(plt.get_fignums())
     for i in plt.get_fignums():
         fig = plt.figure(i)
         if not fig in figures:
@@ -2811,6 +2821,34 @@ def showPlot(display_mode: str, figures: list):
         raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
     return
 
+
+def find_k_half_filtered(Xfiltered, Yfiltered, Xunfiltered, Yunfiltered):
+    """
+    Find the value of k in the New Filtered dataset which corresponds to the coordinates at k=half the length of the Original (unfiltered) dataset.
+
+    :param Xfiltered:
+    :param Yfiltered:
+    :param Xunfiltered:
+    :param Yunfiltered:
+    :return:
+    """
+    k_half_OG = round(len(Xunfiltered) / 2)
+    x_half_OG = Xunfiltered[k_half_OG]
+    y_half_OG = Yunfiltered[k_half_OG]
+
+    k_half_unfiltered = -1
+    for i in range(0, len(Xfiltered)):
+        if Xfiltered[i] == x_half_OG and Yfiltered[i] == y_half_OG:
+            k_half_unfiltered = i
+            break
+
+    if k_half_unfiltered < 0:
+        logging.critical(f"NO corresponding k_half value found between OG and filtered dataset!\n"
+                         f"It might have been filtered out - k_half will be set to the unfiltered dataset, thus new peaks must be selected manually")
+        k_half_unfiltered = round(len(Xfiltered) / 2)
+    return k_half_unfiltered
+
+
 def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     """
     Main routine to analyse the contact angle around the entire contour of a droplet.
@@ -2826,14 +2864,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #C Constant subtracted from the mean or weighted mean.
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
-    #usedImages = np.arange(12, 70, everyHowManyImages)  # len(imgList)
-    usedImages = [32]       #36, 57
+    everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
+    usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
+    #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
-    everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
@@ -2861,7 +2899,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
 
-    plotHeightCondition = lambda xlist: [5]
+    plotHeightCondition = lambda xlist: []
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
@@ -2872,8 +2910,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     if not os.path.exists(analysisFolder):
         os.mkdir(analysisFolder)
         print('created path: ', analysisFolder)
-    contourListFilePath = os.path.join(analysisFolder, "ContourListFile.txt")       #for saving the settings how the contour was obtained (but fails when the experimental box is drawn manually for getting contour)
     contourCoordsFolderFilePath = os.path.join(analysisFolder, "ContourCoords")     #folder for saving individual .txt files containing contour coordinates
+    contourListFilePath = os.path.join(contourCoordsFolderFilePath, "ContourListFile.txt")       #for saving the settings how the contour was obtained (but fails when the experimental box is drawn manually for getting contour)
+
     if not os.path.exists(contourCoordsFolderFilePath):
         os.mkdir(contourCoordsFolderFilePath)
         print('created path: ', contourCoordsFolderFilePath)
@@ -2967,6 +3006,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
                     unfilteredCoordsx, unfilteredCoordsy, _, _, _ = getContourCoordsFromDatafile(img, coordinatesListFilePath)
 
+                    # For correctly importing the k_half manually chosen peaks later
+                    OG_lenX0arr = len(unfilteredCoordsx)        #OG length of x0arr.
+                    stats['len-x0arr-OG'] = len(unfilteredCoordsx)
+                    #find value where OG-x&y(k_half) = filtered-x&y(k)
+                    #adjusted k_half for the fact that some lines were filtered
+                    k_half_unfiltered = find_k_half_filtered(useablexlist, useableylist, unfilteredCoordsx, unfilteredCoordsy)
+                    #k_half_unfiltered = 0
                     middleCoord = determineMiddleCoord(unfilteredCoordsx, unfilteredCoordsy) #determine middle coord by making use of "mean surface" area coordinate
                     del unfilteredCoordsx, unfilteredCoordsy
 
@@ -2975,6 +3021,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
                     IMPORTEDCOORDS = True
                     FILTERED = False
+                    stats['len-x0arr-OG'] = len(useablexlist)
+                    k_half_unfiltered = round(stats['len-x0arr-OG'] / 2)
                     #TODO ^ where to do filtering? -> check where filtering in code
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
                     middleCoord = determineMiddleCoord(useablexlist, useableylist)  # determine middle coord by making use of "mean surface" area coordinate
@@ -2983,6 +3031,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 else:
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
                         getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
+                    stats['len-x0arr-OG'] = len(useablexlist)
+                    k_half_unfiltered = round(stats['len-x0arr-OG'] / 2)
                     IMPORTEDCOORDS = False
                     FILTERED = False
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
@@ -3009,18 +3059,16 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # If coordinates have been imported already
                     #Get all normal vectors. We'll use only some of them later for plotting purposes :
 
-                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist,
-                                                                                            lengthVector,
-                                                                                            outwardsLengthVector, smallExtraOutwardsVector)
+                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
 
                     logging.info("Starting to extract information from IMPORTED COORDS.\n"
-                                 f"Plotting for vector nrs: {plotHeightCondition(useablexlist)} & {round(len(useablexlist)/2)} from the total {len(useablexlist)} vectors possible")
+                                 f"Plotting for vector nrs: {plotHeightCondition(useablexlist)} & {k_half_unfiltered} from the total {len(useablexlist)} vectors possible")
                     ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks = coordsToIntensity_CAv2(
                         FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord)
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered)
 
                 else:
                     #If the CL coordinates have not been imported (e.g. for new img file)
@@ -3029,7 +3077,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # corresponding normal coordinate inwards to droplet x,y (defined as dx and dy)
                     # and normal x,y coordinate outwards of droplet (dxneg & dyneg)
                     logging.info("USING CHOSEN CONTACT LINE to determine normal vectors")
-                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, extraPartIndroplet, smallExtraOutwardsVector)
+                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
                     print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                     tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
 
@@ -3062,7 +3110,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr,
                         xArrFinal, y0arr,
                         yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet,
-                        smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord)
+                        smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered)
 
                     print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
                     logging.warning(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
@@ -3140,38 +3188,62 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
                 else:  #else, allow to manually filter the CA scatterplot & save filtered coords afterwards
                     while not DONEFILTERTIING:
-                        #TODO trying to deselect regions manually, where e.g. a pinning point is
+                        #deselect regions manually, where e.g. a pinning point is.
+                        #Filter data in interactive scatter plot
                         fig3, ax3 = plt.subplots()
                         im3 = ax3.scatter(temp_xArrFinal, abs(np.subtract(imgshape[0], temp_yArrFinal)), c=temp_angleDegArr, cmap='jet',
                                           vmin=min(temp_angleDegArr), vmax=max(temp_angleDegArr))
+
+                        #for manual closing of plot - without showing all other figures
+                        closed = [False]
+                        def on_close(event):
+                            closed[0] = True
+                        fig3.show()        #show figure
+                        # Connect the close event to the figure
+                        fig3.canvas.mpl_conect('close_event', on_close)
+
                         if MANUAL_FILTERING:
                             highlighter = Highlighter(ax3, np.array(temp_xArrFinal), np.array(abs(np.subtract(imgshape[0], temp_yArrFinal))))
-                        ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
+                        ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}\n CHOOSE FILTERING IN FIGURE BY DRAWING BOX OVER UNDESIRED DATAPOINTS")
                         ax3.legend([f"Median CA (deg): {(statistics.median(temp_angleDegArr)):.2f}"], loc='center left')
                         fig3.colorbar(im3)
-                        plt.show()
+
+                        # Run a loop to block until the figure is closed
+                        while not closed[0]:
+                            fig3.canvas.flush_events()
+                        #plt.show()
                         if MANUAL_FILTERING:
                             selected_regions = highlighter.mask
                             inverted_selected_regions = [not elem for elem in selected_regions] #invert booleans to 'deselect' the selected regions
                             xrange1, yrange1 = np.array(temp_xArrFinal)[inverted_selected_regions], np.array(temp_yArrFinal)[inverted_selected_regions]
                         fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}.png'), dpi=600)
-                        plt.close()
+                        plt.close(fig3)
 
+                        #Show the filtered result, and decide whether done filtering, or more must be performed
                         if MANUAL_FILTERING:
                             filtered_angleDegArr = np.array(temp_angleDegArr)[inverted_selected_regions]
                             fig3, ax3 = plt.subplots()
                             im3 = ax3.scatter(xrange1, abs(np.subtract(imgshape[0], yrange1)), c=filtered_angleDegArr, cmap='jet',
                                               vmin=min(filtered_angleDegArr), vmax=max(filtered_angleDegArr))
-                            ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}")
+                            ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}\n RESULTING FILTERED PROFILE. NEXT: CHOOSE WHETHER THIS IS GOOD (ENOUGH)")
                             ax3.legend([f"Median CA (deg): {(statistics.median(filtered_angleDegArr)):.2f}"], loc='center left')
                             fig3.colorbar(im3)
-                            plt.show()
+
+                            closed = [False]
+                            fig3.show()
+                            fig3.canvas.mpl_conect('close_event', on_close)         # Connect the close event to the figure
+                            #plt.show()
                             fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
-                            plt.close()
+                            #plt.close()
 
                             choices = ["Good filtering: use leftover coordinates", "Bad filtering: filter more in current coordinates", "Bad filtering: redo entire process", "Bad filtering: don't filter"]
                             myvar = easygui.choicebox("What to do next?", choices=choices)
                             temp_vectorsFinal = np.array(temp_vectorsFinal)[inverted_selected_regions]
+
+                            # Run a loop to block until the figure is closed
+                            while not closed[0]:
+                                fig3.canvas.flush_events()
+
                             if myvar == choices[0]:
                                 xArrFinal = xrange1
                                 yArrFinal = yrange1
@@ -3202,7 +3274,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #calculate the nett force over given CA en droplet range
                 tangent_forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
 
-
+                logging.info("Plotting intersect of lines for middle of droplet")
                 fig2, ax2 = plt.subplots()
                 ax2.plot(middleX, abs(np.subtract(imgshape[0], middleY)), 'b.', label='intersects of normal vectors')
                 ax2.plot(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), 'r', label='contour of droplet')
@@ -3266,10 +3338,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 # phi_CA_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phiCA_savgol_sorted + [phiCA_savgol_sorted[0]], bc_type='periodic')
                 # phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
+                logging.info("Fitting CA data with Fourier fits")
                 phiCA_fourierFit, phiCA_fourierFit_single, phiCA_N, _, _ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "[deg]"], N_for_fitting, SHOWPLOTS_SHORT)
                 tangentF_fourierFit, tangentF_fourierFit_single, tangentF_N, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Horizontal Component Force ", "[mN/m]"], N_for_fitting, SHOWPLOTS_SHORT)
                 rFromMiddle_fourierFit, rFromMiddle_fourierFit_single, rFromMiddle_N, _, _ = manualFitting(phi_sorted, rFromMiddle_savgol_sorted, analysisFolder, ["Radius", "[m]"], N_for_fitting, SHOWPLOTS_SHORT)
 
+
+                logging.info("Plotting CA data w/ Fourier or savgol smoothened")
                 phi_range = np.arange(min(phi), max(phi), 0.01) #TODO this step must be quite big, otherwise for whatever reason the cubicSplineFit introduces a lot of noise at positions where before the data interval was relatively large = bad interpolation
                 # phiCA_cubesplined = phi_CA_savgol_cs(phi_range[:-1])      #if using a cubicSpline Fit
                 ax4.plot(convertPhiToazimuthal(phi_range)[0], phiCA_fourierFit(phi_range), '.', label=f'Fourier Fit order: {phiCA_N[-1]}')
@@ -3288,6 +3363,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 showPlot(SHOWPLOTS_SHORT, [fig4, fig6])
 
                 # TODO plotting a function of r against phi, so I can integrate properly later on. Trying the savgol& cubicSpline
+                logging.info("Plotting forces: raw, Fourier fit & savgol smoothened")
                 fig5, ax5 = plt.subplots()
                 ax5_2 = ax5.twinx()
                 # phi_r_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], rFromMiddle_savgol_sorted + [rFromMiddle_savgol_sorted[0]], bc_type='periodic')
@@ -3316,7 +3392,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 #TODO calculate nett horizonal force in for each phi, and fit it with a cubic spline
                 #total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data = calculateForceOnDroplet(phi_tangentF_savgol_cs, phi_r_savgol_cs, phiTop, phiBottom, analysisFolder, phi_sorted, rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
-
+                logging.info("Calculating forces on droplet")
                 total_force_quad, error_quad, trapz_intForce_function, trapz_intForce_data = calculateForceOnDroplet(
                     tangentF_fourierFit_single, rFromMiddle_fourierFit_single, phiTop, phiBottom, analysisFolder, phi_sorted,
                     rFromMiddle_savgol_sorted, phi_tangentF_savgol_sorted)
@@ -3374,10 +3450,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 ax1[1, 1].legend([f"Median CA (deg): {(statistics.median(angleDegArr)):.2f}"], loc='center left')
                 fig1.colorbar(im1)
                 fig1.savefig(os.path.join(analysisFolder, f'Complete overview {n:04}.png'), dpi=600)
-
                 showPlot(SHOWPLOTS_SHORT, [fig1])
 
                 # Export Contact Angles to a csv file & add median CA to txt file
+                logging.info("Exporting/saving data & variables")
                 wrappedPath = os.path.join(analysisFolder, f"ContactAngleData {n}.csv")
                 d = dict({'x-coords': xArrFinal, 'y-coords': yArrFinal, 'contactAngle': angleDegArr})
                 df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in d.items()]))  # pad shorter colums with NaN's
@@ -3393,7 +3469,6 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     #TODO desired outputs:
                     #Standard measurement specific info
                     stats['timeFromStart'] = usedDeltaTs[-1]            #time since image 0 in (s)
-
                     #middle coords 2 ways:
                     #[mean surface area X & Y,  intersecting normal vectors: mean &   median X&Y]
                     stats['middleCoords-surfaceArea'] = [middleCoord[0], middleCoord[1]]                #pixels
