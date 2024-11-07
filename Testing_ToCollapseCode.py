@@ -2826,20 +2826,26 @@ def find_k_half_filtered(Xfiltered, Yfiltered, Xunfiltered, Yunfiltered):
     """
     Find the value of k in the New Filtered dataset which corresponds to the coordinates at k=half the length of the Original (unfiltered) dataset.
 
-    :param Xfiltered:
-    :param Yfiltered:
+    :param Xfiltered: xcoord of filtered
+    :param Yfiltered: ycoord of filtered
     :param Xunfiltered:
     :param Yunfiltered:
     :return:
     """
-    k_half_OG = round(len(Xunfiltered) / 2)
-    x_half_OG = Xunfiltered[k_half_OG]
-    y_half_OG = Yunfiltered[k_half_OG]
-
-    k_half_unfiltered = -1
-    for i in range(0, len(Xfiltered)):
-        if Xfiltered[i] == x_half_OG and Yfiltered[i] == y_half_OG:
+    # k_half_OG = round(len(Xunfiltered) / 2)
+    # x_half_OG = Xunfiltered[k_half_OG]
+    # y_half_OG = Yunfiltered[k_half_OG]
+    #
+    # k_half_unfiltered = -1
+    # for i in range(0, len(Xfiltered)):
+    #     if Xfiltered[i] == x_half_OG and Yfiltered[i] == y_half_OG:
+    #         k_half_unfiltered = i
+    #         print(f"khalf = {k_half_unfiltered}")
+    #         break
+    for i in range(0, len(unfilteredCoordsx)):
+        if unfilteredCoordsx[i] == useablexlist[0] and unfilteredCoordsy[i] == useableylist[0]:
             k_half_unfiltered = i
+            print(f"khalf = {k_half_unfiltered}")
             break
 
     if k_half_unfiltered < 0:
@@ -3004,15 +3010,22 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     FILTERED = True #Bool for not doing any filtering operations anymore later
 
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
+                    #The first value is k_half of OG dataset
                     unfilteredCoordsx, unfilteredCoordsy, _, _, _ = getContourCoordsFromDatafile(img, coordinatesListFilePath)
+
+                    #So for correct usage later, k_half needs to be
+                    #and corresponding useablexlist[0] & useableylist[0] needs to be moved to the corresponding k_half index
+
 
                     # For correctly importing the k_half manually chosen peaks later
                     OG_lenX0arr = len(unfilteredCoordsx)        #OG length of x0arr.
                     stats['len-x0arr-OG'] = len(unfilteredCoordsx)
                     #find value where OG-x&y(k_half) = filtered-x&y(k)
                     #adjusted k_half for the fact that some lines were filtered
-                    k_half_unfiltered = find_k_half_filtered(useablexlist, useableylist, unfilteredCoordsx, unfilteredCoordsy)
+                    k_half_unfiltered = find_k_half_filtered(useablexlist[0], useableylist[0], unfilteredCoordsx, unfilteredCoordsy)
                     #k_half_unfiltered = 0
+
+
                     middleCoord = determineMiddleCoord(unfilteredCoordsx, unfilteredCoordsy) #determine middle coord by making use of "mean surface" area coordinate
                     del unfilteredCoordsx, unfilteredCoordsy
 
@@ -3629,7 +3642,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "E:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
