@@ -423,7 +423,7 @@ def selectAreaAndFindContour(resizedimg, thresholdSensitivity, resizeFactor):
     return adjustedContourList
 
 
-# Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a copmressed image so it fits in the screen
+# Attempting to get a contour from the full-sized HQ image, and using resizefactor only for showing a compressed image so it fits in the screen
 # Parses all 'outer' coordinates, not only on right side of droplet
 #With working popup box for checking and changing contour
 def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, **kwargs):
@@ -2600,13 +2600,14 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     yCoordsProfile = np.concatenate((np.flip(yCoordsOutside), yCoordsInside))
 
                     # TODO filter until the first peak from the left
-                    if k == 0:
-                        print(f"pausin")
-                        cmap_minval = 0
-                        cmap_maxval = 1
                     try:
                         # Find peaks & minima automatically in [brush & part inside droplet], by automatic peakfinding.
                         peaks, minima, y_intensity_smoothened = FindMinimaAndMaxima_v2(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima, vectornr = k, lenIn = extraPartIndroplet, lenOut = len(profileOutwards))
+                        if k == 0:
+                            cmap_minval = 0     #set initial cmap values for h-spatial plot, and overwrite later to the actual min & max in entire dataset
+                            cmap_maxval = 1
+                            y_lim_min = min(y_intensity_smoothened) - 10    #set y-lim to minimum value w/ some extra room.
+                            y_lim_max = max(y_intensity_smoothened) + 10
                         if len(peaks) == 0 or len(minima) == 0:     #if either list is empty, fill 0 for now
                             peakdistanceFromCL.append(0)
                             print(f'TEMPORARY {k}; NO Min or MAX found for 3D plotting. appending "peakdistanceFromCL" = 0 te fill in something')
@@ -2614,7 +2615,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                             peakdistanceFromCL.append(xBrushAndDroplet_units[peaks[3]] - xBrushAndDroplet_units[peaks[2]])
                             if k % 25  == 0:  #TODO for movie plotting purposes only - can be removed
                                 #TODO for intensity plots & videos
-                                axvid.set(ylim=[35, 240], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
+                                axvid.set(ylim=[y_lim_min, y_lim_max], xlabel='Distance (um)', ylabel='Intensity(-)', title = f'Intensity profile: {k}')
                                 axvid.plot(xBrushAndDroplet_units, y_intensity_smoothened)
                                 axvid.plot(xBrushAndDroplet_units[peaks], y_intensity_smoothened[peaks], 'o')
                                 axvid.plot(xBrushAndDroplet_units[minima], y_intensity_smoothened[minima], 'o')
@@ -2824,13 +2825,15 @@ def showPlot(display_mode: str, figures: list):
 
 def find_k_half_filtered(Xfiltered, Yfiltered, Xunfiltered, Yunfiltered):
     """
-    Find the value of k in the New Filtered dataset which corresponds to the coordinates at k=half the length of the Original (unfiltered) dataset.
+    Find the index in the old dataset to which the OG k_half x&y correspond.
+    Return that
+    New Filtered dataset which corresponds to the coordinates at k=half the length of the Original (unfiltered) dataset.
 
-    :param Xfiltered: xcoord of filtered
-    :param Yfiltered: ycoord of filtered
-    :param Xunfiltered:
-    :param Yunfiltered:
-    :return:
+    :param Xfiltered: list of xcoord of filtered set at k_half
+    :param Yfiltered: list ycoord of filtered set at k_half
+    :param Xunfiltered: list of unfiltered x-coords
+    :param Yunfiltered: list of unfiltered y-coords
+    :return k_half_unfiltered: index at which
     """
     # k_half_OG = round(len(Xunfiltered) / 2)
     # x_half_OG = Xunfiltered[k_half_OG]
@@ -2842,17 +2845,36 @@ def find_k_half_filtered(Xfiltered, Yfiltered, Xunfiltered, Yunfiltered):
     #         k_half_unfiltered = i
     #         print(f"khalf = {k_half_unfiltered}")
     #         break
-    for i in range(0, len(unfilteredCoordsx)):
-        if unfilteredCoordsx[i] == useablexlist[0] and unfilteredCoordsy[i] == useableylist[0]:
+    Xfiltered_khalf = Xfiltered[0]          #k_half was placed at index 0 during first run
+    Yfiltered_khalf = Yfiltered[0]
+    for i in range(0, len(Xunfiltered)):
+        if Xunfiltered[i] == Xfiltered_khalf and Yunfiltered[i] == Yfiltered_khalf:
             k_half_unfiltered = i
             print(f"khalf = {k_half_unfiltered}")
             break
 
     if k_half_unfiltered < 0:
         logging.critical(f"NO corresponding k_half value found between OG and filtered dataset!\n"
-                         f"It might have been filtered out - k_half will be set to the unfiltered dataset, thus new peaks must be selected manually")
-        k_half_unfiltered = round(len(Xfiltered) / 2)
+                         f"It might have been filtered out - k_half will be set to half of the filtered dataset, thus new peaks must be selected manually")
+        k_half_unfiltered = round(len(Xunfiltered) / 2)
+    elif k_half_unfiltered > len(Xfiltered):
+        logging.critical(f"k_half of OG set > len(filtered set), which would give errors later."
+                         f"k_half will be set to half of the filtered dataset, thus new peaks must be selected manually")
+        k_half_unfiltered = round(len(Xunfiltered) / 2)
     return k_half_unfiltered
+
+def reposition_k_half_point(x_listOG, y_listOG, k_half_unfiltered):
+    useablexlist = []
+    useableylist = []
+    useablexlist += x_listOG[1:k_half_unfiltered]
+    useablexlist += [x_listOG[0]]
+    useablexlist += x_listOG[k_half_unfiltered:]
+
+    useableylist += y_listOG[1:k_half_unfiltered]
+    useableylist += [y_listOG[0]]
+    useableylist += y_listOG[k_half_unfiltered:]
+
+    return useablexlist, useableylist
 
 
 def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
@@ -2985,7 +3007,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
             else:
                 contouri = [-1]
                 thresholdSensitivity = thresholdSensitivityStandard
-            print(f"Determining contour for image n = {n}/{len(imgList)}, or nr {list(usedImages).index(n)+1} out of {len(usedImages)}")
+            logging.info(f"START determining contour for image n = {n}/{len(imgList)}, or nr {list(usedImages).index(n)+1} out of {len(usedImages)}")
 
 
 
@@ -3003,7 +3025,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #If allowing importing known coords:
                 #-if filtered coordinates etc. already exist, import those
                 if (MANUALPICKING in [1, 3]) and os.path.exists(filtered_coordinatesListFilePath):
+                    logging.info(f"IMPORTING FILTERED contact line coordinates")
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, vectorsFinal, angleDegArr = getfilteredContourCoordsFromDatafile(img, filtered_coordinatesListFilePath)
+                    logging.info(f"SUCCESSFULLY IMPORTED FILTERED contact line coordinates")
+
                     xArrFinal = useablexlist
                     yArrFinal = useableylist
                     IMPORTEDCOORDS = True
@@ -3016,22 +3041,25 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     #So for correct usage later, k_half needs to be
                     #and corresponding useablexlist[0] & useableylist[0] needs to be moved to the corresponding k_half index
 
-
                     # For correctly importing the k_half manually chosen peaks later
                     OG_lenX0arr = len(unfilteredCoordsx)        #OG length of x0arr.
                     stats['len-x0arr-OG'] = len(unfilteredCoordsx)
                     #find value where OG-x&y(k_half) = filtered-x&y(k)
                     #adjusted k_half for the fact that some lines were filtered
-                    k_half_unfiltered = find_k_half_filtered(useablexlist[0], useableylist[0], unfilteredCoordsx, unfilteredCoordsy)
-                    #k_half_unfiltered = 0
+                    k_half_unfiltered = find_k_half_filtered(useablexlist, useableylist, unfilteredCoordsx, unfilteredCoordsy)
 
+                    #reposition k_half to from x&y[0] to middle of x&y list for proper peak retrieval later.
+                    useablexlist, useableylist = reposition_k_half_point(useablexlist, useableylist, k_half_unfiltered)
 
                     middleCoord = determineMiddleCoord(unfilteredCoordsx, unfilteredCoordsy) #determine middle coord by making use of "mean surface" area coordinate
                     del unfilteredCoordsx, unfilteredCoordsy
 
                 #-if coordinates were already written out, but not filtered
                 elif (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):
+                    logging.info(f"IMPORTING UNFILTERED contact line coordinates")
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
+                    logging.info(f"SUCCESFULLY IMPORTED UNFILTEREDcontact line coordinates")
+
                     IMPORTEDCOORDS = True
                     FILTERED = False
                     stats['len-x0arr-OG'] = len(useablexlist)
@@ -3042,8 +3070,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 #-if not allowing, or coords not known yet:
                 else:
-                    useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
-                        getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
+                    logging.info(f"DETERMINING contact line coordinates manually")
+                    useablexlist, useableylist, usableContour, resizedimg, greyresizedimg =  getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
+                    logging.info(f"SUCCESFULLY DETERMINED contact line coordinates manually")
+
                     stats['len-x0arr-OG'] = len(useablexlist)
                     k_half_unfiltered = round(stats['len-x0arr-OG'] / 2)
                     IMPORTEDCOORDS = False
@@ -3642,7 +3672,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "E:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
