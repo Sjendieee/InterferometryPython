@@ -772,6 +772,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                             logging.warning("Polynomial did not fit as desired. NOT using the fitted polynomial.")
                         else:
                             #usableContour = list(list(usableContourCopy)) #if good poly fits, use those
+                            logging.info(f"Polynomial fits inserted. NEW length of coords_arr = {len(usableContourCopy_instertion)} vs OLD length = {len(usableContour)}")
                             usableContour = [list(i) for i in usableContourCopy_instertion]
                         cv2.destroyAllWindows()
                     useableylist = np.array([elem[1] for elem in usableContour])
@@ -791,11 +792,13 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             else:
                 file.write(f"{n}; {iout[0]}; {thresholdSensitivity[0]}; {thresholdSensitivity[1]}\n")
             file.close()
+            logging.info(f"SAVED threshold info to {os.path.split(contourListFilePath)[1]}")
 
         if saveCoordinates == True:
             if os.path.exists(os.path.dirname(coordinatesListFilePath)):
                 with open(coordinatesListFilePath, 'wb') as internal_filename:
                     pickle.dump(usableContour, internal_filename)
+                logging.info(f"DUMPED contour X-Y (len={len(usableContour)}) coordinates to pickle file: {os.path.split(coordinatesListFilePath)[0]}")
             else:
                 logging.error("Path to folder in which the contour coordinates file is to be saved DOES NOT exist.\n"
                               "When parsing 'saveCoordinates' = True, make sure 'coordinatesListFilePath' is parsed (correctly) as well")
@@ -1231,6 +1234,12 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(xarr, yarr, sensitivityR2, k
     return startLinRegimeIndex+rangeStarti, coef1, r2, GoodFitVector
 
 def extractContourNumbersFromFile(lines):
+    """
+    Check if in a previous iteration the contour was already determined:
+    if yes, import the img nr (n) and the corresponding (i) & threshold sensitivities.
+    :param lines:
+    :return:
+    """
     importedContourListData_n = []
     importedContourListData_i = []
     importedContourListData_thresh = []
@@ -2360,7 +2369,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         left_part = np.arange(0, k_half_unfiltered)
         right_part = np.arange(k_half_unfiltered + 1, len(x0arr))
         # Concatenate into a single array
-        k_range = np.concatenate((middle, left_part, right_part))
+        #k_range = np.concatenate((middle, left_part, right_part))
+        k_range = np.concatenate((middle, np.array([0,1,2])))       #TODO Temp, to have the code run faster
         logging.info(f"STARTING with k={k_range[0]}")
         for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
             try:
@@ -2945,11 +2955,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
         os.mkdir(contourCoordsFolderFilePath)
         print('created path: ', contourCoordsFolderFilePath)
     contactAngleListFilePath = os.path.join(analysisFolder, "ContactAngle_MedianListFile.txt")
-    if os.path.exists(
-            contourListFilePath):  # read in all contourline data from existing file (filenr ,+ i for obtaining contour location)
+
+    #Import known img nr - sensitivity threshold combinations to extract coordinates from contour more easily
+    if os.path.exists(contourListFilePath):  # read in all contourline data from existing file (filenr ,+ i for obtaining contour location)
         f = open(contourListFilePath, 'r')
         lines = f.readlines()
         importedContourListData_n, importedContourListData_i, importedContourListData_thresh = extractContourNumbersFromFile(lines)
+        logging.info(f"Imported threshold data for img nr's {importedContourListData_n}")
     else:
         f = open(contourListFilePath, 'w')
         f.write(f"file number (n); outputi; thresholdSensitivity a; thresholdSensitivity b\n")
@@ -2975,7 +2987,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     analysedData = os.path.join(analysisFolder, 'Analyzed Data')
     if not os.path.exists(analysedData):
         os.mkdir(analysedData)
-        print(f"created path: Analyzed data")
+        print(f"created path: {analysedData}")
 
     angleDeg_afo_time = []  # for saving median CA's later
     totalForce_afo_time = []
@@ -2998,6 +3010,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
             stats['imgnr'] = n
 
             if n in importedContourListData_n and MANUALPICKING > 0:
+                logging.info(f"img {n} found in thresholdList (ContourListFile.txt). Importing contour i & thresholds sensitivities")
                 try:
                     contouri = importedContourListData_i[importedContourListData_n.index(n)]
                     thresholdSensitivity = importedContourListData_thresh[importedContourListData_n.index(n)]
@@ -3038,12 +3051,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     #The first value is k_half of OG dataset
                     unfilteredCoordsx, unfilteredCoordsy, _, _, _ = getContourCoordsFromDatafile(img, coordinatesListFilePath)
 
-                    #So for correct usage later, k_half needs to be
-                    #and corresponding useablexlist[0] & useableylist[0] needs to be moved to the corresponding k_half index
+                    k_half_unfiltered = round(json_data['len-x0arr-OG'] / 2)
+                    xy_coord_khalf_OG = json_data['XYcoord_k_half']
 
-                    # For correctly importing the k_half manually chosen peaks later
-                    OG_lenX0arr = len(unfilteredCoordsx)        #OG length of x0arr.
-                    stats['len-x0arr-OG'] = len(unfilteredCoordsx)
                     #find value where OG-x&y(k_half) = filtered-x&y(k)
                     #adjusted k_half for the fact that some lines were filtered
                     k_half_unfiltered = find_k_half_filtered(useablexlist, useableylist, unfilteredCoordsx, unfilteredCoordsy)
@@ -3057,25 +3067,36 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #-if coordinates were already written out, but not filtered
                 elif (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):
                     logging.info(f"IMPORTING UNFILTERED contact line coordinates")
+
+                    #JSON file w/ data from first coordinates determination should exist already. Open and read the JSON file
+                    with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'r') as file:
+                        json_data = json.load(file)
+
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
-                    logging.info(f"SUCCESFULLY IMPORTED UNFILTEREDcontact line coordinates")
+                    #TODO ^ where to do filtering? -> check where filtering in code
+                    logging.info(f"SUCCESFULLY IMPORTED UNFILTERED contact line coordinates")
 
                     IMPORTEDCOORDS = True
                     FILTERED = False
-                    stats['len-x0arr-OG'] = len(useablexlist)
-                    k_half_unfiltered = round(stats['len-x0arr-OG'] / 2)
-                    #TODO ^ where to do filtering? -> check where filtering in code
+
+                    k_half_unfiltered = round(json_data['len-x0arr-OG'] / 2)
+                    xy_coord_khalf_OG = json_data['XYcoord_k_half']
+                    #TODO fix khalf
+                    stats['XY_k_half'] = [useablexlist[k_half_unfiltered], useableylist[k_half_unfiltered]]
+
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
                     middleCoord = determineMiddleCoord(useablexlist, useableylist)  # determine middle coord by making use of "mean surface" area coordinate
 
                 #-if not allowing, or coords not known yet:
                 else:
-                    logging.info(f"DETERMINING contact line coordinates manually")
+                    logging.info(f"MANUALLY DETERMINING contact line coordinates ")
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg =  getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
                     logging.info(f"SUCCESFULLY DETERMINED contact line coordinates manually")
 
                     stats['len-x0arr-OG'] = len(useablexlist)
                     k_half_unfiltered = round(stats['len-x0arr-OG'] / 2)
+                    stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered], useableylist[k_half_unfiltered]]
+
                     IMPORTEDCOORDS = False
                     FILTERED = False
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
@@ -3672,7 +3693,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
