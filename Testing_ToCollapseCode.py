@@ -201,13 +201,19 @@ def coordinates_on_line(a, b, limits):
     # return a zipped list of coordinates, thus integers
     return list(zip(x.astype(int), y.astype(int))), lineLengthPixels
 
-""""
-Input: 
-x = xcoords of contour
-y = ycoords of contour
-L = desired length of normal vector (determines how many fringes will be accounted for later on)
-"""
+
 def get_normalsV4(x, y, L, L2 = 0, L3 = 0):
+    """
+    For a dataset of x & y coordinates, in which the x&y are already ordened, determine the x&y coordinates at a given distance L, L2 and L3 normal to the given coords
+    by fitting a polynomial through neigbouring coordinates.
+    Return lists of corresponding coordinates
+    :param x: xcoords of contour
+    :param y: ycoords of contour
+    :param L: desired length of normal vector in pixels (determines how many fringes will be accounted for later on)
+    :param L2: normal vector in opposite direction of L (for positive L2 values). If 0, not calculated
+    :param L3: normal vector in opposite direction of L (for positive L3 values). If 0, not calculated
+    :return all: lists of the original data points x0&y0, and the coords of the inwards normals dx&dy, and the outwards normals dxneg&dyneg
+    """
     # For each coordinate, fit with nearby points to a polynomial to better estimate the dx dy -> tangent
     # Take derivative of the polynomial to obtain tangent and use that one.
     x0arr = []; dyarr = []; y0arr = []; dxarr = []; dxnegarr = []; dynegarr = []; dxL3arr = []; dyL3arr = []
@@ -292,6 +298,33 @@ def get_normalsV4(x, y, L, L2 = 0, L3 = 0):
 
     vector = [[dxarr[i] - x0arr[i], dyarr[i] - y0arr[i]] for i in range(0, len(x0arr))]   #vector [dx, dy] for each coordinate
     return x0arr, dxarr, y0arr, dyarr, vector, dxnegarr, dynegarr, dxL3arr, dyL3arr  # return the original data points x0&y0, and the coords of the inwards normals dx&dy, and the outwards normals dxneg&dyneg
+
+
+def prepend_k_half_data(data_k_half, k_half_unfiltered, x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr):
+    """
+    Set the previously saved data of index k_half_unfiltered, extracted from 'data_k_half', to index k_half_unfiltered in new lists with all the other data
+    """
+    x0arr.insert(k_half_unfiltered, data_k_half[0])
+    dxarr.insert(k_half_unfiltered, data_k_half[1])
+    y0arr.insert(k_half_unfiltered, data_k_half[2])
+    dyarr.insert(k_half_unfiltered, data_k_half[3])
+    vectors.insert(k_half_unfiltered, data_k_half[4])
+    dxnegarr.insert(k_half_unfiltered, data_k_half[5])
+    dynegarr.insert(k_half_unfiltered, data_k_half[6])
+    dxExtraOutarr.insert(k_half_unfiltered, data_k_half[7])
+    dyExtraOutarr.insert(k_half_unfiltered, data_k_half[8])
+
+    # x0arr = data_k_half[0] + x0arr_temp
+    # dxarr = data_k_half[1] + dxarr_temp
+    # y0arr = data_k_half[2] + y0arr_temp
+    # dyarr = data_k_half[3] + dyarr_temp
+    # vectors = data_k_half[4] + vectors_temp
+    # dxnegarr = data_k_half[5] + dxnegarr_temp
+    # dynegarr = data_k_half[6] + dynegarr_temp
+    # dxExtraOutarr = data_k_half[7] + dxExtraOutarr_temp
+    # dyExtraOutarr = data_k_half[8] + dyExtraOutarr_temp
+
+    return x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr
 
 
 def getContourList(grayImg, thresholdSensitivity):
@@ -805,7 +838,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
 
     return useablexlist, useableylist, usableContour, resizedimg, greyresizedimg
 
-def getContourCoordsFromDatafile(imgPath, coordinatesListFilePath):
+def getContourCoordsFromDatafile(imgPath, coordinatesListFilePath, FITGAPS_POLYOMIAL = False):
     with open(coordinatesListFilePath, 'rb') as new_filename:
         usableContour = pickle.load(new_filename)
     useableylist = np.array([elem[1] for elem in usableContour])
@@ -820,7 +853,6 @@ def getContourCoordsFromDatafile(imgPath, coordinatesListFilePath):
 
 
     ###TODO trial for fixing polynomial fitting
-    FITGAPS_POLYOMIAL = True
     usableContourCopy = np.array(usableContour)
     windowSizePolynomialCheck = 40  # nr of values to check left and right for fitting polynomial, if distance between 2 values is 'too large'
     usableContourCopy = np.concatenate([usableContourCopy[-windowSizePolynomialCheck:], usableContourCopy,
@@ -858,7 +890,7 @@ def getContourCoordsFromDatafile(imgPath, coordinatesListFilePath):
                 ii_inserted += len(
                     x_values_to_be_fitted)  # offset index of insertion by length of previous arrays which were inserted
                 plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='x-gap data')
-                plt.plot(x_values_to_be_fitted, y_fitted, label='x-gap fit')
+                plt.plot(x_values_to_be_fitted, y_fitted, '*',  label='x-gap fit')
                 plt.legend(loc='best')
                 # plt.show()
 
@@ -883,7 +915,7 @@ def getContourCoordsFromDatafile(imgPath, coordinatesListFilePath):
                 ii_inserted += len(
                     y_values_to_be_fitted)  # offset index of insertion by length of array which was just inserted
                 plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='y-gap data')
-                plt.plot(x_fitted, y_values_to_be_fitted, label='y-gap fit')
+                plt.plot(x_fitted, y_values_to_be_fitted, '*', label='y-gap fit')
                 plt.legend(loc='best')
                 plt.show()
         plt.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', color='b',
@@ -2284,7 +2316,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
                          lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
                          resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS,
-                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered):
+                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered, makeVideoOfData = False):
     """
 
     :param FLIPDATA:
@@ -2316,6 +2348,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     :param yArrFinal:
     :return:
     """
+    DETERMINE_HEIGHT_NEAR_CL = False
+
     #Create folder in which pickle files will be dumped, if it doesn't exist already:
     output_pickleFolder = os.path.join(analysisFolder, f"pickle dumps")
     if not os.path.exists(output_pickleFolder):
@@ -2333,7 +2367,6 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     y_totalHeightProfileCombined = []
 
     peakdistanceFromCL = []     #distance of 1st peak outside CL. (um)
-
     #Mp4 video of plots in which intensities & automatically chosen min&maxima will be displayed, of lines around CL.
     figvid, axvid = plt.subplots()
     metadata = dict(title='Intensity Movie', artist = 'Sjendieee')
@@ -2369,8 +2402,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         left_part = np.arange(0, k_half_unfiltered)
         right_part = np.arange(k_half_unfiltered + 1, len(x0arr))
         # Concatenate into a single array
-        #k_range = np.concatenate((middle, left_part, right_part))
-        k_range = np.concatenate((middle, np.array([0,1,2])))       #TODO Temp, to have the code run faster
+        k_range = np.concatenate((middle, left_part, right_part))
+        #k_range = np.concatenate((middle, np.array([0,1,2])))       #TODO Temp, to have the code run faster
         logging.info(f"STARTING with k={k_range[0]}")
         for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
             try:
@@ -2579,7 +2612,6 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 #TODO :
                 # 1) for every vector, determine peak positions near CL. Determine distance of 1st peak outside CL.
                 # 2) Extend to determine swelling profile near CL for every vector
-                DETERMINE_HEIGHT_NEAR_CL = True
                 if DETERMINE_HEIGHT_NEAR_CL:
                     #TODO removed: altered code before so this doesnt have to be done anymore
                     # if k in plotHeightCondition or k == round(len(x0arr) / 2):  # redo the profileOutwards to correctly determine it for automatic profiles (we adjusted it above somewhere)
@@ -2684,72 +2716,72 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
             except:
                 logging.error(f"!{k}: Analysing each coordinate & normal vector broke!")
                 print(traceback.format_exc())
-    ax3D.set(xlabel = 'X-Coord', ylabel = 'Y-Coord', zlabel = 'Height (nm)', title = f'Spatial Height Profile Colormap n = {n}, or t = ...')   #{deltat_formatted[n]}
-    # Create the color bar
-    #cax = fig3D.add_axes([0.94, 0.1, 0.05, 0.75])  # [left, bottom, width 5% of figure width, height 75% of figure height]
-    #cax.set_title('H (nm)')
-    cbar = fig3D.colorbar(matplotlib.cm.ScalarMappable(norm = plt.Normalize(cmap_minval, cmap_maxval), cmap = 'jet'), label='height (nm)', orientation='vertical')
-    fig3D.set_size_inches(12.8/1.5, 9.6/1.5)
+
+    if DETERMINE_HEIGHT_NEAR_CL:
+        ax3D.set(xlabel = 'X-Coord', ylabel = 'Y-Coord', zlabel = 'Height (nm)', title = f'Spatial Height Profile Colormap n = {n}, or t = ...')   #{deltat_formatted[n]}
+        # Create the color bar
+        #cax = fig3D.add_axes([0.94, 0.1, 0.05, 0.75])  # [left, bottom, width 5% of figure width, height 75% of figure height]
+        #cax.set_title('H (nm)')
+        cbar = fig3D.colorbar(matplotlib.cm.ScalarMappable(norm = plt.Normalize(cmap_minval, cmap_maxval), cmap = 'jet'), label='height (nm)', orientation='vertical')
+        fig3D.set_size_inches(12.8/1.5, 9.6/1.5)
+
+        try:
+            pickle.dump([x3d_matrix, y3d_matrix, z3d_matrix], open(os.path.join(output_pickleFolder, f"{n}-plot3d_data.pickle"), "wb"))
+        except:
+            logging.critical(f"3D pickle dump did not work")
+        #plt.show()
+        showPlot(SHOWPLOTS_SHORT, [fig3D])
+
+        fig2, ax2 = plt.subplots()
+        #TODO coords to phi here:
+
+        if len(peakdistanceFromCL) != len(x0arr):   #TODO temp solution. check why
+            logging.critical((f"For some reason x0arr{len(x0arr)} is not as long as peakdistanceFromCL={len(peakdistanceFromCL)}. \nCheck WHY!"))
+            vector_nrs = np.arange(0, len(peakdistanceFromCL))
+            x0arr_3dplotting = x0arr[:-1]
+            y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))[:-1]
+
+        else:
+            vector_nrs = np.arange(0, len(x0arr))
+            x0arr_3dplotting = x0arr
+            y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))
+        phi, rArray = coordsToPhi(x0arr_3dplotting, y0arr_3dplotting, middleCoord[0], middleCoord[1])
+        idk1, idk2 = convertPhiToazimuthal(phi)
+
+        ax2.plot(vector_nrs, peakdistanceFromCL, '.')
+        ax2.set(title = 'Distance of first fringe peak outside CL', xlabel = 'line nr. in clockwise direction', ylabel = 'distance (um)')
+        fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {n} lines.png'), dpi=600)
+
+        fig3, ax3 = plt.subplots()
+        ax3.plot(phi, peakdistanceFromCL, '.')
+        ax3.set(title='Distance of first fringe peak outside CL', xlabel='Phi (rad)', ylabel='distance (um)')
+        fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {n} phi.png'), dpi=600)
+
+        try:        #TODO temp: dump this plot for easier data retrieval
+            pickle.dump([phi, peakdistanceFromCL], open(os.path.join(output_pickleFolder, f"{n}-phi_distance.pickle"), "wb"))
+        except:
+            logging.critical(f"ax2pickle dump did not work")
 
 
-    try:
-        pickle.dump([x3d_matrix, y3d_matrix, z3d_matrix], open(os.path.join(output_pickleFolder, f"{k}-plot3d_data.pickle"), "wb"))
-    except:
-        logging.critical(f"3D pickle dump did not work")
-    #plt.show()
-    showPlot(SHOWPLOTS_SHORT, [fig3D])
-
-    fig2, ax2 = plt.subplots()
-    #TODO coords to phi here:
-
-    if len(peakdistanceFromCL) != len(x0arr):   #TODO temp solution. check why
-        logging.critical((f"For some reason x0arr{len(x0arr)} is not as long as peakdistanceFromCL={len(peakdistanceFromCL)}. \nCheck WHY!"))
-        vector_nrs = np.arange(0, len(peakdistanceFromCL))
-        x0arr_3dplotting = x0arr[:-1]
-        y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))[:-1]
-
-    else:
-        vector_nrs = np.arange(0, len(x0arr))
-        x0arr_3dplotting = x0arr
-        y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))
-    phi, rArray = coordsToPhi(x0arr_3dplotting, y0arr_3dplotting, middleCoord[0], middleCoord[1])
-    idk1, idk2 = convertPhiToazimuthal(phi)
-
-    ax2.plot(vector_nrs, peakdistanceFromCL, '.')
-    ax2.set(title = 'Distance of first fringe peak outside CL', xlabel = 'line nr. in clockwise direction', ylabel = 'distance (um)')
-    fig2.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} lines.png'), dpi=600)
-
-    fig3, ax3 = plt.subplots()
-    ax3.plot(phi, peakdistanceFromCL, '.')
-    ax3.set(title='Distance of first fringe peak outside CL', xlabel='Phi (rad)', ylabel='distance (um)')
-    fig3.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} phi.png'), dpi=600)
-
-    try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump([phi, peakdistanceFromCL], open(os.path.join(output_pickleFolder, f"{k}-phi_distance.pickle"), "wb"))
-    except:
-        logging.critical(f"ax2pickle dump did not work")
+        fig4, ax4 = plt.subplots()
+        ax4.plot(idk2, peakdistanceFromCL, '.')
+        ax4.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
+        fig4.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {n} azi.png'), dpi=600)
 
 
-    fig4, ax4 = plt.subplots()
-    ax4.plot(idk2, peakdistanceFromCL, '.')
-    ax4.set(title='Distance of first fringe peak outside CL', xlabel='Azimuthal angle (rad)', ylabel='distance (um)')
-    fig4.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} azi.png'), dpi=600)
+        fig5, ax5 = plt.subplots()
+        im5 = ax5.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet')#, vmin=5, vmax=16)
+        ax5.set_xlabel("X-coord");
+        ax5.set_ylabel("Y-Coord");
+        ax5.set_title(f"Spatial Distance from First Drop Fringe Peak Outside CL ")
+        fig5.colorbar(im5)
+        fig5.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {n} colormap.png'), dpi=600)
+        try:        #TODO temp: dump this plot for easier data retrieval
+            pickle.dump([x0arr_3dplotting, y0arr_3dplotting, peakdistanceFromCL], open(os.path.join(output_pickleFolder, f"{n}-plot_spatial_distance-XY_data.pickle"), "wb"))
+        except:
+            logging.critical(f"ax5pickle dump did not work")
 
-
-    fig5, ax5 = plt.subplots()
-    im5 = ax5.scatter(x0arr_3dplotting,  y0arr_3dplotting, c=peakdistanceFromCL, cmap='jet')#, vmin=5, vmax=16)
-    ax5.set_xlabel("X-coord");
-    ax5.set_ylabel("Y-Coord");
-    ax5.set_title(f"Spatial Distance from First Drop Fringe Peak Outside CL ")
-    fig5.colorbar(im5)
-    fig5.savefig(os.path.join(analysisFolder, f'Distance of first fringe peak outside CL {k} colormap.png'), dpi=600)
-    try:        #TODO temp: dump this plot for easier data retrieval
-        pickle.dump([x0arr_3dplotting, y0arr_3dplotting, peakdistanceFromCL], open(os.path.join(output_pickleFolder, "plot_spatial_distance-XY_data.pickle"), "wb"))
-    except:
-        logging.critical(f"ax5pickle dump did not work")
-
-
-    showPlot(SHOWPLOTS_SHORT, [fig2, fig3, fig4, fig5])
+        showPlot(SHOWPLOTS_SHORT, [fig2, fig3, fig4, fig5])
 
     return ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks
 
@@ -2835,26 +2867,16 @@ def showPlot(display_mode: str, figures: list):
 
 def find_k_half_filtered(Xfiltered, Yfiltered, Xunfiltered, Yunfiltered):
     """
-    Find the index in the old dataset to which the OG k_half x&y correspond.
-    Return that
-    New Filtered dataset which corresponds to the coordinates at k=half the length of the Original (unfiltered) dataset.
+    Find &return the index in the new dataset to which the OG k_half x&y-coords correspond, if it still exists in the filtered set.
+    Allows for importing peaks & minima from previous analysis.
+    If it is filtered out, return closest k-half value. This means later peaks & minima must be chosen again.
 
     :param Xfiltered: list of xcoord of filtered set at k_half
     :param Yfiltered: list ycoord of filtered set at k_half
     :param Xunfiltered: list of unfiltered x-coords
     :param Yunfiltered: list of unfiltered y-coords
-    :return k_half_unfiltered: index at which
+    :return k_half_unfiltered: index of x&y-coord corresponding to x&y-coord of k_half_unfiltered dataset
     """
-    # k_half_OG = round(len(Xunfiltered) / 2)
-    # x_half_OG = Xunfiltered[k_half_OG]
-    # y_half_OG = Yunfiltered[k_half_OG]
-    #
-    # k_half_unfiltered = -1
-    # for i in range(0, len(Xfiltered)):
-    #     if Xfiltered[i] == x_half_OG and Yfiltered[i] == y_half_OG:
-    #         k_half_unfiltered = i
-    #         print(f"khalf = {k_half_unfiltered}")
-    #         break
     Xfiltered_khalf = Xfiltered[0]          #k_half was placed at index 0 during first run
     Yfiltered_khalf = Yfiltered[0]
     for i in range(0, len(Xunfiltered)):
@@ -3051,15 +3073,19 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     #The first value is k_half of OG dataset
                     unfilteredCoordsx, unfilteredCoordsy, _, _, _ = getContourCoordsFromDatafile(img, coordinatesListFilePath)
 
-                    k_half_unfiltered = round(json_data['len-x0arr-OG'] / 2)
-                    xy_coord_khalf_OG = json_data['XYcoord_k_half']
+
+                    # at index 0 of xArrFinal, yArrFinal, the k_half_OG coordinate is placed, which will mess with the polynomial fitting for getting the vector orientations
+                    # so we have to put that x&y coord back in between the closest coord-values for determining dx&dy vectors, and
+                    # then later to index=k_half_unfiltered to import the proper peak&minima's
+
+                    k_half_unfiltered = round(len(unfilteredCoordsx) / 2)       #k_half of the unfiltered dataset
 
                     #find value where OG-x&y(k_half) = filtered-x&y(k)
                     #adjusted k_half for the fact that some lines were filtered
-                    k_half_unfiltered = find_k_half_filtered(useablexlist, useableylist, unfilteredCoordsx, unfilteredCoordsy)
+                    #k_half_filtered = find_k_half_filtered(useablexlist, useableylist, unfilteredCoordsx, unfilteredCoordsy)
 
                     #reposition k_half to from x&y[0] to middle of x&y list for proper peak retrieval later.
-                    useablexlist, useableylist = reposition_k_half_point(useablexlist, useableylist, k_half_unfiltered)
+                    #useablexlist, useableylist = reposition_k_half_point(useablexlist, useableylist, k_half_unfiltered)
 
                     middleCoord = determineMiddleCoord(unfilteredCoordsx, unfilteredCoordsy) #determine middle coord by making use of "mean surface" area coordinate
                     del unfilteredCoordsx, unfilteredCoordsy
@@ -3068,10 +3094,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 elif (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):
                     logging.info(f"IMPORTING UNFILTERED contact line coordinates")
 
-                    #JSON file w/ data from first coordinates determination should exist already. Open and read the JSON file
-                    with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'r') as file:
-                        json_data = json.load(file)
+                    # #JSON file w/ data from first coordinates determination should exist already. Open and read the JSON file
+                    # with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'r') as file:
+                    #     json_data = json.load(file)
 
+                    #Obtain exact same (unfiltered) coordinates as in previous contour selection (+optional polynomial fitting).
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
                     #TODO ^ where to do filtering? -> check where filtering in code
                     logging.info(f"SUCCESFULLY IMPORTED UNFILTERED contact line coordinates")
@@ -3079,10 +3106,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     IMPORTEDCOORDS = True
                     FILTERED = False
 
-                    k_half_unfiltered = round(json_data['len-x0arr-OG'] / 2)
-                    xy_coord_khalf_OG = json_data['XYcoord_k_half']
+                    k_half_unfiltered = round(len(useablexlist)/2)
                     #TODO fix khalf
-                    stats['XY_k_half'] = [useablexlist[k_half_unfiltered], useableylist[k_half_unfiltered]]
+                    stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered].astype(int).tolist(), list(useableylist)[k_half_unfiltered].astype(int).tolist()]
 
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
                     middleCoord = determineMiddleCoord(useablexlist, useableylist)  # determine middle coord by making use of "mean surface" area coordinate
@@ -3095,7 +3121,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                     stats['len-x0arr-OG'] = len(useablexlist)
                     k_half_unfiltered = round(stats['len-x0arr-OG'] / 2)
-                    stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered], useableylist[k_half_unfiltered]]
+                    stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered].astype(int).tolist(), list(useableylist)[k_half_unfiltered].astype(int).tolist()]
 
                     IMPORTEDCOORDS = False
                     FILTERED = False
@@ -3122,8 +3148,32 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     logging.info("USING IMPORTED coordinates to determine normal vectors")
                     # If coordinates have been imported already
                     #Get all normal vectors. We'll use only some of them later for plotting purposes :
+                    if not FILTERED: #parsed coordinates are in "good order"
+                        x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(
+                            useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
 
-                    x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
+                        stats['khalf_dxdy'] = [x0arr[k_half_unfiltered], dxarr[k_half_unfiltered], y0arr[k_half_unfiltered],
+                                               dyarr[k_half_unfiltered], vectors[k_half_unfiltered],
+                                               dxnegarr[k_half_unfiltered], dynegarr[k_half_unfiltered],
+                                               dxExtraOutarr[k_half_unfiltered], dyExtraOutarr[k_half_unfiltered]]
+                    elif FILTERED: #at position index 0, the k_half_OG coordinate is placed, which will mess with the polynomial fitting for getting the vector orientations
+                        try:
+                            data_k_half = stats['khalf_dxdy']
+                        except:
+                            logging.critical("No previously saved k_half stats. Could be because of an older data-analysis version json file:\n"
+                                             "Remove filtered-coordinates file, or redo entire analysis to fix.")
+                            break
+                        x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist[1:], useableylist[1:], lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
+
+                        #insert k_half OG data in index k_half_unfiltered
+                        x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = prepend_k_half_data(data_k_half, k_half_unfiltered, x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr)
+
+                        #del x0arr_temp, dxarr_temp, y0arr_temp, dyarr_temp, vectors_temp, dxnegarr_temp, dynegarr_temp, dxExtraOutarr_temp, dyExtraOutarr_temp
+                        stats['khalf_dxdy'] = [x0arr[k_half_unfiltered], dxarr[k_half_unfiltered], y0arr[k_half_unfiltered],
+                                               dyarr[k_half_unfiltered], vectors[k_half_unfiltered],
+                                               dxnegarr[k_half_unfiltered], dynegarr[k_half_unfiltered],
+                                               dxExtraOutarr[k_half_unfiltered], dyExtraOutarr[k_half_unfiltered]]
+
 
                     logging.info("Starting to extract information from IMPORTED COORDS.\n"
                                  f"Plotting for vector nrs: {plotHeightCondition(useablexlist)} & {k_half_unfiltered} from the total {len(useablexlist)} vectors possible")
@@ -3133,7 +3183,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
                         yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered)
-
+                    logging.info(f"Finished coordsToIntensity_CAv2: Extracted intensity profiles, contact angles, and possibly height profiles")
                 else:
                     #If the CL coordinates have not been imported (e.g. for new img file)
                     # One of the main functions:
@@ -3142,6 +3192,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # and normal x,y coordinate outwards of droplet (dxneg & dyneg)
                     logging.info("USING CHOSEN CONTACT LINE to determine normal vectors")
                     x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
+
+                    #Save the stats of k_half_unfiltered - these might be found at a different k value later because of filtering, making it very hard to find back properly.
+                    #Saving and importing is much easier
+                    stats['khalf_dxdy'] = [x0arr[k_half_unfiltered], dxarr[k_half_unfiltered], y0arr[k_half_unfiltered], dyarr[k_half_unfiltered], vectors[k_half_unfiltered],
+                                           dxnegarr[k_half_unfiltered], dynegarr[k_half_unfiltered], dxExtraOutarr[k_half_unfiltered], dyExtraOutarr[k_half_unfiltered]]
+
                     print(f"Normals sucessfully obtained. Next: plot normals in image & obtain intensities over normals")
                     tempcoords = [[x0arr[k], y0arr[k]] for k in range(0, len(x0arr))]
 
@@ -3254,7 +3310,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     while not DONEFILTERTIING:
                         #deselect regions manually, where e.g. a pinning point is.
                         #Filter data in interactive scatter plot
-                        fig3, ax3 = plt.subplots()
+                        fig3, ax3 = plt.subplots(figsize= (15, 9.6))
                         im3 = ax3.scatter(temp_xArrFinal, abs(np.subtract(imgshape[0], temp_yArrFinal)), c=temp_angleDegArr, cmap='jet',
                                           vmin=min(temp_angleDegArr), vmax=max(temp_angleDegArr))
 
@@ -3264,7 +3320,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             closed[0] = True
                         fig3.show()        #show figure
                         # Connect the close event to the figure
-                        fig3.canvas.mpl_conect('close_event', on_close)
+                        fig3.canvas.mpl_connect('close_event', on_close)
 
                         if MANUAL_FILTERING:
                             highlighter = Highlighter(ax3, np.array(temp_xArrFinal), np.array(abs(np.subtract(imgshape[0], temp_yArrFinal))))
@@ -3286,7 +3342,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         #Show the filtered result, and decide whether done filtering, or more must be performed
                         if MANUAL_FILTERING:
                             filtered_angleDegArr = np.array(temp_angleDegArr)[inverted_selected_regions]
-                            fig3, ax3 = plt.subplots()
+                            fig3, ax3 = plt.subplots(figsize= (15, 9.6))
                             im3 = ax3.scatter(xrange1, abs(np.subtract(imgshape[0], yrange1)), c=filtered_angleDegArr, cmap='jet',
                                               vmin=min(filtered_angleDegArr), vmax=max(filtered_angleDegArr))
                             ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}\n RESULTING FILTERED PROFILE. NEXT: CHOOSE WHETHER THIS IS GOOD (ENOUGH)")
@@ -3295,18 +3351,20 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                             closed = [False]
                             fig3.show()
-                            fig3.canvas.mpl_conect('close_event', on_close)         # Connect the close event to the figure
+                            fig3.canvas.mpl_connect('close_event', on_close)         # Connect the close event to the figure
                             #plt.show()
                             fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
                             #plt.close()
 
                             choices = ["Good filtering: use leftover coordinates", "Bad filtering: filter more in current coordinates", "Bad filtering: redo entire process", "Bad filtering: don't filter"]
+                            #myvar = []
                             myvar = easygui.choicebox("What to do next?", choices=choices)
+                            plt.close(fig3)
                             temp_vectorsFinal = np.array(temp_vectorsFinal)[inverted_selected_regions]
 
-                            # Run a loop to block until the figure is closed
-                            while not closed[0]:
-                                fig3.canvas.flush_events()
+                            # # Run a loop to block until the figure is closed
+                            # while not closed[0] and not myvar:
+                            #     fig3.canvas.flush_events()
 
                             if myvar == choices[0]:
                                 xArrFinal = xrange1
@@ -3530,25 +3588,26 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     CAfile.write(f"{n}, {usedDeltaTs[-1]:.2f}, {angleDeg_afo_time[-1]}:.4f, {totalForce_afo_time[-1]}, {middleCoord[0]}, {middleCoord[1]}\n")
                     CAfile.close()
 
-                    #TODO desired outputs:
-                    #Standard measurement specific info
-                    stats['timeFromStart'] = usedDeltaTs[-1]            #time since image 0 in (s)
-                    #middle coords 2 ways:
-                    #[mean surface area X & Y,  intersecting normal vectors: mean &   median X&Y]
-                    stats['middleCoords-surfaceArea'] = [middleCoord[0], middleCoord[1]]                #pixels
-                    stats['middleCoords-MeanIntersectingVectors'] = [meanmiddleX, meanmiddleY]          #pixels
-                    stats['middleCoords-MedianIntersectingVectors'] = [medianmiddleX, medianmiddleY]    #pixels
-                    #outer pixel locations of top, bottom, left & right
-                    stats['OuterLeftPixel'] = coordLeft
-                    stats['OuterRightPixel'] =coordRight
-                    stats['TopPixel'] = coordsTop
-                    stats['BottomPixel'] = coordsBottom
-                    #Forces: Quad integration on function + error, trapz on function, trapz on raw data
-                    stats['F_hor-quad-fphi'] = [total_force_quad, error_quad]       #force & error      mN
-                    stats['F-hor-trapz-fphi'] = trapz_intForce_function                                 #mN
-                    stats['F-hor-trapz-data'] = trapz_intForce_data                                     #mN
-                    with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'w') as f:
-                        json.dump(stats, f, indent=4)
+                #TODO desired outputs:
+                #Always write stats to json file
+                #Standard measurement specific info
+                stats['timeFromStart'] = usedDeltaTs[-1]            #time since image 0 in (s)
+                #middle coords 2 ways:
+                #[mean surface area X & Y,  intersecting normal vectors: mean &   median X&Y]
+                stats['middleCoords-surfaceArea'] = [middleCoord[0], middleCoord[1]]                #pixels
+                stats['middleCoords-MeanIntersectingVectors'] = [meanmiddleX, meanmiddleY]          #pixels
+                stats['middleCoords-MedianIntersectingVectors'] = [medianmiddleX, medianmiddleY]    #pixels
+                #outer pixel locations of top, bottom, left & right
+                stats['OuterLeftPixel'] = coordLeft
+                stats['OuterRightPixel'] =coordRight
+                stats['TopPixel'] = coordsTop
+                stats['BottomPixel'] = coordsBottom
+                #Forces: Quad integration on function + error, trapz on function, trapz on raw data
+                stats['F_hor-quad-fphi'] = [total_force_quad, error_quad]       #force & error      mN
+                stats['F-hor-trapz-fphi'] = trapz_intForce_function                                 #mN
+                stats['F-hor-trapz-data'] = trapz_intForce_data                                     #mN
+                with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'w') as f:
+                    json.dump(stats, f, indent=4)
 
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
                       "------------------------------------   previous image  --------------------------------------------")
