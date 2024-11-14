@@ -300,9 +300,14 @@ def get_normalsV4(x, y, L, L2 = 0, L3 = 0):
     return x0arr, dxarr, y0arr, dyarr, vector, dxnegarr, dynegarr, dxL3arr, dyL3arr  # return the original data points x0&y0, and the coords of the inwards normals dx&dy, and the outwards normals dxneg&dyneg
 
 
-def prepend_k_half_data(data_k_half, k_half_unfiltered, x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr):
+def move_insert_k_half_data(data_k_half, k_half_unfiltered, x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr):
     """
-    Set the previously saved data of index k_half_unfiltered, extracted from 'data_k_half', to index k_half_unfiltered in new lists with all the other data
+    Shift the (in a previous run obtained) saved data of index k_half_unfiltered, extracted from 'data_k_half', to index k_half_unfiltered in new lists with all the other data
+    The saved data consists of:
+    -coord (x,y) contact line = x0arr, y0arr
+    -coord (x,y) end-of-line inside drop (drop profile->contact angle) = dxarr, dyarr
+    -coord (x,y) end-of-line outside drop (swelling profile) = dxnegarr, dynegarr,
+    -coords (x,y) end-of-line extra bit outside droplet (for extra wrapped calculation) = dxExtraOutarr, dyExtraOutarr
     """
     x0arr.insert(k_half_unfiltered, data_k_half[0])
     dxarr.insert(k_half_unfiltered, data_k_half[1])
@@ -314,16 +319,7 @@ def prepend_k_half_data(data_k_half, k_half_unfiltered, x0arr, dxarr, y0arr, dya
     dxExtraOutarr.insert(k_half_unfiltered, data_k_half[7])
     dyExtraOutarr.insert(k_half_unfiltered, data_k_half[8])
 
-    # x0arr = data_k_half[0] + x0arr_temp
-    # dxarr = data_k_half[1] + dxarr_temp
-    # y0arr = data_k_half[2] + y0arr_temp
-    # dyarr = data_k_half[3] + dyarr_temp
-    # vectors = data_k_half[4] + vectors_temp
-    # dxnegarr = data_k_half[5] + dxnegarr_temp
-    # dynegarr = data_k_half[6] + dynegarr_temp
-    # dxExtraOutarr = data_k_half[7] + dxExtraOutarr_temp
-    # dyExtraOutarr = data_k_half[8] + dyExtraOutarr_temp
-
+    logging.info(f"Shifted k_half data of OG run to index k_half, to ensure the programn finds the correct 'MinAndMaximaHandpicked ... .txt' file later.")
     return x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr
 
 
@@ -578,9 +574,12 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 tempimg = cv2.polylines(tempimg, np.array([contour]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
             tempimg = cv2.resize(tempimg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
             cv2.imshow(f"Contour img with current selection of contour {i+1} out of {nrOfContoursToShow}", tempimg)
-            choices = ["One contour outwards (-i)", "Current contour is fine", "One contour inwards (+1)",
+            choices = ["One contour outwards (-i)",
+                       "Current contour is fine",
+                       "One contour inwards (+1)",
                        "Stitch multiple contours together: first selection",
-                       "No good contours: Ajdust threshold sensitivities", "No good contours: quit programn",
+                       "No good contours: Ajdust threshold sensitivities",
+                       "No good contours: quit programn",
                        "EXPERIMENTAL: Drawing box in which contour MUST be found (in case it never finds it there)"]
             myvar = easygui.choicebox("Is this a desired contour?", choices=choices)
         else:
@@ -600,6 +599,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                        "Suggest working thresholds. This might take some time."]
             myvar = easygui.choicebox("From the get-go, no contours were obtained with this threshold sensitivity. Choose option 5 to change this.\n"
                                       "Working thresholds are suggested in the terminal. This might take some time", choices=choices)
+
             if myvar == choices[7]:
                 if firstTimeNoContours:
                     thresholdSensitivityrange1 = np.arange(1, 80, 3)
@@ -1790,9 +1790,9 @@ def determineTopAndBottomOfDropletCoords(vectors, x0arr, y0arr):  #x0arr, y0arr,
     return [x0arr[upwards_Index], y0arr[upwards_Index]], [x0arr[downwards_Index], y0arr[downwards_Index]]
 
 
-def determineTopBottomLeftRight_DropletCoords(vectors, x0arr, y0arr):
+def determineTopBottomLeftRight_DropletCoords(x0arr, y0arr):
     """"
-    Determine Top, bottom, left & right cooridnate simply by checking for the min & max arguments in x & y arrays.
+    Determine Top, bottom, left & right coordinate simply by checking for the min & max arguments in x & y arrays.
 
     :param x0arr: input array with x coordinate values
     :param y0arr: input array with y coordinate values
@@ -2070,9 +2070,36 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
     :param minIndex_maxima: index below which NO maxima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MAXIMA below a certain index
     :return:
     """
-    temp_indexToShowPlot = 1000
-    I_peaks = 130   #inteensity above which peaks must be found.
-    I_minima = 130  #intensity below which minima must be found
+    temp_indexToShowPlot = 10000
+    I_peaks_standard = 130   #intensity above which peaks must be found.
+    I_minima_standard = 130  #intensity below which minima must be found
+
+    #input values for I_peaks & I_minima
+    figtemp, axtemp = plt.subplots()
+    axtemp.plot(y_intensity)
+    axtemp.set(title='FindMinimaAndMaxima: to check ', xlabel='Index (-)', ylabel='Intensity (-)')
+    figtemp.show();
+    validAnswer = False
+    msg = f"Input intensity integer values |above, below| which the maxima and minima are found \n(comma seperated. If nothing is inputted, standard = 130,130 ):"
+    while not validAnswer:
+        title = "Inputted thresh didn't work: New threshold input"
+        out = easygui.enterbox(msg, title)
+        if len(out) > 0:
+            try:
+                I_peaks, I_minima = list(map(int, out.split(',')))
+                if I_peaks and I_minima:    #if not empty
+                    validAnswer = True
+            except:
+                msg = (f"Inputted intensity values were incorrect: possibly not an integer or not comma seperated. Try again: "
+                       f"\n(comma seperated. Typically e.g. 130,130):")
+        else:  # if empty, use standard
+            I_peaks = I_peaks_standard  # intensity above which peaks must be found.
+            I_minima = I_minima_standard  # intensity below which minima must be found
+            validAnswer = True
+    plt.close(figtemp)
+
+
+
     y_intensity = np.array(y_intensity)
     spacing_peaks = 5 #at least 5 pixels between peaks
     prominence_peaks = I_peaks - I_minima#minimum difference between an extremum & the baseline (which for here is always near a minimum). So I input the difference between expected  expected
@@ -2925,7 +2952,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
-    usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
+    #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
+    usedImages = list(np.arange(32, 161, everyHowManyImages))
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
@@ -3064,6 +3092,18 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, vectorsFinal, angleDegArr = getfilteredContourCoordsFromDatafile(img, filtered_coordinatesListFilePath)
                     logging.info(f"SUCCESSFULLY IMPORTED FILTERED contact line coordinates")
 
+                    try:
+                        # #JSON file w/ data from first coordinates determination should exist already. Open and read the JSON file
+                        with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'r') as file:
+                            json_data = json.load(file)
+                        data_k_half = json_data['khalf_dxdy']
+                        logging.info(f"SUCCESSFULLY IMPORTED Json data")
+                    except:
+                        logging.critical(
+                            "No previously saved k_half stats. Could be because of an older data-analysis version json file:\n"
+                            "Remove filtered-coordinates file, or redo entire analysis to fix.")
+                        break
+
                     xArrFinal = useablexlist
                     yArrFinal = useableylist
                     IMPORTEDCOORDS = True
@@ -3072,7 +3112,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
                     #The first value is k_half of OG dataset
                     unfilteredCoordsx, unfilteredCoordsy, _, _, _ = getContourCoordsFromDatafile(img, coordinatesListFilePath)
-
+                    unfilteredCoordsx = [i.astype(int).tolist()for i in unfilteredCoordsx]          #set to type int to make json serializable later
+                    unfilteredCoordsy = [i.astype(int).tolist() for i in unfilteredCoordsy]
 
                     # at index 0 of xArrFinal, yArrFinal, the k_half_OG coordinate is placed, which will mess with the polynomial fitting for getting the vector orientations
                     # so we have to put that x&y coord back in between the closest coord-values for determining dx&dy vectors, and
@@ -3088,15 +3129,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     #useablexlist, useableylist = reposition_k_half_point(useablexlist, useableylist, k_half_unfiltered)
 
                     middleCoord = determineMiddleCoord(unfilteredCoordsx, unfilteredCoordsy) #determine middle coord by making use of "mean surface" area coordinate
-                    del unfilteredCoordsx, unfilteredCoordsy
 
                 #-if coordinates were already written out, but not filtered
                 elif (MANUALPICKING in [1, 3]) and os.path.exists(coordinatesListFilePath):
                     logging.info(f"IMPORTING UNFILTERED contact line coordinates")
-
-                    # #JSON file w/ data from first coordinates determination should exist already. Open and read the JSON file
-                    # with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'r') as file:
-                    #     json_data = json.load(file)
 
                     #Obtain exact same (unfiltered) coordinates as in previous contour selection (+optional polynomial fitting).
                     useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = getContourCoordsFromDatafile(img, coordinatesListFilePath)
@@ -3152,21 +3188,16 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(
                             useablexlist, useableylist, lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
 
+                        #Save k_half stats to json file, to retrieve when analyzing a next time using the FILTERED data
                         stats['khalf_dxdy'] = [x0arr[k_half_unfiltered], dxarr[k_half_unfiltered], y0arr[k_half_unfiltered],
                                                dyarr[k_half_unfiltered], vectors[k_half_unfiltered],
                                                dxnegarr[k_half_unfiltered], dynegarr[k_half_unfiltered],
                                                dxExtraOutarr[k_half_unfiltered], dyExtraOutarr[k_half_unfiltered]]
                     elif FILTERED: #at position index 0, the k_half_OG coordinate is placed, which will mess with the polynomial fitting for getting the vector orientations
-                        try:
-                            data_k_half = stats['khalf_dxdy']
-                        except:
-                            logging.critical("No previously saved k_half stats. Could be because of an older data-analysis version json file:\n"
-                                             "Remove filtered-coordinates file, or redo entire analysis to fix.")
-                            break
                         x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = get_normalsV4(useablexlist[1:], useableylist[1:], lengthVector, outwardsLengthVector, smallExtraOutwardsVector)
 
                         #insert k_half OG data in index k_half_unfiltered
-                        x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = prepend_k_half_data(data_k_half, k_half_unfiltered, x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr)
+                        x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr = move_insert_k_half_data(data_k_half, k_half_unfiltered, x0arr, dxarr, y0arr, dyarr, vectors, dxnegarr, dynegarr, dxExtraOutarr, dyExtraOutarr)
 
                         #del x0arr_temp, dxarr_temp, y0arr_temp, dyarr_temp, vectors_temp, dxnegarr_temp, dynegarr_temp, dxExtraOutarr_temp, dyExtraOutarr_temp
                         stats['khalf_dxdy'] = [x0arr[k_half_unfiltered], dxarr[k_half_unfiltered], y0arr[k_half_unfiltered],
@@ -3238,7 +3269,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                 #coordsBottom, coordsTop = determineTopAndBottomOfDropletCoords(x0arr, y0arr, dxarr, dyarr)
                 #TODO testing the 'easy way' of determining top&bottom with only min/max because other method fails sometimes?
-                coordsBottom, coordsTop, coordLeft, coordRight = determineTopBottomLeftRight_DropletCoords(vectorsFinal, xArrFinal, yArrFinal)
+                if not FILTERED:    #NOT filtered = all data is there.
+                    coordsBottom, coordsTop, coordLeft, coordRight = determineTopBottomLeftRight_DropletCoords(xArrFinal, yArrFinal)
+                else:   #Previously filtered = use imported non-filtered data.
+                    coordsBottom, coordsTop, coordLeft, coordRight = determineTopBottomLeftRight_DropletCoords(unfilteredCoordsx, unfilteredCoordsy)
+                    del unfilteredCoordsx, unfilteredCoordsy
                 print(f"Calculated top and bottom coordinates of the droplet to be:\n"
                       f"Top: x={coordsTop[0]}, y={coordsTop[1]}\n"
                       f"Bottom: x={coordsBottom[0]}, y={coordsBottom[1]}")
@@ -3336,7 +3371,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             selected_regions = highlighter.mask
                             inverted_selected_regions = [not elem for elem in selected_regions] #invert booleans to 'deselect' the selected regions
                             xrange1, yrange1 = np.array(temp_xArrFinal)[inverted_selected_regions], np.array(temp_yArrFinal)[inverted_selected_regions]
-                        fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}.png'), dpi=600)
+                        #fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}.png'), dpi=600)
                         plt.close(fig3)
 
                         #Show the filtered result, and decide whether done filtering, or more must be performed
@@ -3356,11 +3391,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
                             #plt.close()
 
-                            choices = ["Good filtering: use leftover coordinates", "Bad filtering: filter more in current coordinates", "Bad filtering: redo entire process", "Bad filtering: don't filter"]
+                            choices = ["Good filtering: use leftover coordinates",
+                                       "Bad filtering: filter more in current coordinates",
+                                       "Bad filtering: redo entire process",
+                                       "Bad filtering: don't filter",
+                                       "Bad filtering: filter values above and/or below some contact angle (input values next)"]
                             #myvar = []
                             myvar = easygui.choicebox("What to do next?", choices=choices)
-                            plt.close(fig3)
-                            temp_vectorsFinal = np.array(temp_vectorsFinal)[inverted_selected_regions]
 
                             # # Run a loop to block until the figure is closed
                             # while not closed[0] and not myvar:
@@ -3370,12 +3407,14 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                 xArrFinal = xrange1
                                 yArrFinal = yrange1
                                 angleDegArr = filtered_angleDegArr
+                                temp_vectorsFinal = np.array(temp_vectorsFinal)[inverted_selected_regions]
                                 vectorsFinal = temp_vectorsFinal
                                 DONEFILTERTIING = True
                             elif myvar == choices[1]:
                                 temp_xArrFinal = xrange1
                                 temp_yArrFinal = yrange1
                                 temp_angleDegArr = filtered_angleDegArr
+                                temp_vectorsFinal = np.array(temp_vectorsFinal)[inverted_selected_regions]
                             elif myvar == choices[2]:
                                 temp_xArrFinal = xArrFinal
                                 temp_yArrFinal = yArrFinal
@@ -3383,6 +3422,30 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                 temp_vectorsFinal  = vectorsFinal
                             elif myvar == choices[3]:
                                 DONEFILTERTIING = True
+                            elif myvar == choices[4]:
+                                temp_vectorsFinal = np.array(temp_vectorsFinal)[inverted_selected_regions]
+                                validAnswer = False
+                                msg = (f"Input intensity float values |below, above| which the CA must be filtered. Input negative value to not filter "
+                                       f"\nComma seperated. e.g. 1.17, 4.2. Or 1, -1 to filter below 1, but not filter higher CA's")
+                                while not validAnswer:
+                                    title = "Filter Contact Angles"
+                                    out = easygui.enterbox(msg, title)
+                                    try:
+                                        CA_low, CA_high = list(map(float, out.split(',')))
+                                        if CA_low and CA_high:  # if not empty
+                                            validAnswer = True
+                                    except:
+                                        msg = (
+                                            f"Inputted values were incorrect: possibly not a float or not comma seperated. Try again: "
+                                            f"\n(comma seperated. Typically e.g. 1.17, 4.2):")
+                                if CA_low > 0:
+                                    #Next line: filter in x,y & CA list all respective data for a CA<CA_low
+                                    temp_xArrFinal, temp_yArrFinal, temp_vectorsFinal, temp_angleDegArr = zip(*((xrange1, yrange1, temp_vectorsFinal, filtered_angleDeg) for xrange1, yrange1, temp_vectorsFinal, filtered_angleDeg in zip(xrange1, yrange1, temp_vectorsFinal, filtered_angleDegArr) if filtered_angleDeg > CA_low))
+                                if CA_high > 0:
+                                    temp_xArrFinal, temp_yArrFinal, temp_vectorsFinal, temp_angleDegArr = zip(*((temp_xArrFinal, temp_yArrFinal, temp_vectorsFinal, temp_angleDeg) for temp_xArrFinal, temp_yArrFinal, temp_vectorsFinal, temp_angleDeg in zip(temp_xArrFinal, temp_yArrFinal, temp_vectorsFinal, temp_angleDegArr) if temp_angleDeg < CA_high))
+
+                            plt.close(fig3)
+
                     #TODO save filtered coordinates, contact angles and vectors to a .txt file for even faster analysis
                     if saveCoordinates == True:
                         if os.path.exists(os.path.dirname(filtered_coordinatesListFilePath)):
@@ -3609,6 +3672,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'w') as f:
                     json.dump(stats, f, indent=4)
 
+                plt.close()
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
                       "------------------------------------   previous image  --------------------------------------------")
 
