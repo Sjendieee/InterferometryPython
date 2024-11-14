@@ -333,7 +333,9 @@ def getContourList(grayImg, thresholdSensitivity):
         except:
             print(f"Tresh didn't work. Choose different sensitivity")
             title = "Inputted thresh didn't work: New threshold input"
-            msg = f"Inputted threshold sensitivity didn't work! Input new.\nCurrent threshold sensitivity is: {thresholdSensitivity}. Change to (comma seperated):"
+            msg = (f"Inputted threshold sensitivity didn't work! Input new.\nCurrent threshold sensitivity is: {thresholdSensitivity}. Change to (comma seperated):\n"
+                   f"1 BlockSize: Size of a pixel neighborhood that is used to calculate a threshold value for the pixel: 3, 5, 7, and so on. "
+                   f"2 Constant subtracted from the mean or weighted mean.")
             out = easygui.enterbox(msg, title)
             thresholdSensitivity = list(map(int, out.split(',')))
 
@@ -735,81 +737,99 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 useablexlist = [elem[0] for elem in usableContour]
 
 
-                usableContourCopy = np.array(usableContour)
-                windowSizePolynomialCheck = 40  #nr of values to check left and right for fitting polynomial, if distance between 2 values is 'too large'
-                usableContourCopy = np.concatenate([usableContourCopy[-windowSizePolynomialCheck:], usableContourCopy, usableContourCopy[:windowSizePolynomialCheck]])      #add values (periodic BC) for checking beginning& end of array
-                usableContourCopy_instertion = usableContourCopy    #copy into which coords from polynomial fits are inserted
-                ii_inserted = 0     #counter for index offset if multiple insertions have to be performed
-                if FITGAPS_POLYOMIAL:
-                    # TODO not sure if this works properly: meant to concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
-                    for ii in range(windowSizePolynomialCheck, len(usableContourCopy)-(windowSizePolynomialCheck)+1):   #TODO check deze +1: ik wil ook een fit @top droplet, maar werkt nog niet
-                        #TODO try to implement function that fits an ellips between gaps:
-                        #OG CODE START
-                        # if abs(usableContour[ii][1] - usableContour[ii+1][1]) > 200:       #if difference in y between 2 appending coords is large, a gap in the contour is formed
-                        #     usableContour = usableContour[ii:] + usableContour[0:ii]        #shift coordinates in list such that the coordinates are sequential neighbouring
-                        #OG CODE END
-
-                        # TODO check for gaps in x axis
-                        if abs(usableContourCopy[ii][0] - usableContourCopy[ii + 1][0]) > 20:      #if difference in x between 2 appending coords is large, a horizontal gap in the contour is formed
-                            xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
-                            yrange_for_fitting = [i[1] for i in usableContourCopy[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
-                            # xrange_for_fitting = usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
-                            # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
-                            if usableContourCopy[ii][0] < usableContourCopy[ii + 1][0]:    #ind if x is increasing
-                                x_values_to_be_fitted = np.arange(usableContourCopy[ii][0]+1, usableContourCopy[ii + 1][0]-1, 1)
-                            else:
-                                x_values_to_be_fitted = np.arange(usableContourCopy[ii + 1][0]+1, usableContourCopy[ii][0]-1, 1)
-                            localfit = np.polyfit(xrange_for_fitting, yrange_for_fitting, 2)    #horizontal gap: fit y(x)
-                            y_fitted = np.poly1d(localfit)(x_values_to_be_fitted).astype(int)
-                            usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_values_to_be_fitted, y_fitted))), axis=0)
-                            ii_inserted+=len(x_values_to_be_fitted) #offset index of insertion by length of previous arrays which were inserted
-                            plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='x-gap data')
-                            plt.plot(x_values_to_be_fitted, y_fitted, label='x-gap fit')
-                            plt.legend(loc='best')
-                            #plt.show()
-
-                        #TODO then check for gaps in y-direction
-                        #TODO THIS IS STILL WRONG !!!
-                        elif abs(usableContourCopy[ii][1] - usableContourCopy[ii + 1][1]) > 20:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
-                            # xrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
-                            # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
-                            xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
-                            yrange_for_fitting = [i[1] for i in usableContourCopy[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
-                            if usableContourCopy[ii][1] < usableContourCopy[ii + 1][1]:    #find if y is increasing
-                                y_values_to_be_fitted = np.arange(usableContourCopy[ii][1]+1, usableContourCopy[ii+1][1]-1, 1)
-                            else:
-                                y_values_to_be_fitted = np.arange(usableContourCopy[ii+1][1]+1, usableContourCopy[ii][1]-1, 1)
-                            localfit = np.polyfit(yrange_for_fitting, xrange_for_fitting, 2)    #horizontal gap: fit x(y)
-                            x_fitted = np.poly1d(localfit)(y_values_to_be_fitted).astype(int)
-                            usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_fitted, yrange_for_fitting))), axis=0)
-                            ii_inserted+=len(y_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
-                            plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='y-gap data')
-                            plt.plot(x_fitted, y_values_to_be_fitted, label='y-gap fit')
-                            plt.legend(loc='best')
-                            plt.show()
-                    plt.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', color = 'b', label='total contour')
-                    plt.legend(loc='best')
-                    plt.show()
-
-                    #TODO show suggested image with interpolated contour points & allow user to verify correctness
-                    if ii_inserted>0:
-                        usableContourCopy_instertion = usableContourCopy_instertion[windowSizePolynomialCheck:-windowSizePolynomialCheck]
-                        tempimg = []
-                        copyImg = resizedimg.copy()
-                        tempimg = cv2.polylines(copyImg, np.array([usableContourCopy_instertion]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
-                        tempimg = cv2.resize(tempimg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
-                        cv2.imshow(f"IS THIS POLYNOMIAL FITTED GOOD???", tempimg)
-                        choices = ["Yes (continue)", "No (don't use fitted polynomial)"]
-                        myvar = easygui.choicebox("IS THIS POLYNOMIAL FITTED GOOD?", choices=choices)
-                        if myvar == choices[1]:
-                            logging.warning("Polynomial did not fit as desired. NOT using the fitted polynomial.")
+            usableContourCopy = np.array(usableContour)
+            windowSizePolynomialCheck = 40  #nr of values to check left and right for fitting polynomial, if distance between 2 values is 'too large'
+            usableContourCopy = np.concatenate([usableContourCopy[-windowSizePolynomialCheck:], usableContourCopy, usableContourCopy[:windowSizePolynomialCheck]])      #add values (periodic BC) for checking beginning& end of array
+            usableContourCopy_instertion = usableContourCopy    #copy into which coords from polynomial fits are inserted
+            ii_inserted = 0     #counter for index offset if multiple insertions have to be performed
+            if FITGAPS_POLYOMIAL:
+                # concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
+                for ii in range(windowSizePolynomialCheck, len(usableContourCopy)-(windowSizePolynomialCheck)):
+                    FITXGAP = False
+                    FITYGAP = False
+                    #Check for gaps, and determine if it's bigger in x or y direction. Fit for the biggest
+                    XGAP = abs(usableContourCopy[ii][0] - usableContourCopy[ii + 1][0])     #determine x-distance between adjacent indices
+                    YGAP = abs(usableContourCopy[ii][1] - usableContourCopy[ii + 1][1])     #determine y-distance between adjacent indices
+                    if XGAP > 20 or YGAP > 20:
+                        if YGAP > XGAP:
+                            FITYGAP = True
                         else:
-                            #usableContour = list(list(usableContourCopy)) #if good poly fits, use those
-                            logging.info(f"Polynomial fits inserted. NEW length of coords_arr = {len(usableContourCopy_instertion)} vs OLD length = {len(usableContour)}")
-                            usableContour = [list(i) for i in usableContourCopy_instertion]
-                        cv2.destroyAllWindows()
-                    useableylist = np.array([elem[1] for elem in usableContour])
-                    useablexlist = [elem[0] for elem in usableContour]
+                            FITXGAP = True
+
+                    # TODO fit for gaps in x axis
+                    if FITXGAP:      #if difference in x between 2 appending coords is large, a horizontal gap in the contour is formed
+                        xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
+                        yrange_for_fitting = [i[1] for i in usableContourCopy[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
+                        # xrange_for_fitting = usableContour[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
+                        # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
+
+                        #TODO commented below: trying other step
+                        # if usableContourCopy[ii][0] < usableContourCopy[ii + 1][0]:    #find if x is increasing
+                        #     x_values_to_be_fitted = np.arange(usableContourCopy[ii][0]+1, usableContourCopy[ii + 1][0]-1, 1)
+                        # else:
+                        #     x_values_to_be_fitted = np.arange(usableContourCopy[ii + 1][0]+1, usableContourCopy[ii][0]-1, 1)
+                        if usableContourCopy[ii][0] < usableContourCopy[ii + 1][0]:    #find if x is increasing
+                            x_values_to_be_fitted = np.arange(usableContourCopy[ii][0]+1, usableContourCopy[ii + 1][0]-1, 1)
+                        else:
+                            x_values_to_be_fitted = np.arange(usableContourCopy[ii][0]-1, usableContourCopy[ii + 1][0]+1, -1)
+
+                        localfit = np.polyfit(xrange_for_fitting, yrange_for_fitting, 2)    #horizontal gap: fit y(x)
+                        y_fitted = np.poly1d(localfit)(x_values_to_be_fitted).astype(int)
+                        usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_values_to_be_fitted, y_fitted))), axis=0)
+                        ii_inserted+=len(x_values_to_be_fitted) #offset index of insertion by length of previous arrays which were inserted
+                        plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='x-gap data')
+                        plt.plot(x_values_to_be_fitted, y_fitted, label='x-gap fit')
+                        plt.legend(loc='best')
+                        #plt.show()
+
+                    #TODO fit for gaps in y-direction
+                    #TODO THIS IS STILL WRONG !!!
+                    elif FITYGAP:      #if difference in y between 2 appending coords is large, a vertical gap in the contour is formed
+                        # xrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][0] #to fit polynomial with 30 points on both sides of the gap   #todo gaat fout als ii<30 of > (len()-30)
+                        # yrange_for_fitting = usableContour[ii-windowSizePolynomialCheck:ii+windowSizePolynomialCheck][1]
+                        xrange_for_fitting = [i[0] for i in usableContourCopy[(ii-windowSizePolynomialCheck):(ii+windowSizePolynomialCheck)]]
+                        yrange_for_fitting = [i[1] for i in usableContourCopy[(ii - windowSizePolynomialCheck):(ii + windowSizePolynomialCheck)]]
+                        # TODO commented below: trying other step
+                        # if usableContourCopy[ii][1] < usableContourCopy[ii + 1][1]:    #find if y is increasing
+                        #     y_values_to_be_fitted = np.arange(usableContourCopy[ii][1]+1, usableContourCopy[ii+1][1]-1, 1)
+                        # else:
+                        #     y_values_to_be_fitted = np.arange(usableContourCopy[ii+1][1]+1, usableContourCopy[ii][1]-1, 1)
+                        if usableContourCopy[ii][1] < usableContourCopy[ii + 1][1]:    #find if y is increasing
+                            y_values_to_be_fitted = np.arange(usableContourCopy[ii][1]+1, usableContourCopy[ii+1][1]-1, 1)
+                        else:   #if decreasing, step = -1
+                            y_values_to_be_fitted = np.arange(usableContourCopy[ii][1]-1, usableContourCopy[ii+1][1]+1, -1)
+
+                        localfit = np.polyfit(yrange_for_fitting, xrange_for_fitting, 2)    #horizontal gap: fit x(y)
+                        x_fitted = np.poly1d(localfit)(y_values_to_be_fitted).astype(int)
+                        usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_fitted, y_values_to_be_fitted))), axis=0)
+                        ii_inserted+=len(y_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
+                        plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='y-gap data')
+                        plt.plot(x_fitted, y_values_to_be_fitted, label='y-gap fit')
+                        plt.legend(loc='best')
+                        #plt.show()
+                plt.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', color = 'b', label='total contour')
+                plt.legend(loc='best')
+                plt.show()
+
+                #TODO show suggested image with interpolated contour points & allow user to verify correctness
+                if ii_inserted>0:
+                    usableContourCopy_instertion = usableContourCopy_instertion[windowSizePolynomialCheck:-windowSizePolynomialCheck]
+                    tempimg = []
+                    copyImg = resizedimg.copy()
+                    tempimg = cv2.polylines(copyImg, np.array([usableContourCopy_instertion]), False, (255, 0, 0), 8)  # draws 1 blue contour with the x0&y0arrs obtained from get_normals
+                    tempimg = cv2.resize(tempimg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
+                    cv2.imshow(f"IS THIS POLYNOMIAL FITTED GOOD???", tempimg)
+                    choices = ["Yes (continue)", "No (don't use fitted polynomial)"]
+                    myvar = easygui.choicebox("IS THIS POLYNOMIAL FITTED GOOD?", choices=choices)
+                    if myvar == choices[1]:
+                        logging.warning("Polynomial did not fit as desired. NOT using the fitted polynomial.")
+                    else:
+                        #usableContour = list(list(usableContourCopy)) #if good poly fits, use those
+                        logging.info(f"Polynomial fits inserted. NEW length of coords_arr = {len(usableContourCopy_instertion)} vs OLD length = {len(usableContour)}")
+                        usableContour = [list(i) for i in usableContourCopy_instertion]
+                    cv2.destroyAllWindows()
+                useableylist = np.array([elem[1] for elem in usableContour])
+                useablexlist = [elem[0] for elem in usableContour]
 
 
 
@@ -1959,6 +1979,12 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     :param inputY: array with data corresponding to the inputX. Must be periodic for this fitting to make sense
     :return:
     """
+
+    #TODO: this will not work well if given range is filtered at -pi / pi (fit will oscillate wildly near -pi/pi).
+    # Solution to try: since its periodic, shift entire set such that the 'gap' is not at -pi/pi anymore, but somewhere else.
+    if abs(abs(inputX[0]) - np.pi) > 0.3:
+        logging.critical("Fourier fit will likely oscillate wildly near -pi/pi. Implement function the shift entire thing in 'manualFitting(..)' ")
+
     #######
     I_k__c_j = lambda f_j1, f_j, phi_j1, phi_j, k:  f_j1 * (np.sin(k*phi_j1) / k +
                                                             (np.cos(k*phi_j1) - np.cos(k*phi_j)) / (k**2 * (phi_j1 - phi_j))) - \
@@ -1983,7 +2009,6 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     sigma_k_s = [0]     #sigma_k_s=0  at n=0
     sigma_k_c = [(1 / (2*np.pi)) * scipy.integrate.trapz(inputY, inputX)]
 
-    #N = [7]
     for k in range(1, N[-1]+1): #for all orders in range 1 to N, determine the sigma's sin & cos.
         sigma_k_s.append(f_k__s(I_k__s_j, k, inputX, inputY))
         sigma_k_c.append(f_k__c(I_k__c_j, k, inputX, inputY))
@@ -2014,8 +2039,9 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
                   f"Influence of function order parameter")
     ax1.legend(loc='best')
     fig1.savefig(os.path.join(path, f"{Ylabel[0]} Fourier fitted.png"), dpi=300)
-    showPlot(SHOWPLOTS_SHORT, [fig1])
 
+    #showPlot(SHOWPLOTS_SHORT, [fig1])
+    showPlot('manual', [fig1])
     return func_range, func_single, N, sigma_k_s, sigma_k_c,
 
 
@@ -2954,8 +2980,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     usedImages = list(np.arange(32, 161, everyHowManyImages))
+    usedImages = [24]       #36, 57
+
     #usedImages = [32]       #36, 57
-    thresholdSensitivityStandard = [5,3]# [13, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
+    thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
