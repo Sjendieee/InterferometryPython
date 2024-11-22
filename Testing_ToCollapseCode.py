@@ -1982,9 +1982,11 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
 
     #TODO: this will not work well if given range is filtered at -pi / pi (fit will oscillate wildly near -pi/pi).
     # Solution to try: since its periodic, shift entire set such that the 'gap' is not at -pi/pi anymore, but somewhere else.
+    x_shift = 0 #radial shift to make sure no gap at -pi / pi
     if abs(abs(inputX[0]) - np.pi) > 0.3:
+        x_shift = inputX[len(inputX)//2]
         logging.critical("Fourier fit will likely oscillate wildly near -pi/pi. Implement function the shift entire thing in 'manualFitting(..)' ")
-
+    inputX =+ x_shift  #shift all x-data by the
     #######
     I_k__c_j = lambda f_j1, f_j, phi_j1, phi_j, k:  f_j1 * (np.sin(k*phi_j1) / k +
                                                             (np.cos(k*phi_j1) - np.cos(k*phi_j)) / (k**2 * (phi_j1 - phi_j))) - \
@@ -2042,6 +2044,7 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
 
     #showPlot(SHOWPLOTS_SHORT, [fig1])
     showPlot('manual', [fig1])
+
     return func_range, func_single, N, sigma_k_s, sigma_k_c,
 
 
@@ -2980,7 +2983,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     usedImages = list(np.arange(32, 161, everyHowManyImages))
-    usedImages = [24]       #36, 57
+    #usedImages = [24]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
