@@ -1980,13 +1980,13 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     :return:
     """
 
+    # with open(os.path.join(os.getcwd(), "tempForManualFitting.pickle"), 'wb') as internal_filename:
+    #     print(internal_filename)
+    #     pickle.dump([inputX, inputY, path, Ylabel, N], internal_filename)      #TODO TEMP
+
     #TODO: this will not work well if given range is filtered at -pi / pi (fit will oscillate wildly near -pi/pi).
     # Solution to try: since its periodic, shift entire set such that the 'gap' is not at -pi/pi anymore, but somewhere else.
-    x_shift = 0 #radial shift to make sure no gap at -pi / pi
-    if abs(abs(inputX[0]) - np.pi) > 0.3:
-        x_shift = inputX[len(inputX)//2]
-        logging.critical("Fourier fit will likely oscillate wildly near -pi/pi. Implement function the shift entire thing in 'manualFitting(..)' ")
-    inputX =+ x_shift  #shift all x-data by the
+
     #######
     I_k__c_j = lambda f_j1, f_j, phi_j1, phi_j, k:  f_j1 * (np.sin(k*phi_j1) / k +
                                                             (np.cos(k*phi_j1) - np.cos(k*phi_j)) / (k**2 * (phi_j1 - phi_j))) - \
@@ -2982,7 +2982,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    usedImages = list(np.arange(32, 161, everyHowManyImages))
+    usedImages = list(np.arange(36, 161, everyHowManyImages))
     #usedImages = [24]       #36, 57
 
     #usedImages = [32]       #36, 57
@@ -3065,10 +3065,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
             ndata.append(int(data[0]))      #add already analyzed img nr's into a list, so later we can check if this analysis already exists
 
     #folder for saving analyzed data: txt files with forces, middle of drop positions, etc.
-    analysedData = os.path.join(analysisFolder, 'Analyzed Data')
-    if not os.path.exists(analysedData):
-        os.mkdir(analysedData)
-        print(f"created path: {analysedData}")
+    analysedData_folder = os.path.join(analysisFolder, 'Analyzed Data')
+    if not os.path.exists(analysedData_folder):
+        os.mkdir(analysedData_folder)
+        print(f"created path: {analysedData_folder}")
 
     angleDeg_afo_time = []  # for saving median CA's later
     totalForce_afo_time = []
@@ -3083,12 +3083,16 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
         raise Exception("One of either units is not correct for good conversion. Fix manually or implement in code")
     for n, img in enumerate(imgList):
         if n in usedImages:
+            #initialize all json-data relevant so it will be saved later on, even if function crashes
             stats = {}  # for saving relevant (analysed) data into a json data
             stats['About'] = {}
             stats['About']['__author__'] = __author__
             stats['About']['__version__'] = __version__
             stats['startDateTime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f %z')
             stats['imgnr'] = n
+            coordLeft = []; coordRight = []; coordsBottom = []; coordsTop = []; error_quad = [] ; meanmiddleX = [];
+            meanmiddleY = []; medianmiddleX = []; medianmiddleY = []; middleCoord = []
+            total_force_quad = []; trapz_intForce_data = []; trapz_intForce_function = []
 
             if n in importedContourListData_n and MANUALPICKING > 0:
                 logging.info(f"img {n} found in thresholdList (ContourListFile.txt). Importing contour i & thresholds sensitivities")
@@ -3125,7 +3129,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                     try:
                         # #JSON file w/ data from first coordinates determination should exist already. Open and read the JSON file
-                        with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'r') as file:
+                        with open(os.path.join(analysedData_folder, f"{n}_analysed_data.json"), 'r') as file:
                             json_data = json.load(file)
                         data_k_half = json_data['khalf_dxdy']
                         logging.info(f"SUCCESSFULLY IMPORTED Json data")
@@ -3682,34 +3686,25 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     CAfile.write(f"{n}, {usedDeltaTs[-1]:.2f}, {angleDeg_afo_time[-1]}:.4f, {totalForce_afo_time[-1]}, {middleCoord[0]}, {middleCoord[1]}\n")
                     CAfile.close()
 
-                #TODO desired outputs:
-                #Always write stats to json file
-                #Standard measurement specific info
-                stats['timeFromStart'] = usedDeltaTs[-1]            #time since image 0 in (s)
-                #middle coords 2 ways:
-                #[mean surface area X & Y,  intersecting normal vectors: mean &   median X&Y]
-                stats['middleCoords-surfaceArea'] = [middleCoord[0], middleCoord[1]]                #pixels
-                stats['middleCoords-MeanIntersectingVectors'] = [meanmiddleX, meanmiddleY]          #pixels
-                stats['middleCoords-MedianIntersectingVectors'] = [medianmiddleX, medianmiddleY]    #pixels
-                #outer pixel locations of top, bottom, left & right
-                stats['OuterLeftPixel'] = coordLeft
-                stats['OuterRightPixel'] =coordRight
-                stats['TopPixel'] = coordsTop
-                stats['BottomPixel'] = coordsBottom
-                #Forces: Quad integration on function + error, trapz on function, trapz on raw data
-                stats['F_hor-quad-fphi'] = [total_force_quad, error_quad]       #force & error      mN
-                stats['F-hor-trapz-fphi'] = trapz_intForce_function                                 #mN
-                stats['F-hor-trapz-data'] = trapz_intForce_data                                     #mN
-                with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'w') as f:
-                    json.dump(stats, f, indent=4)
+                save_measurementdata_to_json(analysedData_folder, coordLeft, coordRight, coordsBottom, coordsTop,
+                                             error_quad,
+                                             meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY, middleCoord, n,
+                                             stats,
+                                             total_force_quad, trapz_intForce_data, trapz_intForce_function,
+                                             usedDeltaTs)
 
-                plt.close()
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
                       "------------------------------------   previous image  --------------------------------------------")
 
             except Exception:
-                logging.critical(f"Some error occured. Still plotting obtained contour")
+                logging.critical(f"Some error occured. Still plotting obtained contour & saving data to json file (as much as possible)")
+                save_measurementdata_to_json(analysedData_folder, coordLeft, coordRight, coordsBottom, coordsTop, error_quad,
+                                             meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY, middleCoord, n,
+                                             stats,
+                                             total_force_quad, trapz_intForce_data, trapz_intForce_function,
+                                             usedDeltaTs)
                 print(traceback.format_exc())
+
             tstring = str(datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
             resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 30, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(imgshape[0], medianmiddleY))
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
@@ -3723,6 +3718,31 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     fig2.savefig(os.path.join(analysisFolder, f'Horizontal component force vs Time.png'), dpi=600)
     showPlot(SHOWPLOTS_SHORT, [fig2])
     #plt.show()
+
+
+def save_measurementdata_to_json(analysedData, coordLeft, coordRight, coordsBottom, coordsTop, error_quad, meanmiddleX,
+                                 meanmiddleY, medianmiddleX, medianmiddleY, middleCoord, n, stats, total_force_quad,
+                                 trapz_intForce_data, trapz_intForce_function, usedDeltaTs):
+    # TODO desired outputs:
+    # Always write stats to json file
+    # Standard measurement specific info
+    stats['timeFromStart'] = usedDeltaTs[-1]  # time since image 0 in (s)
+    # middle coords 2 ways:
+    # [mean surface area X & Y,  intersecting normal vectors: mean &   median X&Y]
+    stats['middleCoords-surfaceArea'] = [middleCoord[0], middleCoord[1]]  # pixels
+    stats['middleCoords-MeanIntersectingVectors'] = [meanmiddleX, meanmiddleY]  # pixels
+    stats['middleCoords-MedianIntersectingVectors'] = [medianmiddleX, medianmiddleY]  # pixels
+    # outer pixel locations of top, bottom, left & right
+    stats['OuterLeftPixel'] = coordLeft
+    stats['OuterRightPixel'] = coordRight
+    stats['TopPixel'] = coordsTop
+    stats['BottomPixel'] = coordsBottom
+    # Forces: Quad integration on function + error, trapz on function, trapz on raw data
+    stats['F_hor-quad-fphi'] = [total_force_quad, error_quad]  # force & error      mN
+    stats['F-hor-trapz-fphi'] = trapz_intForce_function  # mN
+    stats['F-hor-trapz-data'] = trapz_intForce_data  # mN
+    with open(os.path.join(analysedData, f"{n}_analysed_data.json"), 'w') as f:
+        json.dump(stats, f, indent=4)
 
 
 def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks, profile, profileOutwards,
@@ -3847,7 +3867,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
