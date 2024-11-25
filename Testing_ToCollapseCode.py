@@ -1984,6 +1984,11 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     #     print(internal_filename)
     #     pickle.dump([inputX, inputY, path, Ylabel, N], internal_filename)      #TODO TEMP
 
+    if abs(abs(inputX[0]) - np.pi) > 0.02:
+        logging.critical(f"Gap in contour coords (={abs(abs(inputX[0]) - np.pi):.3f}rad) at -pi&pi -> Check if correctly fitted w/ implemented function in 'manualFitting(..)' ")
+    inputX = inputX + [np.pi + (np.pi-abs(inputX[0]))]   #add 1 value of x to the end of array at the 'positive x position' of the first x-value, for correct trapz integration
+    inputY = inputY + [inputY[0]]
+
     #TODO: this will not work well if given range is filtered at -pi / pi (fit will oscillate wildly near -pi/pi).
     # Solution to try: since its periodic, shift entire set such that the 'gap' is not at -pi/pi anymore, but somewhere else.
 
@@ -2015,7 +2020,7 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
         sigma_k_s.append(f_k__s(I_k__s_j, k, inputX, inputY))
         sigma_k_c.append(f_k__c(I_k__c_j, k, inputX, inputY))
     N = np.array([0] + N)
-    X_range = np.linspace(min(inputX), max(inputX), 500)
+    X_range = np.linspace(-np.pi, np.pi, 1000)
 
     fig1, ax1 = plt.subplots()
     if len(N)>2:
@@ -2042,8 +2047,8 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     ax1.legend(loc='best')
     fig1.savefig(os.path.join(path, f"{Ylabel[0]} Fourier fitted.png"), dpi=300)
 
-    #showPlot(SHOWPLOTS_SHORT, [fig1])
-    showPlot('manual', [fig1])
+    showPlot(SHOWPLOTS_SHORT, [fig1])
+    #showPlot('manual', [fig1])
 
     return func_range, func_single, N, sigma_k_s, sigma_k_c,
 
@@ -2105,13 +2110,16 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
 
     #input values for I_peaks & I_minima
     figtemp, axtemp = plt.subplots()
-    axtemp.plot(y_intensity)
+    axtemp.plot(y_intensity, 'k')
+    axtemp.axhspan(min(y_intensity)-5, 130, facecolor='orange', alpha=0.3)     #color below certain intensity orange
+    axtemp.axhspan(130, max(y_intensity)+5, facecolor='blue', alpha=0.3)  # color below certain intensity orange
+
     axtemp.set(title='FindMinimaAndMaxima: to check ', xlabel='Index (-)', ylabel='Intensity (-)')
     figtemp.show();
     validAnswer = False
     msg = f"Input intensity integer values |above, below| which the maxima and minima are found \n(comma seperated. If nothing is inputted, standard = 130,130 ):"
     while not validAnswer:
-        title = "Inputted thresh didn't work: New threshold input"
+        title = "Fin maxima and minima above and below which intensity value?"
         out = easygui.enterbox(msg, title)
         if len(out) > 0:
             try:
@@ -2982,7 +2990,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    usedImages = list(np.arange(36, 161, everyHowManyImages))
+    usedImages = list(np.arange(64, 161, everyHowManyImages))
     #usedImages = [24]       #36, 57
 
     #usedImages = [32]       #36, 57
@@ -3692,7 +3700,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                              stats,
                                              total_force_quad, trapz_intForce_data, trapz_intForce_function,
                                              usedDeltaTs)
-
+                plt.close()
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
                       "------------------------------------   previous image  --------------------------------------------")
 
@@ -3867,7 +3875,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
