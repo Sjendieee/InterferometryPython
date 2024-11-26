@@ -1,3 +1,7 @@
+"""
+File for plotting of various kinds of data (Force_horizontal, velocity vs time) from previously analysed images
+Data is extracted from JSON files.
+"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +11,11 @@ import glob
 import re
 
 def path_in_use():
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    """
+    Write path to folder in which the analyzed images (and subsequent analysis) are
+    :return:
+    """
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     return path
 
 
@@ -25,6 +33,14 @@ def alphanum_key(s):
 
 
 def analyzeForcevsTime(JSON_folder):
+    """
+    Plot horizontal force calculated in 3 ways vs time.
+    -from quad integration on smooth fourier fit function   (imported data 2 values: First value = force. Second value = error)
+    -trapz integration on raw data
+    -trapz integration on smooth fourier fit function
+    :param JSON_folder:
+    :return:
+    """
     time = []
     force_quad = []
     force_trapz_function = []
@@ -33,7 +49,7 @@ def analyzeForcevsTime(JSON_folder):
         with open(filename, 'r') as file:
             json_data = json.load(file)
         time.append(json_data['timeFromStart'])
-        force_quad.append(json_data['F_hor-quad-fphi'][0])              #TODO: check waarom dit 2 waardes zijn
+        force_quad.append(json_data['F_hor-quad-fphi'][0])              #First value = force. Second value = error
         force_trapz_function.append(json_data['F-hor-trapz-fphi'])
         force_trapz_data.append(json_data['F-hor-trapz-data'])
 
@@ -54,6 +70,13 @@ def analyzeForcevsTime(JSON_folder):
     return
 
 def analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images):
+    """
+    Plot middle of droplet pixel velocity, obtained from mean surfacearea calculation:
+    import pixel coordinate location & calculate how much distance it moves in between frames for velocity
+    :param JSON_folder:
+    :param path_images:
+    :return:
+    """
     time = []
     middleCoord_surfaceArea = []
     velocity = [0]
@@ -92,7 +115,24 @@ def analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images):
     ax1.legend(loc='best')
     return
 
-def analyzeVelocityProfile_adv_rec(JSON_folder, path_images):
+def analyzeVelocityProfile_adv_rec(JSON_folder, path_images, **kwargs):
+    """
+    Plot outer left & outer right pixel velocity:
+    import pixel coordinate location & calculate how much distance it moves in between frames for velocity
+    :param JSON_folder:
+    :param path_images:
+    :param kwargs:
+    :return:
+    """
+    time_factor = 60                        #1 = second, 60 = minutes, etc..
+    velocity_factor = 60*1000             #1 = mm/second, 60 = mm/min, etc..
+    ylim = []
+    for keyword, value in kwargs.items():
+        if keyword == "ylim":
+            ylim = value
+        else:
+            logging.error(f"Incorrect keyword inputted: {keyword} is not known")
+
     time = []
     coord_right = []
     coord_left = []
@@ -136,9 +176,11 @@ def analyzeVelocityProfile_adv_rec(JSON_folder, path_images):
             velocity_left.append(dxy_units_left / dt)
 
     fig1, ax1 = plt.subplots()
-    ax1.plot(np.array(time) / 60, np.array(velocity_right) * 60, '.', label="velocity right")
-    ax1.plot(np.array(time) / 60, np.array(velocity_left) * 60, '.', label="velocity left")
-    ax1.set(xlabel='time (min)', ylabel='velocity (mm/min)', title='Velocity profile')
+    ax1.plot(np.array(time) / time_factor, np.array(velocity_right) * velocity_factor, '.', label="velocity right")
+    ax1.plot(np.array(time) / time_factor, np.array(velocity_left) * velocity_factor, '*', label="velocity left")
+    ax1.set(xlabel='time (min)', ylabel='velocity (um/min)', title='Velocity profile')
+    if ylim:
+        ax1.set(ylim=ylim)
     ax1.legend(loc='best')
     return
 
@@ -147,10 +189,10 @@ def main():
     analysisFolder = os.path.join(path_images, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
     JSON_folder = os.path.join(analysisFolder, "Analyzed Data")
 
-    #analyzeForcevsTime(JSON_folder)
+    analyzeForcevsTime(JSON_folder)
     try:
-        #analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images)
-        analyzeVelocityProfile_adv_rec(JSON_folder, path_images)
+        analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images)
+        analyzeVelocityProfile_adv_rec(JSON_folder, path_images, ylim = [0, 200])
     except:
         pass
 

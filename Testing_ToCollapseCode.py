@@ -2094,19 +2094,30 @@ def matchingCAIntensityPeak(x_units, y_intensity, minIndex_maxima, minIndex_mini
     peaks, minima = FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima)
     return peaks[3]
 
-def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1):
+def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1, **kwargs):
     """
     Return the indices of all maxima and minima of 'y_intensity'.
     The function finds the extrema automatically, removes 'fake' detected peaks, and then returns the indices.
     :param x_units:
-    :param y_intensity: array (or lsit) with intensity values
+    :param y_intensity: array (or list) with intensity values
     :param minIndex_minima: index below which NO minima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MINIMA below a certain index
     :param minIndex_maxima: index below which NO maxima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MAXIMA below a certain index
     :return:
     """
-    temp_indexToShowPlot = 10000
+
     I_peaks_standard = 130   #intensity above which peaks must be found.
     I_minima_standard = 130  #intensity below which minima must be found
+
+    for keyword, value in kwargs.items():
+        if keyword == "Ipeaks":
+            I_peaks_standard = value
+        elif keyword == "Iminima":
+            I_minima_standard = value
+        else:
+            logging.error(f"Incorrect keyword inputted: {keyword} is not known")
+
+    temp_indexToShowPlot = 10000
+
 
     #input values for I_peaks & I_minima
     figtemp, axtemp = plt.subplots()
@@ -2119,7 +2130,7 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
     validAnswer = False
     msg = f"Input intensity integer values |above, below| which the maxima and minima are found \n(comma seperated. If nothing is inputted, standard = 130,130 ):"
     while not validAnswer:
-        title = "Fin maxima and minima above and below which intensity value?"
+        title = "Find maxima and minima above and below which intensity value?"
         out = easygui.enterbox(msg, title)
         if len(out) > 0:
             try:
@@ -2990,15 +3001,15 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    usedImages = list(np.arange(64, 161, everyHowManyImages))
-    #usedImages = [24]       #36, 57
+    #usedImages = list(np.arange(96, 161, everyHowManyImages))
+    usedImages = [0]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
-    imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
+    imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tif"))]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
     lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
@@ -3875,7 +3886,7 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
 
@@ -3893,6 +3904,9 @@ def main():
 
     #For Enqing:
     #path = "M:\\Enqing\\Halo_Zeiss20X"
+
+    #For Yi Li
+    path = "M:\\YiLi\\"
 
     #Zeiss = 520nm, Nikon=533nm
     primaryObtainCARoutine(path, wavelength_laser=520)
