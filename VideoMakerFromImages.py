@@ -49,7 +49,7 @@ def videoMakerOfImges(imgList, analysisFolder):
     ffmpeg_path = ffmpegPath()
     output_folder = analysisFolder
     video_name = f'Complete_overview_movie.avi'
-    #fourcc = cv2.VideoWriter_fourcc(*'mp4v')       #tried for mp4 - didnt work: https://stackoverflow.com/questions/30103077/what-is-the-codec-for-mp4-videos-in-python-opencv/55596396
+    #fourcc = cv2.VideoWriter_fourcc(*'mp4v')       #tried for mp4 - didn't work: https://stackoverflow.com/questions/30103077/what-is-the-codec-for-mp4-videos-in-python-opencv/55596396
     frame = cv2.imread(imgList[0])
     height, width, layers = frame.shape
     video = cv2.VideoWriter(video_name, 0, 1, (width, height))      #output name, codec used, FPS, tuple of dimensions

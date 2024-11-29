@@ -856,7 +856,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                 logging.error("Path to folder in which the contour coordinates file is to be saved DOES NOT exist.\n"
                               "When parsing 'saveCoordinates' = True, make sure 'coordinatesListFilePath' is parsed (correctly) as well")
 
-    return useablexlist, useableylist, usableContour, resizedimg, greyresizedimg
+    return useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresholdSensitivity
 
 def getContourCoordsFromDatafile(imgPath, coordinatesListFilePath, FITGAPS_POLYOMIAL = False):
     with open(coordinatesListFilePath, 'rb') as new_filename:
@@ -1231,34 +1231,34 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(xarr, yarr, sensitivityR2, k
     stepj = round(minimalnNrOfDatapointsi/10)
     startLinRegimeIndex = 0
     # TODO TEMP for getting some quick datanalysis can be removed
-    if k in [1690, 6338, 4225]:       #which vector to plot for    # k == round(len(xarr) / 2)
-        ###plot linear fits for variable i ranges
-        for i in [12, 30, 50, 70, 100]:     #which starting index to plot for
-            fig, ax = plt.subplots()
-            ax.plot(yarr, '.', label='data')
-            j = -4
-            coef1, residuals, _, _, _ = np.polyfit(xarr[i:j], yarr[i:j], 1, full=True)
-            r2 = r2_score(yarr[i:i + 30], np.poly1d(coef1)(xarr[i:i + 30]))
-            ax.plot(np.arange(i, len(xarr) + j, 1), np.poly1d(coef1)(xarr[i:j]), '.', markersize = 3,
-                    label=f"r2 first 30 points: {r2:.3f}")
-            ax.set_title(f'k={k}. Fit range index = {i} - {len(xarr) + j}')
-            ax.set(xlabel='index (-)', ylabel='Some height (um?)')
-            ax.legend(loc='best')
-            #fig.savefig(f"C:\\Downloads\\linfit - vec{k} i {i}.png", dpi=900)
-            plt.close(fig)
-
-        ###plot r2's
-        fig, ax = plt.subplots()
-        r2 = [];
-        j = -4
-        i_range = np.arange(10, 100, 1)
-        for i in i_range:
-            coef1, residuals, _, _, _ = np.polyfit(xarr[i:j], yarr[i:j], 1, full=True)
-            r2.append(r2_score(yarr[i:i + 30], np.poly1d(coef1)(xarr[i:i + 30])))
-        ax.plot(i_range, r2)
-        ax.set(title= 'R^2 plot: vary starting index of linear fit-end of dataset', xlabel = 'starting index i of linear fit', ylabel = 'Calculated R^2 value')
-        #fig.savefig(f"C:\\Downloads\\r2 plot - vec{k}.png", dpi = 600)
-        plt.close(fig)
+    # if k in [1690, 6338, 4225]:       #which vector to plot for    # k == round(len(xarr) / 2)
+    #     ###plot linear fits for variable i ranges
+    #     for i in [12, 30, 50, 70, 100]:     #which starting index to plot for
+    #         fig, ax = plt.subplots()
+    #         ax.plot(yarr, '.', label='data')
+    #         j = -4
+    #         coef1, residuals, _, _, _ = np.polyfit(xarr[i:j], yarr[i:j], 1, full=True)
+    #         r2 = r2_score(yarr[i:i + 30], np.poly1d(coef1)(xarr[i:i + 30]))
+    #         ax.plot(np.arange(i, len(xarr) + j, 1), np.poly1d(coef1)(xarr[i:j]), '.', markersize = 3,
+    #                 label=f"r2 first 30 points: {r2:.3f}")
+    #         ax.set_title(f'k={k}. Fit range index = {i} - {len(xarr) + j}')
+    #         ax.set(xlabel='index (-)', ylabel='Some height (um?)')
+    #         ax.legend(loc='best')
+    #         #fig.savefig(f"C:\\Downloads\\linfit - vec{k} i {i}.png", dpi=900)
+    #         plt.close(fig)
+    #
+    #     ###plot r2's
+    #     fig, ax = plt.subplots()
+    #     r2 = [];
+    #     j = -4
+    #     i_range = np.arange(10, 100, 1)
+    #     for i in i_range:
+    #         coef1, residuals, _, _, _ = np.polyfit(xarr[i:j], yarr[i:j], 1, full=True)
+    #         r2.append(r2_score(yarr[i:i + 30], np.poly1d(coef1)(xarr[i:i + 30])))
+    #     ax.plot(i_range, r2)
+    #     ax.set(title= 'R^2 plot: vary starting index of linear fit-end of dataset', xlabel = 'starting index i of linear fit', ylabel = 'Calculated R^2 value')
+    #     #fig.savefig(f"C:\\Downloads\\r2 plot - vec{k}.png", dpi = 600)
+    #     plt.close(fig)
 
     sensitivityR2 = 0.997
     for j in range(-4, rangeEndk, -stepj): # omit last 5 datapoints (since these are generally not great due to wrapped function). Make steps of 10 lengths
@@ -1560,10 +1560,37 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
 
     #Check if line exceeds image boundaries: if so, set bool to false. Else, obtain intensity profile from coordinates
     sy, sx = greyresizedimg.shape
+    xlist = [coord[0] for coord in coords]
+    ylist = [coord[1] for coord in coords]
+    HARDPASS = False        #bool for completely skipping vectors that are outside image range
     if coords[0][0] < 0 or coords[0][1] < 0 or coords[-1][0] >= sx or coords[-1][1] >= sy:          #x1<0, y1<0, xn>=sx, yn>=sy
+        n_endx = len(xlist)-1
+        n_endy = len(ylist)-1
+        for n, coordx in enumerate(xlist):  #iterate over x coords in list to find at which index it passes outside of image range
+            if coordx < 0 or coordx >= sx:
+                n_endx = n
+                break               #break there, and save the index
+        for n, coordy in enumerate(ylist):  #iterate over y coords in list to find at which index it passes outside of image range
+            if coordy < 0 or coordy >= sy:
+                n_endy = n
+                break               #break there, and save the index
+        if n_endx > n_endy:
+            xlist = xlist[:n_endy]
+            ylist = ylist[:n_endy]
+        else:
+            xlist = xlist[:n_endx]
+            ylist = ylist[:n_endx]
+
+        coords = list(zip(xlist, ylist))
+        lineLengthPixels = ((xlist[0]-xlist[-1])**2 + (ylist[0]-ylist[-1])**2)**0.5
+        profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
+        fitInside = True
+        logging.warning(f"Trying to extract intensity data from outside the given image. New line lenght = {lineLengthPixels}.")
+        #lineLengthPixels = 0
+    elif HARDPASS:
+        lineLengthPixels = 0
         fitInside = False
         logging.warning(f"Trying to extract intensity data from outside the given image. Skipping this vector.")
-        lineLengthPixels = 0
     else:
         profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
 
@@ -1602,19 +1629,57 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
 
     # calculate the wrapped space
     wrapped = np.arctan2(profile_filtered.imag, profile_filtered.real)
-    peaks, _ = scipy.signal.find_peaks(wrapped, height=0.4)  # obtain indeces om maxima
+    #obtain indeces to show maxima in plot: since wrapped reaches from approx.[pi, -pi], minimal peak height = 2; minimal peak prominence (w/ respect to basline = 1); min. distance between peaks = 3 datapoints
+    #MIND YOU, THIS IS NOT USED IN THE UNWRAPPING, ONLY FOR VISUALISATION PLOTTING PURPOSES
+    peaks_initialGuess, _ = scipy.signal.find_peaks(wrapped, height=2, prominence = 1)
+    minDistance = round(len(wrapped) / (len(peaks_initialGuess)*5))        #Adaptive peak distance. nr of datapoints / (amount of peaks*3) to be safe
+    peaks, _ = scipy.signal.find_peaks(wrapped, height=2, prominence=1, distance=minDistance)
 
     unwrapped = np.unwrap(wrapped)
     if FLIPDATA:
         unwrapped = -unwrapped + max(unwrapped)
     # TODO conversionZ generally in nm, so /1000 -> in um
+
+    #CHECK IF CALCULATED UNWRAPPED 'HEIGHT' IS APPROX. EQUAL TO HEIGHT STRAIGHT FROM FOUND MAXIMA (to ensure unwrapping did not do something totally crazy)
+
+    h_unwrapped = unwrapped[-1] * conversionZ       #nm
+    # conversionZ * 2pi since conversionZ is divided by 1 phase = 2pi. So for 1 phase it's: wavelength / (2*refr_index) = height/phase
+    # So (nr of peaks-1) * h/phase = height from peaks alone, which is a lower bound height     (1 phase = 2 peaks = e.g. 181nm, 2 phase = 3 peaks = 360nm, 4 peaks = 540nm etc..)
+    h_peaks_lower = (len(peaks)-1) * (conversionZ * 2 * np.pi)
+    h_peaks_upper = (len(peaks)+1) * (conversionZ * 2 * np.pi)  #upper bound, peaks+2 (since in principle on both sides it oculd be close to a maximum
+    if h_unwrapped < h_peaks_lower or  h_unwrapped > h_peaks_upper:
+        logging.critical(f"WATCH OUT: calculated height from unwrapping ({h_unwrapped:.2f}) is very different from calculated height straight from nr. of maximas (lower bound={h_peaks_lower:.2f}, upper bound = {h_peaks_upper:.2f})"
+                         f"used minDistance = {minDistance:.2f}")
+        fig1, ax1 = plt.subplots(2, 2)
+        ax1[0, 0].plot(profile);
+        ax1[0, 0].plot(peaks, np.array(profile)[peaks], '.')
+        ax1[1, 0].plot(wrapped);
+        ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+        ax1[0, 0].set_title(f"Intensity profile with, meaning LOWPASS = {lowpass}");
+        ax1[1, 0].set_title("Wrapped profile")
+        # ax1[0, 1].plot(x, unwrapped * 1000);  # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+        # ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
+        # ax1[0, 1].legend(loc='best')
+        ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+        ax1[0, 0].set_ylabel("Intensity (a.u.)")
+        ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+        ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+        # ax1[0, 1].set_xlabel("Distance (um)");
+        # ax1[0, 1].set_ylabel("Height profile (nm)")
+        fig1.set_size_inches(12.8, 9.6)
+        fig1.tight_layout()
+        plt.show()
+        exit()
+
     unwrapped *= conversionZ / 1000  # if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
+
     # x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
     # TODO conversionXY generally in mm, so *1000 -> unit in um.
     x = np.linspace(0, lineLengthPixels, len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
 
     # fig1, ax1 = plt.subplots(2, 2)
     # ax1[0, 0].plot(profile);
+    # ax1[0, 0].plot(peaks, np.array(profile)[peaks], '.')
     # ax1[1, 0].plot(wrapped);
     # ax1[1, 0].plot(peaks, wrapped[peaks], '.')
     # ax1[0, 0].set_title(f"Intensity profile with TEMP = {temp}, meaning LOWPASS = {lowpass}");
@@ -2082,7 +2147,7 @@ def determineMiddleCoord(xArrFinal, yArrFinal):
 
 
 
-def matchingCAIntensityPeak(x_units, y_intensity, minIndex_maxima, minIndex_minima):
+def matchingCAIntensityPeak(x_units, y_intensity, minIndex_maxima, minIndex_minima, I_peaks, I_minima):
     """
     Return the index of the 4th maximum peak from the dry brush -> droplet side.
     The function finds the maxima automatically, removes 'fake' detected peaks, and then returns the 4th peak index.
@@ -2091,7 +2156,7 @@ def matchingCAIntensityPeak(x_units, y_intensity, minIndex_maxima, minIndex_mini
     :param h_profile:
     :return:
     """
-    peaks, minima = FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima)
+    peaks, minima, _ ,_ = FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, Ipeaks = I_peaks, Iminima = I_minima,  nomsgbox=True)
     return peaks[3]
 
 def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1, **kwargs):
@@ -2107,12 +2172,17 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
 
     I_peaks_standard = 130   #intensity above which peaks must be found.
     I_minima_standard = 130  #intensity below which minima must be found
+    I_peaks = I_peaks_standard  # intensity above which peaks must be found.
+    I_minima = I_minima_standard  # intensity below which minima must be found
+    validAnswer = False
 
     for keyword, value in kwargs.items():
         if keyword == "Ipeaks":
-            I_peaks_standard = value
+            I_peaks = value
         elif keyword == "Iminima":
-            I_minima_standard = value
+            I_minima = value
+        elif keyword == 'nomsgbox':
+            validAnswer = value
         else:
             logging.error(f"Incorrect keyword inputted: {keyword} is not known")
 
@@ -2122,12 +2192,12 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
     #input values for I_peaks & I_minima
     figtemp, axtemp = plt.subplots()
     axtemp.plot(y_intensity, 'k')
-    axtemp.axhspan(min(y_intensity)-5, 130, facecolor='orange', alpha=0.3)     #color below certain intensity orange
-    axtemp.axhspan(130, max(y_intensity)+5, facecolor='blue', alpha=0.3)  # color below certain intensity orange
+    axtemp.axhspan(min(y_intensity)-5, I_minima, facecolor='orange', alpha=0.3)     #color below certain intensity orange
+    axtemp.axhspan(I_peaks, max(y_intensity)+5, facecolor='blue', alpha=0.3)  # color below certain intensity orange
 
     axtemp.set(title='FindMinimaAndMaxima: to check ', xlabel='Index (-)', ylabel='Intensity (-)')
     figtemp.show();
-    validAnswer = False
+
     msg = f"Input intensity integer values |above, below| which the maxima and minima are found \n(comma seperated. If nothing is inputted, standard = 130,130 ):"
     while not validAnswer:
         title = "Find maxima and minima above and below which intensity value?"
@@ -2197,7 +2267,7 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
     # axtemp.set(title='Filtered "left peak" FindMinimaAndMaxima: intensities, min- & maxima', xlabel='Index (-)', ylabel='Intensity (-)')
     # plt.show()
 
-    return peaks, minima
+    return peaks, minima, I_peaks, I_minima
 
 def FindMinimaAndMaxima_v2(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1, lenIn = 0, lenOut = 0):
     """
@@ -2876,7 +2946,7 @@ def intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeak
 
     ax.plot(xBrushAndDroplet, yBrushAndDroplet, 'ob', label = 'raw data')
     #TODO filter until the first peak from the left
-    peaks, minima = FindMinimaAndMaxima(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima)
+    peaks, minima, I_peaks, I_minima = FindMinimaAndMaxima(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima)
     yBrushAndDroplet_smoothened = list(scipy.signal.savgol_filter(yBrushAndDroplet[0:peaks[0]], len(yBrushAndDroplet)//10, 3)) + yBrushAndDroplet[peaks[0]:] # apply a savgol filter for data smoothing
     # TODO check if I really want savgol filtering on input data: peaks of
     ax.plot(xBrushAndDroplet, yBrushAndDroplet_smoothened, 'r.', label= 'smoothened before 1st peak')
@@ -2895,7 +2965,7 @@ def intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeak
     heightNearCL_smoothened = scipy.signal.savgol_filter(heightNearCL, len(heightNearCL) // 10, 3)  # apply a savgol filter for data smoothing
 
     # For matching the 4th (or something) peak of droplet profile in combined height profiles later
-    matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet_smoothened, minIndex_maxima, minIndex_minima)
+    matchedPeakIndex = matchingCAIntensityPeak(xBrushAndDroplet, yBrushAndDroplet_smoothened, minIndex_maxima, minIndex_minima, I_peaks, I_minima)
     matchedPeakIndexArr.append(matchedPeakIndex)
     return heightNearCL_smoothened, xBrushAndDroplet, yBrushAndDroplet_smoothened, matchedPeakIndexArr
 
@@ -2963,11 +3033,11 @@ def find_k_half_filtered(Xfiltered, Yfiltered, Xunfiltered, Yunfiltered):
     if k_half_unfiltered < 0:
         logging.critical(f"NO corresponding k_half value found between OG and filtered dataset!\n"
                          f"It might have been filtered out - k_half will be set to half of the filtered dataset, thus new peaks must be selected manually")
-        k_half_unfiltered = round(len(Xunfiltered) / 2)
+        k_half_unfiltered = round(len(Xunfiltered) / 4)
     elif k_half_unfiltered > len(Xfiltered):
         logging.critical(f"k_half of OG set > len(filtered set), which would give errors later."
                          f"k_half will be set to half of the filtered dataset, thus new peaks must be selected manually")
-        k_half_unfiltered = round(len(Xunfiltered) / 2)
+        k_half_unfiltered = round(len(Xunfiltered) / 4)
     return k_half_unfiltered
 
 def reposition_k_half_point(x_listOG, y_listOG, k_half_unfiltered):
@@ -3001,17 +3071,17 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    #usedImages = list(np.arange(96, 161, everyHowManyImages))
-    usedImages = [0]       #36, 57
+    #usedImages = list(np.arange(22, 40, everyHowManyImages))
+    usedImages = [34]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
-    imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tif"))]
+    imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
-    lengthVector = 200  # 200 length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
+    lengthVector = 300  # typically:200 .length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
 
     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
@@ -3100,6 +3170,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     # output array for the calculated median contact angle as a function of time (so for every used image)
     if unitZ != "nm" or unitXY != "mm":
         raise Exception("One of either units is not correct for good conversion. Fix manually or implement in code")
+    if len(imgList) == 0:
+        raise Exception("Image list is empty: make sure correct path is set, and correct img format is put in (e.g. tif, tiff, png, etc)")
+
+    thresholdSensitivity = thresholdSensitivityStandard
     for n, img in enumerate(imgList):
         if n in usedImages:
             #initialize all json-data relevant so it will be saved later on, even if function crashes
@@ -3123,7 +3197,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         f"Either contouri or thresholddata was not imported properly, even though n was in the importedContourListData")
             else:
                 contouri = [-1]
-                thresholdSensitivity = thresholdSensitivityStandard
+                #moved "thresholdSensitivity = thresholdSensitivityStandard" To before for loop, so now used thresholdsensitivy of last image is inputted as suggestion for next analyzed image
             logging.info(f"START determining contour for image n = {n}/{len(imgList)}, or nr {list(usedImages).index(n)+1} out of {len(usedImages)}")
 
 
@@ -3131,7 +3205,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
             #Trying for automatic coordinate finding, using coordinates of a previous iteration.
             # TODO doesn't work as desired: now finds contour at location of previous one, but not the  CL one. Incorporate offset somehow, or a check for periodicity of intensitypeaks
             if MANUALPICKING == 2 and n != usedImages[0] and n - usedImages[list(usedImages).index(n) - 1] == everyHowManyImages:
-                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg = \
+                useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresholdSensitivity = \
                     getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, usablecontour=usableContour, fitgapspolynomial=FITGAPS_POLYOMIAL)
                 # For determining the middle coord by mean of surface area - must be performed on unfiltered CL to not bias
                 middleCoord = determineMiddleCoord(useablexlist, useableylist)  # determine middle coord by making use of "mean surface" area coordinate
@@ -3173,7 +3247,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # so we have to put that x&y coord back in between the closest coord-values for determining dx&dy vectors, and
                     # then later to index=k_half_unfiltered to import the proper peak&minima's
 
-                    k_half_unfiltered = round(len(unfilteredCoordsx) / 2)       #k_half of the unfiltered dataset
+                    k_half_unfiltered = round(len(unfilteredCoordsx) / 4)       #k_half of the unfiltered dataset
 
                     #find value where OG-x&y(k_half) = filtered-x&y(k)
                     #adjusted k_half for the fact that some lines were filtered
@@ -3196,7 +3270,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     IMPORTEDCOORDS = True
                     FILTERED = False
 
-                    k_half_unfiltered = round(len(useablexlist)/2)
+                    k_half_unfiltered = round(len(useablexlist)/4)          #not at i_1/2, but i_1/4th now (=usually advancing coordinate point)
                     #TODO fix khalf
                     stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered].astype(int).tolist(), list(useableylist)[k_half_unfiltered].astype(int).tolist()]
 
@@ -3206,11 +3280,11 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 #-if not allowing, or coords not known yet:
                 else:
                     logging.info(f"MANUALLY DETERMINING contact line coordinates ")
-                    useablexlist, useableylist, usableContour, resizedimg, greyresizedimg =  getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
+                    useablexlist, useableylist, usableContour, resizedimg, greyresizedimg, thresholdSensitivity =  getContourCoordsV4(img, contourListFilePath, n, contouri, thresholdSensitivity, MANUALPICKING, fitgapspolynomial=FITGAPS_POLYOMIAL, saveCoordinates=saveCoordinates, contourCoordsFolderFilePath=coordinatesListFilePath)
                     logging.info(f"SUCCESFULLY DETERMINED contact line coordinates manually")
 
                     stats['len-x0arr-OG'] = len(useablexlist)
-                    k_half_unfiltered = round(stats['len-x0arr-OG'] / 2)
+                    k_half_unfiltered = round(stats['len-x0arr-OG'] / 4)
                     stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered].astype(int).tolist(), list(useableylist)[k_half_unfiltered].astype(int).tolist()]
 
                     IMPORTEDCOORDS = False
@@ -3778,6 +3852,7 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
 
     #### Intensity profile
     ax1[0, 0].plot(profileOutwards + profile, 'k');
+    ax1[0, 0].plot(np.array(peaks) + len(profileOutwards), np.array(profile)[peaks], '.')
     if xOutwards[-1] != 0:
         ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'g.',label='Chosen contour, manual CL')
         ax1[0, 0].plot(startIndex+len(profileOutwards), profile[startIndex], 'r.', label='Start linear regime droplet')
@@ -3889,6 +3964,7 @@ def main():
     path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
+    path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
 
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
     #path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
@@ -3906,7 +3982,7 @@ def main():
     #path = "M:\\Enqing\\Halo_Zeiss20X"
 
     #For Yi Li
-    path = "M:\\YiLi\\"
+    #path = "M:\\YiLi\\"
 
     #Zeiss = 520nm, Nikon=533nm
     primaryObtainCARoutine(path, wavelength_laser=520)
@@ -3914,5 +3990,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except:
+        logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(levelname)s - %(message)s')  # configuration for printing logging messages. Can be removed safely
+
     exit()
