@@ -17,7 +17,11 @@ def path_in_use():
     :return:
     """
     path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
-    return path
+    filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]
+
+    path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
+    filter_images = []
+    return path, filter_images
 
 
 def tryint(s):
@@ -243,13 +247,12 @@ def analyzeVelocityProfile_adv_rec(JSON_folder, path_images, filter_images, anal
     return time_used, velocity_left, velocity_right, imgnr_used
 
 def main():
-    path_images = path_in_use()
+    path_images, filter_images = path_in_use()
     analysisFolder = os.path.join(path_images, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
     JSON_folder = os.path.join(analysisFolder, "Analyzed Data")
 
 
     try:
-        filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]
         analyzeForcevsTime(JSON_folder, path_images, filter_images, analysisFolder)
     except:
         print(traceback.format_exc())
@@ -257,7 +260,6 @@ def main():
     plt.show()
 
     try:
-        filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]
         _,_, time_used, velocity, velocity, imgnr_used = analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images, filter_images, analysisFolder)
         time_used, velocity_left, velocity_right, imgnr_used = analyzeVelocityProfile_adv_rec(JSON_folder, path_images, filter_images, analysisFolder, ylim=[0, 200])#, fig=fig1, ax=ax1)
 

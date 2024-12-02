@@ -1596,7 +1596,7 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
 
     return profile, lineLengthPixels, fitInside, coords
 
-def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversionZ, FLIPDATA):
+def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversionZ, FLIPDATA, nrOfLinesDifferenceInMaxMin_unwrappingHeight):
     """
     Convert an intensity profile to a relative height profile by using monochromatic interferometry.
     Best applied when many interference fringes are visible. Not suitable for e.g. less than 5 fringes.
@@ -1617,10 +1617,15 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     :return wrapped: wrapped profile
     :return peaks: indices of calculated maxima
     """
+
+    # with open(os.path.join(os.getcwd(), "tempIntensityProfileForWrappedFixing.pickle"), 'wb') as internal_filename:
+    #     print(internal_filename)
+    #     pickle.dump([profile, lineLengthPixels, conversionXY, conversionZ, FLIPDATA], internal_filename)      #TODO TEMP
+
     # transform to fourier space
     profile_fft = np.fft.fft(profile)
     mask = np.ones_like(profile).astype(float)
-    lowpass = round(len(profile) / 2);
+    lowpass = round(len(profile) / 4);
     highpass = 2  # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
     mask[0:lowpass] = 0;
     mask[-highpass:] = 0
@@ -1650,26 +1655,28 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     if h_unwrapped < h_peaks_lower or  h_unwrapped > h_peaks_upper:
         logging.critical(f"WATCH OUT: calculated height from unwrapping ({h_unwrapped:.2f}) is very different from calculated height straight from nr. of maximas (lower bound={h_peaks_lower:.2f}, upper bound = {h_peaks_upper:.2f})"
                          f"used minDistance = {minDistance:.2f}")
-        fig1, ax1 = plt.subplots(2, 2)
-        ax1[0, 0].plot(profile);
-        ax1[0, 0].plot(peaks, np.array(profile)[peaks], '.')
-        ax1[1, 0].plot(wrapped);
-        ax1[1, 0].plot(peaks, wrapped[peaks], '.')
-        ax1[0, 0].set_title(f"Intensity profile with, meaning LOWPASS = {lowpass}");
-        ax1[1, 0].set_title("Wrapped profile")
-        # ax1[0, 1].plot(x, unwrapped * 1000);  # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
-        # ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
-        # ax1[0, 1].legend(loc='best')
-        ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
-        ax1[0, 0].set_ylabel("Intensity (a.u.)")
-        ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
-        ax1[1, 0].set_ylabel("Amplitude (a.u.)")
-        # ax1[0, 1].set_xlabel("Distance (um)");
-        # ax1[0, 1].set_ylabel("Height profile (nm)")
-        fig1.set_size_inches(12.8, 9.6)
-        fig1.tight_layout()
-        plt.show()
-        exit()
+        nrOfLinesDifferenceInMaxMin_unwrappingHeight += 1
+
+        # fig1, ax1 = plt.subplots(2, 2)
+        # ax1[0, 0].plot(profile);
+        # ax1[0, 0].plot(peaks, np.array(profile)[peaks], '.')
+        # ax1[1, 0].plot(wrapped);
+        # ax1[1, 0].plot(peaks, wrapped[peaks], '.')
+        # ax1[0, 0].set_title(f"Intensity profile with, meaning LOWPASS = {lowpass}");
+        # ax1[1, 0].set_title("Wrapped profile")
+        # # ax1[0, 1].plot(x, unwrapped * 1000);  # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um
+        # # ax1[0, 1].set_title("Drop height vs distance (unwrapped profile)")
+        # # ax1[0, 1].legend(loc='best')
+        # ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
+        # ax1[0, 0].set_ylabel("Intensity (a.u.)")
+        # ax1[1, 0].set_xlabel("Distance (nr.of datapoints)");
+        # ax1[1, 0].set_ylabel("Amplitude (a.u.)")
+        # # ax1[0, 1].set_xlabel("Distance (um)");
+        # # ax1[0, 1].set_ylabel("Height profile (nm)")
+        # fig1.set_size_inches(12.8, 9.6)
+        # fig1.tight_layout()
+        # plt.show()
+        # exit()
 
     unwrapped *= conversionZ / 1000  # if unwapped is in um: TODO fix so this can be used for different kinds of Z-unit
 
@@ -1697,7 +1704,7 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     # fig1.set_size_inches(12.8, 9.6)
     # plt.show()
 
-    return unwrapped, x, wrapped, peaks
+    return unwrapped, x, wrapped, peaks, nrOfLinesDifferenceInMaxMin_unwrappingHeight
 
 
 def non_uniform_savgol(x, y, window, polynom, mode = 'interp'):
@@ -2170,8 +2177,8 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
     :return:
     """
 
-    I_peaks_standard = 130   #intensity above which peaks must be found.
-    I_minima_standard = 130  #intensity below which minima must be found
+    I_peaks_standard = 135   #intensity above which peaks must be found.
+    I_minima_standard = 135  #intensity below which minima must be found
     I_peaks = I_peaks_standard  # intensity above which peaks must be found.
     I_minima = I_minima_standard  # intensity below which minima must be found
     validAnswer = False
@@ -2198,7 +2205,7 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
     axtemp.set(title='FindMinimaAndMaxima: to check ', xlabel='Index (-)', ylabel='Intensity (-)')
     figtemp.show();
 
-    msg = f"Input intensity integer values |above, below| which the maxima and minima are found \n(comma seperated. If nothing is inputted, standard = 130,130 ):"
+    msg = f"Input intensity integer values |above, below| which the maxima and minima are found \n(comma seperated. If nothing is inputted, standard = {I_peaks_standard},{I_minima_standard} ):"
     while not validAnswer:
         title = "Find maxima and minima above and below which intensity value?"
         out = easygui.enterbox(msg, title)
@@ -2495,6 +2502,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     """
     DETERMINE_HEIGHT_NEAR_CL = False
 
+    # Counter for in how many lines a difference was found between the total drop height from the wrapping/unwrapping function (used in CA calculation), and height purely from maxima in the wrapped profile.
+    # Note here, that the nr of determined maxima is prone to 'errors' in the peak_finding: near the edges peaks are not well found, and e.g. dirt spots mess with the peaks.
+    # Typically, this does NOT matter too much for the total height profile from the wrapping/unwrapping function (BUT if this number is very large, BE SCEPTICAL of the obtained CA profile & check it in more detail!)
+    nrOfLinesDifferenceInMaxMin_unwrappingHeight = 0
+
     #Create folder in which pickle files will be dumped, if it doesn't exist already:
     output_pickleFolder = os.path.join(analysisFolder, f"pickle dumps")
     if not os.path.exists(output_pickleFolder):
@@ -2601,11 +2613,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 profileExtraOut.reverse()
                 profileExtraOut = profileExtraOut[:-1]  #remove the last datapoint, as it's the same as the start of the CA profile
                 # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
-                unwrapped, x, wrapped, peaks = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
-                                                                        conversionZ, FLIPDATA)
+                unwrapped, x, wrapped, peaks, nrOfLinesDifferenceInMaxMin_unwrappingHeight = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
+                                                                        conversionZ, FLIPDATA, nrOfLinesDifferenceInMaxMin_unwrappingHeight)
 
-                # shift x (bitbursh+drop) to match with the end of xOutwards (brush).
-                #If xOutwardss = 0, no shift occurs. Otherwise, x[0] and xOutwards[-1] are overlapped.
+                # (units) shift x (bitbrush+drop) to match with the end of xOutwards (brush).
+                #If xOutwards = 0, no shift occurs. Otherwise, x[0] and xOutwards[-1] are overlapped.
                 xshift = xOutwards[-1] - x[smallExtraOutwardsVector-1]
                 x += xshift          #TODO check of dit goed geimplementeerd is -> check x,y plots & overlap drop&brush
 
@@ -2645,7 +2657,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
 
                         heightNearCL_smoothened, xBrushAndDroplet, yBrushAndDroplet_smoothened, matchedPeakIndexArr = intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
-                                                                                                                                       outwardsLengthVector, path, profile,
+                                                                                                                                       lineLengthPixelsOutwards, path, profile,
                                                                                                                                        profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima,xBrushAndDroplet,yBrushAndDroplet)
 
                         x_ks.append(x0arr[k])       #x-coord of 'chosen CL' current line
@@ -2654,7 +2666,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         #x is just 'added' together from 2 profiles (x was shifted before). Since the 1st point was overlapped in that shift, we take 1:extraPartInDroplet .
                         #xBrushAndDroplet_units = np.concatenate([xOutwards, x[1:extraPartIndroplet]])           #x-distance swelling profile + bit inside drop. units= um
                         #Same as above, but more intuitively written
-                        xBrushAndDroplet_units = np.linspace(0, outwardsLengthVector + extraPartIndroplet - 1, len(heightNearCL_smoothened)) * conversionXY * 1000# x-distance swelling profile + bit inside drop. units= um
+                        xBrushAndDroplet_units = np.linspace(0, lineLengthPixelsOutwards + extraPartIndroplet - 1, len(heightNearCL_smoothened)) * conversionXY * 1000# x-distance swelling profile + bit inside drop. units= um
                         x_ax_heightsCombined.append(xBrushAndDroplet_units)
                         y_totalIntensityProfileCombined.append(yBrushAndDroplet_smoothened)                                #intensity profile. units= (-)
                         y_ax_heightsCombined.append(heightNearCL_smoothened)                                               #height profile brush & bit drop.    units= nm
@@ -2862,6 +2874,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 logging.error(f"!{k}: Analysing each coordinate & normal vector broke!")
                 print(traceback.format_exc())
 
+    logging.info(f"FINISHED analysing all {len(k_range)} lines. "
+                 f"\nNr of lines with a difference in calculated height between unwrapped function and from pure maxima/minima: {nrOfLinesDifferenceInMaxMin_unwrappingHeight}."
+                 f"\nNow plotting various contact angle & swelling profile plots.")
+
     if DETERMINE_HEIGHT_NEAR_CL:
         ax3D.set(xlabel = 'X-Coord', ylabel = 'Y-Coord', zlabel = 'Height (nm)', title = f'Spatial Height Profile Colormap n = {n}, or t = ...')   #{deltat_formatted[n]}
         # Create the color bar
@@ -3053,6 +3069,22 @@ def reposition_k_half_point(x_listOG, y_listOG, k_half_unfiltered):
 
     return useablexlist, useableylist
 
+def set_k_half_Factor(analysedData_folder):
+    """
+    Return the k_half factor to use in analysis:
+    older data used a factor of 2 (so line at half of the data was taken). Later, this was changed to 4 (so at 3'o clock).
+    To analyse old data correctly, set that factor to 2. Else, 4.
+    For the older data to work, manually a txt file was made with the name 'k_half2.txt'. If this exists, set factor to 2.
+    :param analysedData_folder:
+    :return: k_half_factor
+    """
+    if os.path.exists(os.path.join(analysedData_folder, 'k_half2.txt')):
+        k_half_factor = 2
+        logging.info(f"USING k_half_factor of 2 = OLDER DATASET! The 4-panel plot will show the data at half of the length of the dataset")
+    else:
+        k_half_factor = 4
+        logging.info(f"USING k_half_factor of 4! The 4-panel plot will show the data at a quarter of the length of the dataset")
+    return k_half_factor
 
 def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     """
@@ -3071,8 +3103,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    #usedImages = list(np.arange(22, 40, everyHowManyImages))
-    usedImages = [34]       #36, 57
+    usedImages = list(np.arange(34, 39, everyHowManyImages))
+    #usedImages = [10]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
@@ -3158,6 +3190,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     if not os.path.exists(analysedData_folder):
         os.mkdir(analysedData_folder)
         print(f"created path: {analysedData_folder}")
+
+    k_half_factor = set_k_half_Factor(analysedData_folder)  #Will be set to 4 for all next purposes, unless for older data analysis (2 was used, so to have that working correctly)
 
     angleDeg_afo_time = []  # for saving median CA's later
     totalForce_afo_time = []
@@ -3247,7 +3281,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # so we have to put that x&y coord back in between the closest coord-values for determining dx&dy vectors, and
                     # then later to index=k_half_unfiltered to import the proper peak&minima's
 
-                    k_half_unfiltered = round(len(unfilteredCoordsx) / 4)       #k_half of the unfiltered dataset
+                    k_half_unfiltered = round(len(unfilteredCoordsx) / k_half_factor)       #k_half of the unfiltered dataset
 
                     #find value where OG-x&y(k_half) = filtered-x&y(k)
                     #adjusted k_half for the fact that some lines were filtered
@@ -3270,7 +3304,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     IMPORTEDCOORDS = True
                     FILTERED = False
 
-                    k_half_unfiltered = round(len(useablexlist)/4)          #not at i_1/2, but i_1/4th now (=usually advancing coordinate point)
+                    k_half_unfiltered = round(len(useablexlist)/k_half_factor)          #not at i_1/2, but i_1/4th now (=usually advancing coordinate point)
                     #TODO fix khalf
                     stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered].astype(int).tolist(), list(useableylist)[k_half_unfiltered].astype(int).tolist()]
 
@@ -3284,7 +3318,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     logging.info(f"SUCCESFULLY DETERMINED contact line coordinates manually")
 
                     stats['len-x0arr-OG'] = len(useablexlist)
-                    k_half_unfiltered = round(stats['len-x0arr-OG'] / 4)
+                    k_half_unfiltered = round(stats['len-x0arr-OG'] / k_half_factor)
                     stats['XYcoord_k_half'] = [useablexlist[k_half_unfiltered].astype(int).tolist(), list(useableylist)[k_half_unfiltered].astype(int).tolist()]
 
                     IMPORTEDCOORDS = False
@@ -3785,7 +3819,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                              stats,
                                              total_force_quad, trapz_intForce_data, trapz_intForce_function,
                                              usedDeltaTs)
-                plt.close()
+                plt.close('all')
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
                       "------------------------------------   previous image  --------------------------------------------")
 
@@ -3802,7 +3836,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
             resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 30, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(imgshape[0], medianmiddleY))
             cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
 
-            plt.close() #close all existing figures
+            plt.close('all') #close all existing figures
 
     #once all images are analysed, plot obtained data together. Can also be done separately afterward with the "CA_analysisRoutine()" in this file
     fig2, ax2 = plt.subplots()
@@ -3846,19 +3880,21 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
                         Wrapped profile vs datapoint [1,0],
                         CA colormap x,y-coord [1,1]
     """
-    #TODO chekc of xshift 0 moet blijven
+    profile_drop_smallExtraOut = profileOutwards[-(smallExtraOutwardsVector-1):] + profile      #equivalent of the evaluated drop profile + bit outside drop profile in fourier wrapping/unwrapping function
+
+    #TODO check of xshift 0 moet blijven
     xshift = 0
     fig1, ax1 = plt.subplots(2, 2)
 
     #### Intensity profile
-    ax1[0, 0].plot(profileOutwards + profile, 'k');
-    ax1[0, 0].plot(np.array(peaks) + len(profileOutwards), np.array(profile)[peaks], '.')
+    ax1[0, 0].plot(profileOutwards + profile, 'k');     #intensity profile
+    ax1[0, 0].plot(np.array(peaks) + len(profileOutwards) - (smallExtraOutwardsVector-1), np.array(profile_drop_smallExtraOut)[peaks], 'b.')         #plot found 'peaks' or 'minima' from the wrapped profile
     if xOutwards[-1] != 0:
         ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'g.',label='Chosen contour, manual CL')
         ax1[0, 0].plot(startIndex+len(profileOutwards), profile[startIndex], 'r.', label='Start linear regime droplet')
         ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='blue', alpha=0.4, label='(Swollen) brush')
     ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='orange', alpha=0.4, label='droplet')
-    ax1[0, 0].legend(loc='best')
+    ax1[0, 0].legend(loc='upper left')
     ax1[0, 0].set_title(f"Intensity profile");
     ax1[0, 0].set_xlabel("Distance (nr.of datapoints)");
     ax1[0, 0].set_ylabel("Intensity (a.u.)")

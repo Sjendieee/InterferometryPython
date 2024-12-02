@@ -185,7 +185,7 @@ def selectMinimaAndMaxima(y : np.ndarray, idx) -> list:
     fig, ax = plt.subplots(figsize=(10, 10))
     x = np.arange(0,len(y))
     ax.scatter(x, y)
-
+    ax.set(ylim=[min(y)-5, max(y)+5])
     fig.show()
     closed = [False]
     def on_close(event):
