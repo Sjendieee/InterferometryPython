@@ -19,6 +19,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter, MultipleLocator
 import matplotlib
+import time
+from sklearn.linear_model import LinearRegression
+
 matplotlib.use('TkAgg')         #to view plots in debugger mode. Might differ per device to work 'QtAgg'  'TkAgg'
 import matplotlib.animation as animation
 from matplotlib.widgets import RectangleSelector
@@ -1199,7 +1202,7 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop(xarr, yarr, sensitivityR2, k, l
     return startLinRegimeIndex+rangeStarti, coef1, r2, GoodFit
 
 
-#TODO fix dit: try to get linear fitting to work from the inside backing up for the startindex.
+#TODO fix dit (NOT WORKING IDEALLY/EVEN PROPERLY NOW): try to get linear fitting to work from the inside backing up for the startindex.
 def linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(xarr, yarr, sensitivityR2, k, lenArrOutsideDrop):
     """
     Version 3 of 'linearFitLinearRegimeOnly()'
@@ -1216,6 +1219,10 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(xarr, yarr, sensitivityR2, k
     :return r2: calculated R^2 of fit
     """
     #
+    # with open(os.path.join(os.getcwd(), "tempForlInearFit.pickle"), 'wb') as internal_filename:
+    #     print(internal_filename)
+    #     pickle.dump([xarr, yarr, sensitivityR2, k, lenArrOutsideDrop], internal_filename)
+
     minimalnNrOfDatapointsi = round((len(yarr)-lenArrOutsideDrop) * (2 / 4))  #minim nr of datapoints over which should be fitted = half the array inside droplet
 
     residualLastTime = []  # some arbitrary high value to have the first iteration work
@@ -1284,6 +1291,140 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(xarr, yarr, sensitivityR2, k
               #f"\nTherefore the data is fitted from 2/4th of the data onwards.")
 
     return startLinRegimeIndex+rangeStarti, coef1, r2, GoodFitVector
+
+def linearFitLinearRegimeOnly_wPointsOutsideDrop_v4(x, y, sensitivityR2=0.999, lenOutside=0):
+    """
+    Version 4 of 'linearFitLinearRegimeOnly()'
+    Finds the largest regime in the dataset that can be fitted with a good linear fit.
+
+    Parameters:
+    - x (array-like): Independent variable.
+    - y (array-like): Dependent variable.
+    - threshold (float): Minimum R² value to consider the fit as "good".
+
+    Returns:
+    - best_start (int): Starting index of the best linear regime.
+    - best_end (int): Ending index of the best linear regime.
+    - best_r2 (float): R² value of the best linear fit.
+    """
+    n = len(x)
+    best_start, best_end, best_r2 = 0, 0, 0
+    bestcoef1 = [0,0]
+    GoodFitVector = False
+    omitted_finalIndices = 5
+    iteration_step_start = 5
+    iteration_step_end = 20
+    if lenOutside > 10:
+        startIndex = lenOutside - 10
+    else:
+        startIndex = 0
+    #for start in range(startIndex, n - 1 - omitted_finalIndices, iteration_step_start):  # Iterate over possible start indices
+    for start in range(startIndex, startIndex + (n-lenOutside)//5, iteration_step_start):  # Iterate over possible start indices: only some startindices near CL: bit outside untill len(inside)/5
+        for end in range(start + 30, n - omitted_finalIndices, iteration_step_end):  # Iterate over possible end indices (at least 30 points)
+            # Subset data
+            x_subset = x[start:end]#.reshape(-1, 1)
+            y_subset = y[start:end]
+
+            # Fit linear model
+            #model = LinearRegression()
+            #model.fit(x_subset, y_subset)
+            coef1, residuals, _, _, _ = np.polyfit(x_subset, y_subset, 1, full=True)
+
+            # Compute R² score
+            #y_pred = model.predict(x_subset)
+            y_pred = np.poly1d(coef1)(x_subset)
+            r2 = r2_score(y_subset, y_pred)
+
+            # Check if this regime is the best so far
+            if r2 >= sensitivityR2 and (end - start) > (best_end - best_start):
+                best_start, best_end, best_r2 = start, end, r2
+                #coef1 = model.coef_
+                bestcoef1 = coef1
+                GoodFitVector = True
+
+    return best_start, bestcoef1, best_r2, GoodFitVector, best_end
+
+
+def linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, y, sensitivityR2=0.99, lenOutside=0, k = 0):
+    """
+    Version 5 of 'linearFitLinearRegimeOnly()'
+    Finds the largest regime in the dataset that can be fitted with a good linear fit.
+
+    Parameters:
+    - x (array-like): Independent variable.
+    - y (array-like): Dependent variable.
+    - threshold (float): Minimum R² value to consider the fit as "good".
+
+    Returns:
+    - best_start (int): Starting index of the best linear regime.
+    - best_end (int): Ending index of the best linear regime.
+    - best_r2 (float): R² value of the best linear fit.
+    """
+    # if k == 760:
+    #     with open(os.path.join(os.getcwd(), "tempForlInearFit2.pickle"), 'wb') as internal_filename:
+    #         print(internal_filename)
+    #         pickle.dump([x, y, sensitivityR2, k, lenOutside], internal_filename)
+
+    n = len(x)
+    best_start, best_end, best_r2 = 0, 0, 0
+    bestcoef1 = [0, 0]
+    end_final = []
+    GoodFitVector = False
+    omitted_finalIndices = 5
+    iteration_step_start = 5
+    iteration_step_end = 20
+    if lenOutside > 10:
+        startIndex = lenOutside - 10
+    else:
+        startIndex = 0
+    # for start in range(startIndex, n - 1 - omitted_finalIndices, iteration_step_start):  # Iterate over possible start indices
+    for i, start in enumerate(range(startIndex, startIndex + (n - lenOutside) // 5,
+                                    iteration_step_start)):  # Iterate over possible start indices: only some startindices near CL: bit outside untill len(inside)/5
+        currentRangeGoodFit = False
+
+        end_start = start + 50
+        if i == 0 or not GoodFitVector:
+            end_end = n - omitted_finalIndices
+        else:
+            end_start = max([start + 50, round(np.mean(end_final)) - iteration_step_end*3])     #use the end_final value (for efficiency) if it is larger than the OG starting end_start (this way the subsets will always have some range)
+            end_end = round(np.mean(end_final)) + iteration_step_end * 3
+        if i > 3 and GoodFitVector:  # from the 4th starting index forward, check if end-index is changing a lot. If no, prob. won't change later = quit function
+            end_final_diff = sum(abs(np.array(end_final[-3:]) - np.mean(end_final[-3:])))
+
+            if end_final_diff / 3 < iteration_step_end:
+                #print('stop', i, end_final_diff)
+                break
+            else:
+                pass
+                #print(i, end_final_diff)
+        end_range = np.arange(end_start, end_end, iteration_step_end)
+        for end in end_range:  # Iterate over possible end indices (at least 30 points)
+            # Subset data
+            x_subset = x[start:end]
+            y_subset = y[start:end]
+
+            # Fit linear model
+            coef1, residuals, _, _, _ = np.polyfit(x_subset, y_subset, 1, full=True)
+
+            # Compute R² score
+            y_pred = np.poly1d(coef1)(x_subset)
+            r2 = r2_score(y_subset, y_pred)
+
+            # Check if this regime is the best so far
+            if (r2 >= sensitivityR2):
+                currentRangeGoodFit = True
+                if (end - start) > (best_end - best_start):
+                    best_start, best_end, best_r2 = start, end, r2
+                    bestcoef1 = coef1
+                    GoodFitVector = True
+            elif currentRangeGoodFit:  # if r2 score is bad, but in current startIndex range a good fit was already found, then the endIndex is messing up the fit = stop trying for higher order, which will likely just worsen the fit
+                end_final.append(end)
+                #print(f"Breaking out of loop {i, start, end, best_start, best_end}")
+                break
+            if end == end_range[-1]:
+                end_final.append(end)
+
+    return best_start, bestcoef1, best_r2, GoodFitVector, best_end
 
 def extractContourNumbersFromFile(lines):
     """
@@ -1653,8 +1794,13 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     h_peaks_lower = (len(peaks)-1) * (conversionZ * 2 * np.pi)
     h_peaks_upper = (len(peaks)+1) * (conversionZ * 2 * np.pi)  #upper bound, peaks+2 (since in principle on both sides it oculd be close to a maximum
     if h_unwrapped < h_peaks_lower or  h_unwrapped > h_peaks_upper:
-        logging.critical(f"WATCH OUT: calculated height from unwrapping ({h_unwrapped:.2f}) is very different from calculated height straight from nr. of maximas (lower bound={h_peaks_lower:.2f}, upper bound = {h_peaks_upper:.2f})"
-                         f"used minDistance = {minDistance:.2f}")
+        if nrOfLinesDifferenceInMaxMin_unwrappingHeight < 20:
+            logging.critical(f"WATCH OUT: calculated height from unwrapping ({h_unwrapped:.2f}) is very different from calculated height straight from nr. of maximas (lower bound={h_peaks_lower:.2f}, upper bound = {h_peaks_upper:.2f})"
+                             f"used minDistance = {minDistance:.2f}")
+        elif nrOfLinesDifferenceInMaxMin_unwrappingHeight == 20:
+            logging.critical(
+                f"WATCH OUT: 20th line encoutnered where alculated height from unwrapping ({h_unwrapped:.2f}) is very different from calculated height straight from nr. of maximas (lower bound={h_peaks_lower:.2f}, upper bound = {h_peaks_upper:.2f})"
+                f"\n NOT SHOWING THIS TEXT MESSAGE FOR FURTHER LINES")
         nrOfLinesDifferenceInMaxMin_unwrappingHeight += 1
 
         # fig1, ax1 = plt.subplots(2, 2)
@@ -2623,7 +2769,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                 # finds linear fit over most linear regime (read:excludes halo if contour was not picked ideally).
                 # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
-                startIndex, coef1, r2, GoodFit = linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(x, unwrapped, sensitivityR2, k, smallExtraOutwardsVector)
+                #startIndex, coef1, r2, GoodFit = linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(x, unwrapped, sensitivityR2, k, smallExtraOutwardsVector)
+                startIndex, coef1, r2, GoodFit, endIndex = linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, unwrapped, sensitivityR2, smallExtraOutwardsVector, k)
+
+
 
                 if not GoodFit: #if the linear fit is not good, skip this vector and continue w/ next
                     omittedVectorCounter += 1  # TEMP: to check how many vectors should not be taken into account because the r2 value is too low
@@ -2701,7 +2850,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         ax1, fig1 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL_smoothened,
                                                                    offsetDropHeight, peaks, profile,
                                                                    profileOutwards, r2, startIndex, unwrapped,
-                                                                   wrapped, x, xBrushAndDroplet_units, xshift, smallExtraOutwardsVector)
+                                                                   wrapped, x, xBrushAndDroplet_units, xshift, smallExtraOutwardsVector, endIndex)
                     else:       #for the profiles in plottingHeightCondition
                         # TODO WIP: swelling or height profile outside droplet
                         # TODO this part below sets the anchor at some index within the droplet regime
@@ -3103,8 +3252,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    usedImages = list(np.arange(34, 39, everyHowManyImages))
-    #usedImages = [10]       #36, 57
+    #usedImages = list(np.arange(34, 39, everyHowManyImages))
+    usedImages = [53]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
@@ -3113,7 +3262,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     imgList = [f for f in glob.glob(os.path.join(imgFolderPath, f"*tiff"))]
     analysisFolder = os.path.join(imgFolderPath, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
-    lengthVector = 300  # typically:200 .length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
+    lengthVector = 200  # typically:200 .length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
 
     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
@@ -3123,7 +3272,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
     FLIPDATA = True
     SHOWPLOTS_SHORT = 'timed'  # 'none' Don't show plots&images at all; 'timed' = show images for only 3 seconds; 'manual' = remain open untill clicked away manually
-    sensitivityR2 = 0.997    #0.997  sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
+    sensitivityR2 = 0.999    #OG: 0.997  sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
     FITGAPS_POLYOMIAL = True    #between gaps in CL coordinates, especially when manually picked multiple, fit with a 2d order polynomial to obtain coordinates in between
     saveCoordinates = True  #for saving the actual pixel coordinates for each file analyzed.
     MANUAL_FILTERING = True     #Manually remove certain coordinates from the contour e.g. at pinning sites
@@ -3370,13 +3519,16 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                     logging.info("Starting to extract information from IMPORTED COORDS.\n"
                                  f"Plotting for vector nrs: {plotHeightCondition(useablexlist)} & {k_half_unfiltered} from the total {len(useablexlist)} vectors possible")
+                    start_time = time.time()
                     ax1, fig1, omittedVectorCounter, resizedimg, xOutwards, x_ax_heightsCombined, x_ks, y_ax_heightsCombined, y_ks = coordsToIntensity_CAv2(
                         FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
                         yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered)
-                    logging.info(f"Finished coordsToIntensity_CAv2: Extracted intensity profiles, contact angles, and possibly height profiles")
+                    elapsed_time = time.time() - start_time
+                    logging.info(f"Finished coordsToIntensity_CAv2: Extracted intensity profiles, contact angles, and possibly height profiles.\n"
+                                 f"This took {elapsed_time / 60 if elapsed_time > 90 else elapsed_time:.2f} {'min' if elapsed_time > 90 else 'sec'}")
                 else:
                     #If the CL coordinates have not been imported (e.g. for new img file)
                     # One of the main functions:
@@ -3825,12 +3977,12 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
             except Exception:
                 logging.critical(f"Some error occured. Still plotting obtained contour & saving data to json file (as much as possible)")
+                print(traceback.format_exc())
                 save_measurementdata_to_json(analysedData_folder, coordLeft, coordRight, coordsBottom, coordsTop, error_quad,
                                              meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY, middleCoord, n,
                                              stats,
                                              total_force_quad, trapz_intForce_data, trapz_intForce_function,
                                              usedDeltaTs)
-                print(traceback.format_exc())
 
             tstring = str(datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
             resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 30, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(imgshape[0], medianmiddleY))
@@ -3873,14 +4025,16 @@ def save_measurementdata_to_json(analysedData, coordLeft, coordRight, coordsBott
 
 
 def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks, profile, profileOutwards,
-                                   r2, startIndex, unwrapped, wrapped, x, xOutwards, xshift, smallExtraOutwardsVector):
+                                   r2, startIndex, unwrapped, wrapped, x, xOutwards, xshift, smallExtraOutwardsVector, endIndex):
     """"
     #for 4-panel plot:  Intensity vs datapoint [0,0],
                         Height vs distance [0,1],
                         Wrapped profile vs datapoint [1,0],
                         CA colormap x,y-coord [1,1]
     """
-    profile_drop_smallExtraOut = profileOutwards[-(smallExtraOutwardsVector-1):] + profile      #equivalent of the evaluated drop profile + bit outside drop profile in fourier wrapping/unwrapping function
+    #profile = only intensity profile INSIDE DROP
+    #profileOutwards = only intensity profile OUTSIDE DROP
+    profile_drop_smallExtraOut = profileOutwards[-(smallExtraOutwardsVector-1):] + profile      #Intensity profile: equivalent of the evaluated drop profile + bit outside drop profile in fourier wrapping/unwrapping function
 
     #TODO check of xshift 0 moet blijven
     xshift = 0
@@ -3891,7 +4045,8 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
     ax1[0, 0].plot(np.array(peaks) + len(profileOutwards) - (smallExtraOutwardsVector-1), np.array(profile_drop_smallExtraOut)[peaks], 'b.')         #plot found 'peaks' or 'minima' from the wrapped profile
     if xOutwards[-1] != 0:
         ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'g.',label='Chosen contour, manual CL')
-        ax1[0, 0].plot(startIndex+len(profileOutwards), profile[startIndex], 'r.', label='Start linear regime droplet')
+        ax1[0, 0].plot(startIndex+len(profileOutwards) - (smallExtraOutwardsVector-1), profile[startIndex], 'r.', label='Start linear regime droplet')
+        ax1[0, 0].plot(endIndex + len(profileOutwards) - (smallExtraOutwardsVector-1), profile[endIndex], 'r.', label='End linear regime droplet')
         ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='blue', alpha=0.4, label='(Swollen) brush')
     ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='orange', alpha=0.4, label='droplet')
     ax1[0, 0].legend(loc='upper left')
@@ -3917,8 +4072,8 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
     ax1[0, 1].plot(x, (np.poly1d(coef1)(x-xshift) - offsetDropHeight) * 1000, '--k', linewidth=1, label=f'Linear fit, R$^2$={r2:.3f}');
 
     ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
+    ax1[0, 1].plot(x[endIndex], unwrapped[endIndex] * 1000, 'r.', label='End linear regime droplet');
     ax1[0, 1].plot(x[smallExtraOutwardsVector - 1], unwrapped[smallExtraOutwardsVector - 1] * 1000 , '.', label = 'Stitch location')    #TODO check of deze werkt naar behoren
-
 
     ax1[0, 1].legend(loc='best')
     ax1[0, 1].set_title("Brush & drop height vs distance")
@@ -3997,16 +4152,16 @@ def main():
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_Si_spacer"      #Si spacer, so doesn't move far. But for sure img 29 is pinning free
 
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    #path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
-    path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
+    #path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
 
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
     #path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
 
     #P12MA dodecane - tilted stage
-    #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
+    path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M2 tilted drop"
 
     #PODMA on heating stage:
