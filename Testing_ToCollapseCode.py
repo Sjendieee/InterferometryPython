@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter, MultipleLocator
 import matplotlib
 import time
+import tkinter as tk
+import threading
 from sklearn.linear_model import LinearRegression
 
 matplotlib.use('TkAgg')         #to view plots in debugger mode. Might differ per device to work 'QtAgg'  'TkAgg'
@@ -745,6 +747,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             usableContourCopy = np.concatenate([usableContourCopy[-windowSizePolynomialCheck:], usableContourCopy, usableContourCopy[:windowSizePolynomialCheck]])      #add values (periodic BC) for checking beginning& end of array
             usableContourCopy_instertion = usableContourCopy    #copy into which coords from polynomial fits are inserted
             ii_inserted = 0     #counter for index offset if multiple insertions have to be performed
+            fig_pfit, ax_pfit = plt.subplots()
             if FITGAPS_POLYOMIAL:
                 # concate the coords of a partial contour such that the coords are on a 'smooth partial ellips' without a gap
                 for ii in range(windowSizePolynomialCheck, len(usableContourCopy)-(windowSizePolynomialCheck)):
@@ -780,9 +783,8 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                         y_fitted = np.poly1d(localfit)(x_values_to_be_fitted).astype(int)
                         usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_values_to_be_fitted, y_fitted))), axis=0)
                         ii_inserted+=len(x_values_to_be_fitted) #offset index of insertion by length of previous arrays which were inserted
-                        plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='x-gap data')
-                        plt.plot(x_values_to_be_fitted, y_fitted, label='x-gap fit')
-                        plt.legend(loc='best')
+                        ax_pfit.plot(xrange_for_fitting, yrange_for_fitting, '.', label='x-gap data')
+                        ax_pfit.plot(x_values_to_be_fitted, y_fitted, label='x-gap fit')
                         #plt.show()
 
                     #TODO fit for gaps in y-direction
@@ -806,13 +808,14 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
                         x_fitted = np.poly1d(localfit)(y_values_to_be_fitted).astype(int)
                         usableContourCopy_instertion = np.insert(usableContourCopy_instertion, ii+ii_inserted+1, list(map(list, zip(x_fitted, y_values_to_be_fitted))), axis=0)
                         ii_inserted+=len(y_values_to_be_fitted) #offset index of insertion by length of array which was just inserted
-                        plt.plot(xrange_for_fitting, yrange_for_fitting, '.', label='y-gap data')
-                        plt.plot(x_fitted, y_values_to_be_fitted, label='y-gap fit')
-                        plt.legend(loc='best')
+                        ax_pfit.plot(xrange_for_fitting, yrange_for_fitting, '.', label='y-gap data')
+                        ax_pfit.plot(x_fitted, y_values_to_be_fitted, label='y-gap fit')
                         #plt.show()
-                plt.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', color = 'b', label='total contour')
-                plt.legend(loc='best')
-                plt.show()
+                ax_pfit.plot([elem[0] for elem in usableContour], [elem[1] for elem in usableContour], '.', color = 'b', label='total contour')
+                ax_pfit.set(xlabel = 'x-coord', ylabel = 'y-coord', title = 'Found contour with polynomial fits in gaps.')
+                ax_pfit.legend(loc='best')
+
+                showPlot('timed', [fig_pfit])
 
                 #TODO show suggested image with interpolated contour points & allow user to verify correctness
                 if ii_inserted>0:
@@ -1367,6 +1370,7 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, y, sensitivityR2=0.99, le
 
     n = len(x)
     best_start, best_end, best_r2 = 0, 0, 0
+    best_r2_anytime = 0     #   #best r2 determined of ANY range - so a 'shorter' window might have a better r2 than 'best_r2'->
     bestcoef1 = [0, 0]
     end_final = []
     GoodFitVector = False
@@ -1410,6 +1414,10 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, y, sensitivityR2=0.99, le
             y_pred = np.poly1d(coef1)(x_subset)
             r2 = r2_score(y_subset, y_pred)
 
+            # Check if this r2 in general is the best so far
+            if r2 > best_r2_anytime:
+                best_r2_anytime = r2
+
             # Check if this regime is the best so far
             if (r2 >= sensitivityR2):
                 currentRangeGoodFit = True
@@ -1423,6 +1431,10 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, y, sensitivityR2=0.99, le
                 break
             if end == end_range[-1]:
                 end_final.append(end)
+
+        #if no goodfit, give best r2 of any vector: this way on the next iteratioin, we'll use that as sensitivity to get a working linear fit
+        if not GoodFitVector:
+            best_r2 = best_r2_anytime
 
     return best_start, bestcoef1, best_r2, GoodFitVector, best_end
 
@@ -1725,8 +1737,7 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
         coords = list(zip(xlist, ylist))
         lineLengthPixels = ((xlist[0]-xlist[-1])**2 + (ylist[0]-ylist[-1])**2)**0.5
         profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
-        fitInside = True
-        logging.warning(f"Trying to extract intensity data from outside the given image. New line lenght = {lineLengthPixels}.")
+        fitInside = False
         #lineLengthPixels = 0
     elif HARDPASS:
         lineLengthPixels = 0
@@ -2614,7 +2625,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                          deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
                          lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
                          resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS,
-                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered, makeVideoOfData = False):
+                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered, makeVideoOfData = False):
     """
 
     :param FLIPDATA:
@@ -2652,6 +2663,9 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     # Note here, that the nr of determined maxima is prone to 'errors' in the peak_finding: near the edges peaks are not well found, and e.g. dirt spots mess with the peaks.
     # Typically, this does NOT matter too much for the total height profile from the wrapping/unwrapping function (BUT if this number is very large, BE SCEPTICAL of the obtained CA profile & check it in more detail!)
     nrOfLinesDifferenceInMaxMin_unwrappingHeight = 0
+
+    nrOfLinesOutsideImgFrame = 0            #counter for
+    nrOfLinesbadR2 = 0
 
     #Create folder in which pickle files will be dumped, if it doesn't exist already:
     output_pickleFolder = os.path.join(analysisFolder, f"pickle dumps")
@@ -2709,6 +2723,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         #k_range = np.concatenate((middle, np.array([0,1,2])))       #TODO Temp, to have the code run faster
         logging.info(f"STARTING with k={k_range[0]}")
         for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
+            minIndex_maxima = minIndex_maxima_standard  # set lowerbound index of where from where-onwards to find maxima in intensity profile
+            minIndex_minima = minIndex_minima_standard  # set lowerbound index of where from where-onwards to find minima in intensity profile
             try:
                 xOutwards = [0]     #x length pointing outwards of droplet, for possible swelling analysis
                 profileOutwards = []
@@ -2718,6 +2734,19 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                                                                         dynegarr[k], outwardsLengthVector,
                                                                                         greyresizedimg)
 
+                    if not fitInside:
+                        nrOfLinesOutsideImgFrame += 1
+
+                        #adjust lowerbound indices of finding minima/maxima if the outwards line was shortened:
+                        minIndex_maxima = minIndex_maxima_standard - (outwardsLengthVector-len(profileOutwards))  # set lowerbound index of where from where-onwards to find maxima in intensity profile
+                        minIndex_minima = minIndex_minima_standard - (outwardsLengthVector-len(profileOutwards))  # set lowerbound index of where from where-onwards to find minima in intensity profile
+                        fitInside = True
+                        if nrOfLinesOutsideImgFrame < 21:
+                            logging.warning(f"Trying to extract intensity data from outside the given image. New line lenght = {lineLengthPixelsOutwards}.")
+                            if nrOfLinesOutsideImgFrame == 20:
+                                logging.warning(f"20th line encountered where line did not fit inside image frame. Not printing that information anymore\n"
+                                                f"SEE CONTOUR GREYSCALED IMAGE to check if this is as desired/expected."
+                                                f"\n Eventual Brush Swelling profiles may be weird-looking because of shorter lines (to fit in image frame)")
 
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
                     # If not keep list empty and act as if we don't want the outside vector
@@ -2772,14 +2801,34 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 #startIndex, coef1, r2, GoodFit = linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(x, unwrapped, sensitivityR2, k, smallExtraOutwardsVector)
                 startIndex, coef1, r2, GoodFit, endIndex = linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, unwrapped, sensitivityR2, smallExtraOutwardsVector, k)
 
+                if not GoodFit: #if not fitted well for highest sensitivity, try again with a slightly lower one:
+                    nrOfLinesbadR2 += 1
+                    if nrOfLinesbadR2 < 21:
+                        logging.warning(f"{k} Fit inside drop was not good - trying with a lower r2 sensitivity: {r2 - r2 / 100:4f}")
+                        if nrOfLinesbadR2 == 20:
+                            logging.warning(f"20th line encountered where line did not fit with desired r2 sensitivity. Not printing that information anymore\n"
+                                            f"CHECK IN e.g. TERMINAL HOW MANY LINES ARE OMITTED BECAUSE OF THIS!! & IF CA PROFILE LOOKS LOGICAL/GOOD"
+                                            f"\n If need be, lower 'sensitivityR2' to have worse linear fits, but more")
+                    startIndex, coef1, r2, GoodFit, endIndex = linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, unwrapped, r2-r2/100, smallExtraOutwardsVector, k)
 
 
-                if not GoodFit: #if the linear fit is not good, skip this vector and continue w/ next
+                if not GoodFit or (r2<sensitivityR2 and k != k_half_unfiltered): #if the linear fit is not good, skip this vector and continue w/ next
                     omittedVectorCounter += 1  # TEMP: to check how many vectors should not be taken into account because the r2 value is too low
-                    logging.warning(f"Fit inside drop was not good - skipping vector {k}")
+                    if omittedVectorCounter > 20:
+                        pass
+                    elif omittedVectorCounter == 20:
+                        logging.warning(f"Fit inside drop was not good: Goodfit={GoodFit} and found R2={r2:4f} - skipping vector {k}")
+                    else:
+                        logging.warning(f"Fit inside drop was not good: Goodfit={GoodFit} and found R2={r2:4f} - skipping vector {k}\n"
+                                        f"This is the 20th line this occurred, so for further lines this message will not be printed anymore.\n"
+                                        f"CHECK IN TERMINAL HOW MANY LINES WERE SKIPPED BECAUSE OF A 'BAD' R2 VALUE")
+
                     if k == k_half_unfiltered:
-                        logging.critical("skipping the vector that would be plotted. This will break the programn for sure.")
+                        logging.critical("skipping the vector that would be plotted (4-panel). This will break the programn for sure.")
+                        exit()
                     continue
+
+
                 else:
                     a_horizontal = 0
                     angleRad = math.atan((coef1[0] - a_horizontal) / (1 + coef1[0] * a_horizontal))
@@ -3104,7 +3153,7 @@ def intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeak
     :returns: an array of height: swollen brush & bit of droplet
     :return heightNearCL: array of (smoothened) height data, corresponding to xBrushAndDroplet
     :return xBrushAndDroplet: array of distance of [Outside drop + extraPartIndroplet] (nr of datapoints (NOT pixels!))
-    :return yBrushAndDroplet: array of intensity values correcponding to ^
+    :return yBrushAndDroplet: array of intensity values corresponding to ^
     """
     fig, ax = plt.subplots()
 
@@ -3161,6 +3210,7 @@ def showPlot(display_mode: str, figures: list):
             figs_interest.append(fig)
 
     if display_mode == 'timed':
+        show_popup("DO NOT CLICK PLOTS AWAY VIA THE '(X)'.\n clicking on plots themselves is fine - this closes the figure faster", duration=3)
         for fig in figs_interest:
             fig.show()
             fig.waitforbuttonpress(3)   #shows figure for 3 seconds by stopping loop (or click on figure)
@@ -3174,6 +3224,38 @@ def showPlot(display_mode: str, figures: list):
         raise ValueError("Invalid display_mode. Use 'none', 'timed', or 'manual'.")
     return
 
+def show_popup(message, duration=3):
+    """Displays a popup message for a given duration without blocking code execution."""
+
+    def popup():
+        # Create a tkinter root window
+        popup_root = tk.Tk()
+        popup_root.title("Message")
+
+        # Add a label with the message
+        label = tk.Label(popup_root, text=message, font=("Arial", 12), padx=10, pady=10)
+        label.pack()
+
+        # Wait for the widget to be drawn to calculate the size
+        popup_root.update_idletasks()
+
+        # Get the dimensions of the label and adjust the window size
+        window_width = label.winfo_reqwidth() + 20  # Add some padding
+        window_height = label.winfo_reqheight() + 20
+        screen_width = popup_root.winfo_screenwidth()
+        screen_height = popup_root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        popup_root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+        # Close the popup after the specified duration
+        popup_root.after(duration * 1000, popup_root.destroy)
+
+        # Run the tkinter event loop
+        popup_root.mainloop()
+
+    # Run the popup in a separate thread
+    threading.Thread(target=popup).start()
 
 def find_k_half_filtered(Xfiltered, Yfiltered, Xunfiltered, Yunfiltered):
     """
@@ -3252,8 +3334,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    #usedImages = list(np.arange(34, 39, everyHowManyImages))
-    usedImages = [53]       #36, 57
+    usedImages = list(np.arange(107, 117, everyHowManyImages))
+    #usedImages = [53]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
@@ -3268,8 +3350,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
     smallExtraOutwardsVector = 50    #small vector e.g. '25', pointing outwards from CL (for wrapped calculation). Goal: overlap some height fitting from CA analysis inside w/ swelling profile outside. #TODO working code, but profile  outside CL has lower frequency than fringes inside, and this seems to mess with the phase wrapping & unwrapping. So end of height profile is flat-ish..
 
-    minIndex_maxima =  400; minIndex_minima = 0; #index below which no minima are to be found (for filtering of extrema when investigating swelling profiles or fringe locations outside drop). Default = 0.
-
+    minIndex_maxima_standard =  400; minIndex_minima_standard = 0; #index below which no minima are to be found (for filtering of extrema when investigating swelling profiles or fringe locations outside drop). Default = 0.
     FLIPDATA = True
     SHOWPLOTS_SHORT = 'timed'  # 'none' Don't show plots&images at all; 'timed' = show images for only 3 seconds; 'manual' = remain open untill clicked away manually
     sensitivityR2 = 0.999    #OG: 0.997  sensitivity for the R^2 linear fit for calculating the CA. Generally, it is very good fitting (R^2>0.99)
@@ -3525,10 +3606,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered)
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered)
                     elapsed_time = time.time() - start_time
                     logging.info(f"Finished coordsToIntensity_CAv2: Extracted intensity profiles, contact angles, and possibly height profiles.\n"
                                  f"This took {elapsed_time / 60 if elapsed_time > 90 else elapsed_time:.2f} {'min' if elapsed_time > 90 else 'sec'}")
+                    print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
+                    logging.warning(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
+
                 else:
                     #If the CL coordinates have not been imported (e.g. for new img file)
                     # One of the main functions:
@@ -3575,7 +3659,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr,
                         xArrFinal, y0arr,
                         yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet,
-                        smallExtraOutwardsVector, minIndex_maxima, minIndex_minima, middleCoord, k_half_unfiltered)
+                        smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered)
 
                     print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
                     logging.warning(f"Out of {len(x0arr)}, {omittedVectorCounter} number of vectors were omitted because the R^2 was too low.")
@@ -3596,6 +3680,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 resizedimg = cv2.circle(resizedimg, (coordsTop), 30, (0, 255, 0), -1)       #green
                 resizedimg = cv2.circle(resizedimg, (coordLeft), 30, (255, 0, 255), -1)    #purple
                 resizedimg = cv2.circle(resizedimg, (coordRight), 30, (0, 255, 255), -1)       #yellow
+                tempimg = cv2.resize(resizedimg, [round(resizedimg.shape[1] / 5), round(resizedimg.shape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
 
                 # determine middle of droplet & plot
                 middleX, middleY, meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
@@ -3657,6 +3742,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                     # fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
                 else:  #else, allow to manually filter the CA scatterplot & save filtered coords afterwards
                     while not DONEFILTERTIING:
+                        #Show greyscaled droplet image for reference where e.g. pinning sites are
+                        cv2.imshow(f"Contour of img with coordinates being used by get_normals(..)", tempimg)
+
                         #deselect regions manually, where e.g. a pinning point is.
                         #Filter data in interactive scatter plot
                         fig3, ax3 = plt.subplots(figsize= (15, 9.6))
@@ -3724,6 +3812,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                 temp_vectorsFinal = np.array(temp_vectorsFinal)[inverted_selected_regions]
                                 vectorsFinal = temp_vectorsFinal
                                 DONEFILTERTIING = True
+                                cv2.destroyAllWindows()  # close droplet image window
+
                             elif myvar == choices[1]:
                                 temp_xArrFinal = xrange1
                                 temp_yArrFinal = yrange1
@@ -4045,8 +4135,8 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
     ax1[0, 0].plot(np.array(peaks) + len(profileOutwards) - (smallExtraOutwardsVector-1), np.array(profile_drop_smallExtraOut)[peaks], 'b.')         #plot found 'peaks' or 'minima' from the wrapped profile
     if xOutwards[-1] != 0:
         ax1[0, 0].plot(len(profileOutwards), profileOutwards[-1], 'g.',label='Chosen contour, manual CL')
-        ax1[0, 0].plot(startIndex+len(profileOutwards) - (smallExtraOutwardsVector-1), profile[startIndex], 'r.', label='Start linear regime droplet')
-        ax1[0, 0].plot(endIndex + len(profileOutwards) - (smallExtraOutwardsVector-1), profile[endIndex], 'r.', label='End linear regime droplet')
+        ax1[0, 0].plot(startIndex+len(profileOutwards) - (smallExtraOutwardsVector-1), profile_drop_smallExtraOut[startIndex], 'r.', label='Start linear regime droplet')
+        ax1[0, 0].plot(endIndex + len(profileOutwards) - (smallExtraOutwardsVector-1), profile_drop_smallExtraOut[endIndex], 'r.', label='End linear regime droplet')
         ax1[0, 0].axvspan(0, len(profileOutwards), facecolor='blue', alpha=0.4, label='(Swollen) brush')
     ax1[0, 0].axvspan(len(profileOutwards), len(profileOutwards + profile), facecolor='orange', alpha=0.4, label='droplet')
     ax1[0, 0].legend(loc='upper left')
