@@ -594,7 +594,7 @@ def getContourCoordsV4(imgPath, contourListFilePath, n, contouri, thresholdSensi
             copyImg = resizedimg.copy()
             tempimg = cv2.resize(copyImg, [round(imgshape[1] / 5), round(imgshape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
             #TODO iterate over a bunch of thresholds, and suggest a few working ones
-            cv2.imshow(f"Contour img with current selection of contour {i + 1} out of {nrOfContoursToShow}", tempimg)
+            cv2.imshow(f"Contour img with current selection of contour {i + 1} out of {nrOfContoursToShow}\n with thresholdContours = {thresholdSensitivity}", tempimg)
 
             choices = ["One contour outwards (-i)",
                        "Current contour is fine",
@@ -1777,7 +1777,7 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
     # transform to fourier space
     profile_fft = np.fft.fft(profile)
     mask = np.ones_like(profile).astype(float)
-    lowpass = round(len(profile) / 4);
+    lowpass = round(len(profile) / 3);
     highpass = 2  # NOTE: lowpass seems most important for a good sawtooth profile. Filtering half of the data off seems fine
     mask[0:lowpass] = 0;
     mask[-highpass:] = 0
@@ -2325,8 +2325,9 @@ def matchingCAIntensityPeak(x_units, y_intensity, minIndex_maxima, minIndex_mini
 
 def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1, **kwargs):
     """
-    Return the indices of all maxima and minima of 'y_intensity'.
+    Automatically find & return the indices of all maxima and minima of 'y_intensity'.
     The function finds the extrema automatically, removes 'fake' detected peaks, and then returns the indices.
+
     :param x_units:
     :param y_intensity: array (or list) with intensity values
     :param minIndex_minima: index below which NO minima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MINIMA below a certain index
@@ -2342,10 +2343,10 @@ def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, 
 
     for keyword, value in kwargs.items():
         if keyword == "Ipeaks":
-            I_peaks = value
+            I_peaks = value             # intensity above which peaks must be found.
         elif keyword == "Iminima":
-            I_minima = value
-        elif keyword == 'nomsgbox':
+            I_minima = value            # intensity below which minima must be found
+        elif keyword == 'nomsgbox':     #If you don't want a message box (=standards I_max I_min values), insert True here.
             validAnswer = value
         else:
             logging.error(f"Incorrect keyword inputted: {keyword} is not known")
@@ -2443,7 +2444,7 @@ def FindMinimaAndMaxima_v2(x_units, y_intensity, minIndex_maxima, minIndex_minim
 
     The function finds the extrema automatically, removes 'fake' detected peaks, and then returns the indices.
     :param x_units:
-    :param y_intensity: array (or lsit) with intensity values
+    :param y_intensity: array (or list) with intensity values
     :param minIndex_minima: index below which NO minima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MINIMA below a certain index
     :param minIndex_maxima: index below which NO maxima are to be found.    Usefull when the intensity profile is very similar across all lines TO FILTER NON MAXIMA below a certain index
     :return:
@@ -2659,6 +2660,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
     """
     DETERMINE_HEIGHT_NEAR_CL = False
 
+
+    cutoff_maximaFromCL = outwardsLengthVector - minIndex_maxima_standard  # 'standard pixel distance counted from the cutoff to the CL of the brush (since the 'shortening of the line' then occurs at the 'end' of the list)
+    cutoff_minimaFromCL = outwardsLengthVector - minIndex_minima_standard  # 'standard pixel distance counted from the cutoff to the CL of the brush
+
     # Counter for in how many lines a difference was found between the total drop height from the wrapping/unwrapping function (used in CA calculation), and height purely from maxima in the wrapped profile.
     # Note here, that the nr of determined maxima is prone to 'errors' in the peak_finding: near the edges peaks are not well found, and e.g. dirt spots mess with the peaks.
     # Typically, this does NOT matter too much for the total height profile from the wrapping/unwrapping function (BUT if this number is very large, BE SCEPTICAL of the obtained CA profile & check it in more detail!)
@@ -2723,8 +2728,12 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         #k_range = np.concatenate((middle, np.array([0,1,2])))       #TODO Temp, to have the code run faster
         logging.info(f"STARTING with k={k_range[0]}")
         for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
+            if k % (len(k_range) // 25) == 0:
+                logging.info(f"Analyzing line {k}/{len(k_range)}")
+
             minIndex_maxima = minIndex_maxima_standard  # set lowerbound index of where from where-onwards to find maxima in intensity profile
             minIndex_minima = minIndex_minima_standard  # set lowerbound index of where from where-onwards to find minima in intensity profile
+
             try:
                 xOutwards = [0]     #x length pointing outwards of droplet, for possible swelling analysis
                 profileOutwards = []
@@ -2738,11 +2747,23 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         nrOfLinesOutsideImgFrame += 1
 
                         #adjust lowerbound indices of finding minima/maxima if the outwards line was shortened:
-                        minIndex_maxima = minIndex_maxima_standard - (outwardsLengthVector-len(profileOutwards))  # set lowerbound index of where from where-onwards to find maxima in intensity profile
-                        minIndex_minima = minIndex_minima_standard - (outwardsLengthVector-len(profileOutwards))  # set lowerbound index of where from where-onwards to find minima in intensity profile
+                        #if shortened enough that line is shorter than 'cutoff location', set minIndex_.. to 0. Else, shift accordingly
+                        x_prof = np.linspace(0, lineLengthPixelsOutwards, len(profileOutwards))
+                        if lineLengthPixelsOutwards < cutoff_maximaFromCL:
+                            minIndex_maxima = 0
+                        else:
+                            pixel_cutoff_maxima = (lineLengthPixelsOutwards - cutoff_maximaFromCL)
+                            minIndex_maxima = np.argmin(abs(x_prof-pixel_cutoff_maxima))  # set lowerbound index of where from where-onwards to find maxima in intensity profile
+                        if lineLengthPixelsOutwards < cutoff_minimaFromCL:
+                            minIndex_minima = 0
+                        else:
+                            pixel_cutoff_minima = (lineLengthPixelsOutwards - cutoff_minimaFromCL)
+                            minIndex_minima = np.argmin(abs(x_prof-pixel_cutoff_minima))  # set lowerbound index of where from where-onwards to find minima in intensity profile
+                        del x_prof
+
                         fitInside = True
                         if nrOfLinesOutsideImgFrame < 21:
-                            logging.warning(f"Trying to extract intensity data from outside the given image. New line lenght = {lineLengthPixelsOutwards}.")
+                            logging.warning(f"Trying to extract intensity data from outside the given image. New line lenght = {lineLengthPixelsOutwards:3f}.")
                             if nrOfLinesOutsideImgFrame == 20:
                                 logging.warning(f"20th line encountered where line did not fit inside image frame. Not printing that information anymore\n"
                                                 f"SEE CONTOUR GREYSCALED IMAGE to check if this is as desired/expected."
@@ -3334,8 +3355,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    usedImages = list(np.arange(107, 117, everyHowManyImages))
-    #usedImages = [53]       #36, 57
+    #usedImages = list(np.arange(107, 117, everyHowManyImages))
+    usedImages = [273]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
@@ -4146,7 +4167,8 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
 
     #### Wrapped profile
     ax1[1, 0].plot(wrapped, 'k');
-    ax1[1, 0].axvspan(0, len(wrapped)-1, facecolor='orange', alpha=0.4, label='droplet')
+    ax1[1, 0].axvspan(0, smallExtraOutwardsVector, facecolor='blue', alpha=0.4, label='brush')
+    ax1[1, 0].axvspan(smallExtraOutwardsVector, len(wrapped)-1, facecolor='orange', alpha=0.4, label='droplet')
     ax1[1, 0].plot(peaks, wrapped[peaks], 'b.')
     ax1[1, 0].set_title("Wrapped profile (drop only)")
     # TODO unit unwrapped was in um, *1000 -> back in nm. unit x in um

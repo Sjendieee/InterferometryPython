@@ -21,6 +21,9 @@ def path_in_use():
 
     path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
     filter_images = []
+
+    path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
+    filter_images = [63, 67]
     return path, filter_images
 
 
@@ -76,8 +79,9 @@ def analyzeForcevsTime(JSON_folder, path_images, filter_images, analysisFolder):
             force_trapz_function_used.append(force_trapz_function[n])
             force_trapz_data_used.append(force_trapz_data[n])
     fig1, ax1 = plt.subplots()
+    ax2 = ax1.twiny()  # create double x-axis
     ax1.plot(np.array(time_used) / 60, np.array(force_quad_used) * 1000, '.', markersize=7, label="quad integration")
-    ax1.set(xlabel = 'time (min)', ylabel = 'Force (uN)', title = 'Horizontal force over time')
+    ax1.set(xlabel = 'time (min)', ylabel = r'Force ($\mu$N)', title = 'Horizontal force over time')
     #ax1.legend(loc='best')
     #fig1.tight_layout()
 
@@ -90,6 +94,11 @@ def analyzeForcevsTime(JSON_folder, path_images, filter_images, analysisFolder):
     #fig3, ax3 = plt.subplots()
     ax1.plot(np.array(time_used) / 60, np.array(force_trapz_data_used) * 1000, '.', markersize=7,  label="trapz integration, data")
     #ax3.set(xlabel = 'time (min)', ylabel = 'Force (uN)', title = 'Horizontal force over time')
+
+    ax2.set_xlabel('img nr [-]')
+    lines = ax2.plot(imgnr_used, force_quad_used) #create dummy plot to set x-axis
+    lines[0].remove()  # remove 'dummy' data but retain axis
+
     ax1.legend(loc='best')
     fig1.tight_layout()
     fig1.savefig(os.path.join(analysisFolder, 'A_AllHorizontalForces.png'), dpi=600)
@@ -148,7 +157,7 @@ def analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images, filter_im
                 imgnr_used.append(imgnr[n])
     fig1, ax1 = plt.subplots()
     ax1.plot(np.array(time_used) / 60, np.array(velocity) * 60 * 1000, '.', label="middlecoord surface area")
-    ax1.set(xlabel='time (min)', ylabel='velocity (um/min)', title='Velocity profile: Middle of droplet')
+    ax1.set(xlabel='time (min)', ylabel='velocity ($\mu$m/min)', title='Velocity profile: Middle of droplet')
 
     #ax1.plot(imgnr_used, np.array(velocity) * 60, '.', label="middlecoord surface area")
     #ax1.set(xlabel='frame number (-)', ylabel='velocity (mm/min)', title='Velocity profile: Middle of droplet')
@@ -238,7 +247,7 @@ def analyzeVelocityProfile_adv_rec(JSON_folder, path_images, filter_images, anal
 
     ax1.plot(np.array(time_used) / time_factor, np.array(velocity_right) * velocity_factor, '.', label="velocity right")
     ax1.plot(np.array(time_used) / time_factor, np.array(velocity_left) * velocity_factor, '*', label="velocity left")
-    ax1.set(xlabel='time (min)', ylabel='velocity (um/min)', title='Velocity profile')
+    ax1.set(xlabel='time (min)', ylabel='velocity ($\mu$m/min)', title='Velocity profile')
     if ylim:
         ax1.set(ylim=ylim)
     ax1.legend(loc='best')
@@ -262,14 +271,25 @@ def main():
     try:
         _,_, time_used, velocity, velocity, imgnr_used = analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images, filter_images, analysisFolder)
         time_used, velocity_left, velocity_right, imgnr_used = analyzeVelocityProfile_adv_rec(JSON_folder, path_images, filter_images, analysisFolder, ylim=[0, 200])#, fig=fig1, ax=ax1)
+        time_used = time_used[1:]
+        velocity = velocity[1:]
+        velocity_left = velocity_left[1:]
+        velocity_right = velocity_right[1:]
+        imgnr_used = imgnr_used[1:]
 
         fig1, ax1 = plt.subplots()
+        ax2 = ax1.twiny()  # create double x-axis
         ax1.plot(np.array(time_used) / 60, np.array(velocity_left) * 60 * 1000, 'm*', label="velocity left")
         ax1.plot(np.array(time_used) / 60, np.array(velocity) * 60 * 1000, 'kx', label="middlecoord surface area")
         ax1.plot(np.array(time_used) / 60, np.array(velocity_right) * 60 * 1000, 'k.', markersize=9, )
         ax1.plot(np.array(time_used) / 60, np.array(velocity_right) * 60*1000, '.', markersize=7, color='#FFFF14', label="velocity right")
-        ax1.set(xlabel='time (min)', ylabel='velocity (um/min)', title='Velocity profiles')
+        ax1.set(xlabel='time (min)', ylabel='velocity ($\mu$m/min)', title='Velocity profiles')
         ax1.legend(loc='best')
+
+        ax2.set_xlabel('img nr [-]')
+        lines = ax2.plot(imgnr_used, velocity_left) #create dummy plot to set x-axis
+        lines[0].remove()       #remove 'dummy' data but retain axis
+
         fig1.tight_layout()
         fig1.savefig(os.path.join(analysisFolder, 'A_all_velocityVStime.png'), dpi=600)
 

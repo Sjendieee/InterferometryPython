@@ -14,7 +14,9 @@ def path_in_use():
     :return:
     """
     path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
-    metadata = dict(title='Intensity Movie', artist='Sjendieee')
+    path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
+
+    metadata = dict(title='4-panel Movie', artist='Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
 
     return path
@@ -44,19 +46,25 @@ def ffmpegPath():
         logging.critical("No good path to ffmpeg.exe.\n Correct path, or install from e.g. https://www.gyan.dev/ffmpeg/builds/#git-master-builds")
     return ffmpeg_path
 
-def videoMakerOfImges(imgList, analysisFolder):
+def videoMakerOfImges(imgList, analysisFolder, compression = 100):
+    #Read in size of original image for compression later
+    referenceFrame = cv2.imread(imgList[0])
+
+    (inputHeight, inputWidth, referenceLayers) = referenceFrame.shape
+    outputHeight = round(inputHeight * (compression / 100))
+    outputWidth = round(inputWidth * (compression / 100))
+
     #https://stackoverflow.com/questions/44947505/how-to-make-a-movie-out-of-images-in-python
     ffmpeg_path = ffmpegPath()
     output_folder = analysisFolder
-    video_name = f'Complete_overview_movie.avi'
+    video_name = f'Complete_overview_movie.mp4v'
     #fourcc = cv2.VideoWriter_fourcc(*'mp4v')       #tried for mp4 - didn't work: https://stackoverflow.com/questions/30103077/what-is-the-codec-for-mp4-videos-in-python-opencv/55596396
-    frame = cv2.imread(imgList[0])
-    height, width, layers = frame.shape
-    video = cv2.VideoWriter(video_name, 0, 1, (width, height))      #output name, codec used, FPS, tuple of dimensions
+    video = cv2.VideoWriter(video_name, 0, 1, (outputWidth, outputHeight))      #output name, codec used, FPS, tuple of dimensions
 
     for n, img in enumerate(imgList):
         logging.info(f"Processing image {n}/{len(imgList)}")
-        video.write(cv2.imread(img))
+        img = cv2.resize(cv2.imread(img), (outputWidth, outputHeight), interpolation=cv2.INTER_AREA)
+        video.write(img)
     cv2.destroyAllWindows()
     video.release()
     logging.info(f'Finished turning images into a video')
@@ -65,8 +73,8 @@ def main():
     path_images = path_in_use()
     analysisFolder = os.path.join(path_images, "Analysis CA Spatial")  # name of output folder of Spatial Contact Analysis
 
-    imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"Complete overview*png"))]
-    videoMakerOfImges(imgList, analysisFolder)
+    imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"Complete overview*png"))]        #this grabs all the 4-panel images in folder
+    videoMakerOfImges(imgList, analysisFolder, compression = 50)
 
 
 if __name__ == '__main__':
