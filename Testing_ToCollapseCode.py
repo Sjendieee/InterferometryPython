@@ -1391,7 +1391,8 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, y, sensitivityR2=0.99, le
             end_end = n - omitted_finalIndices
         else:
             end_start = max([start + 50, round(np.mean(end_final)) - iteration_step_end*3])     #use the end_final value (for efficiency) if it is larger than the OG starting end_start (this way the subsets will always have some range)
-            end_end = round(np.mean(end_final)) + iteration_step_end * 3
+            endmaxval = round(np.mean(end_final)) + iteration_step_end * 3
+            end_end = endmaxval if endmaxval < n else n
         if i > 3 and GoodFitVector:  # from the 4th starting index forward, check if end-index is changing a lot. If no, prob. won't change later = quit function
             end_final_diff = sum(abs(np.array(end_final[-3:]) - np.mean(end_final[-3:])))
 
@@ -1432,7 +1433,7 @@ def linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, y, sensitivityR2=0.99, le
             if end == end_range[-1]:
                 end_final.append(end)
 
-        #if no goodfit, give best r2 of any vector: this way on the next iteratioin, we'll use that as sensitivity to get a working linear fit
+        #if no goodfit, give best r2 of any vector: this way on the next iteration, we'll use that as sensitivity to get a working linear fit
         if not GoodFitVector:
             best_r2 = best_r2_anytime
 
@@ -3125,7 +3126,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
             vector_nrs = np.arange(0, len(x0arr))
             x0arr_3dplotting = x0arr
             y0arr_3dplotting = abs(np.subtract(resizedimg.shape[0], y0arr))
-        phi, rArray = coordsToPhi(x0arr_3dplotting, y0arr_3dplotting, middleCoord[0], middleCoord[1])
+        phi, rArray = coordsToPhi(x0arr_3dplotting, y0arr_3dplotting, middleCoord[0], abs(np.subtract(resizedimg.shape[0], middleCoord[1])))           #TODO check: changed from middleCoord[1] to the imgshape - ... (to account for neg. increasing y axis
         idk1, idk2 = convertPhiToazimuthal(phi)
 
         ax2.plot(vector_nrs, peakdistanceFromCL, '.')
@@ -3356,7 +3357,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(107, 117, everyHowManyImages))
-    usedImages = [273]       #36, 57
+    usedImages = [46]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
@@ -3704,7 +3705,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 tempimg = cv2.resize(resizedimg, [round(resizedimg.shape[1] / 5), round(resizedimg.shape[0] / 5)], interpolation=cv2.INTER_AREA)  # resize image
 
                 # determine middle of droplet & plot
+                resizedimg = cv2.circle(resizedimg, (round(middleCoord[0]), round(middleCoord[1])), 35, (255, 255, 255), -1)  # draw mean surface middle cooridnate White
                 middleX, middleY, meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
+                resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 30, (0, 255, 0), -1)  # draw median middle coord Green
+                cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
 
                 DONEFILTERTIING = False
                 temp_xArrFinal = xArrFinal
@@ -4096,8 +4100,6 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                              usedDeltaTs)
 
             tstring = str(datetime.now().strftime("%Y_%m_%d"))  # day&timestring, to put into a filename    "%Y_%m_%d_%H_%M_%S"
-            resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 30, (0, 255, 0), -1)  # draw median middle. abs(np.subtract(imgshape[0], medianmiddleY))
-            cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
 
             plt.close('all') #close all existing figures
 
@@ -4244,7 +4246,7 @@ def main():
     # imgFolderPath = os.path.dirname(os.path.dirname(os.path.dirname(procStatsJsonPath)))
     # path = os.path.join("G:\\2023_08_07_PLMA_Basler5x_dodecane_1_28_S5_WEDGE_1coverslip spacer_COVERED_SIDE\Analysis_1\PROC_20230809115938\PROC_20230809115938_statistics.json")
 
-    #path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2" #outwardsLengthVector=[590]
 
     #path = "D:\\2023_07_21_PLMA_Basler2x_dodecane_1_29_S1_WEDGE_1coverslip spacer_____MOVEMENT"
     #path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE\\10x"
@@ -4273,7 +4275,7 @@ def main():
     #path = "D:\\2023_12_12_PLMA_Dodecane_Basler5x_Xp_1_28_S2_FULLCOVER"
 
     #P12MA dodecane - tilted stage
-    path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
+    #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M2 tilted drop"
 
     #PODMA on heating stage:
