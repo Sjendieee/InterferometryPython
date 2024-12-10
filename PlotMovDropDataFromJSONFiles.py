@@ -16,7 +16,7 @@ def path_in_use():
     Write path to folder in which the analyzed images (and subsequent analysis) are
     :return:
     """
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]
 
     # path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
@@ -60,7 +60,10 @@ def analyzeForcevsTime(JSON_folder, path_images, filter_images, analysisFolder):
     force_trapz_data = []
     force_trapz_data_used = []
 
-    for filename in glob.glob(os.path.join(JSON_folder, f"*json")):
+    analyzedJsonFiles = glob.glob(os.path.join(JSON_folder, f"*json"))
+    analyzedJsonFiles.sort(key=alphanum_key)                #Sort json files in order to get the times in order
+
+    for filename in analyzedJsonFiles:
         with open(filename, 'r') as file:
             json_data = json.load(file)
         time.append(json_data['timeFromStart'])
@@ -80,6 +83,7 @@ def analyzeForcevsTime(JSON_folder, path_images, filter_images, analysisFolder):
             force_trapz_data_used.append(force_trapz_data[n])
     fig1, ax1 = plt.subplots()
     ax2 = ax1.twiny()  # create double x-axis
+    ax1.plot([min(time_used)/60, max(time_used)/60], [0, 0], 'k-', linewidth=0.5)
     ax1.plot(np.array(time_used) / 60, np.array(force_quad_used) * 1000, '.', markersize=7, label="quad integration")
     ax1.set(xlabel = 'time (min)', ylabel = r'Force ($\mu$N)', title = 'Horizontal force over time')
     #ax1.legend(loc='best')
@@ -128,7 +132,7 @@ def analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images, filter_im
         exit()
 
     analyzedJsonFiles = glob.glob(os.path.join(JSON_folder, f"*json"))
-    analyzedJsonFiles.sort(key=alphanum_key)
+    analyzedJsonFiles.sort(key=alphanum_key)                            #Sort json files in order to get the times in order
     for filename in analyzedJsonFiles:
         with open(filename, 'r') as file:
             json_data = json.load(file)
