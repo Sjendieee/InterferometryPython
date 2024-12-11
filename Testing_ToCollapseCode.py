@@ -3708,7 +3708,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 resizedimg = cv2.circle(resizedimg, (round(middleCoord[0]), round(middleCoord[1])), 35, (255, 255, 255), -1)  # draw mean surface middle cooridnate White
                 middleX, middleY, meanmiddleX, meanmiddleY, medianmiddleX, medianmiddleY = approxMiddlePointDroplet(list(zip(xArrFinal, yArrFinal)), vectorsFinal)
                 resizedimg = cv2.circle(resizedimg, (round(medianmiddleX), round(medianmiddleY)), 30, (0, 255, 0), -1)  # draw median middle coord Green
-                cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{tstring}_{n}.png"), resizedimg)
+                cv2.imwrite(os.path.join(analysisFolder, f"rawImage_contourLine_{n}.png"), resizedimg)
 
                 DONEFILTERTIING = False
                 temp_xArrFinal = xArrFinal
