@@ -17,7 +17,10 @@ def path_in_use():
     :return:
     """
     path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
-    filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]
+    #filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]        #filter w/ moving camera
+    filter_images = list(np.arange(0, 21)) + [88, 92, 96, 100, 104, 108]                                #filter only big pinning & partial missing drop
+
+
 
     # path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
     # filter_images = []
