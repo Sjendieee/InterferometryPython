@@ -4,6 +4,8 @@ import math
 import os
 import csv
 import json
+import scipy.optimize
+import traceback
 
 # define img nr
 imgNr = 32
@@ -88,10 +90,12 @@ def fitSpatialCA(xcoord, ycoord, CA, middleCoord):
     theta_app = lambda theta_eq, Ca, R, l: (9 * Ca * np.log(R / l) + theta_eq ** 3) ** (1 / 3)
 
     anglerange = np.linspace(0, 1, 1000)  # 0-1
-    angle = np.linspace(0, np.pi, 1000)        #0-pi
+    angle = np.linspace(-np.pi, np.pi, 1000)        #-pi - pi
     k = 3  # power order for 'steepness' of sin curve
 
     #    f_theta_eq = lambda anglerange, k: (((0.5+np.sin(anglerange*np.pi-np.pi/2)/2)**((2*(1-anglerange))**k))*2 + 1) * np.pi / 180           #base function - [1-3], so around 2+-1
+    #Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
+    #Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
     CA_eq_adv = 1.875;
     CA_eq_rec = 1.725  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
     Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2  # 'middle' CA value around which we build the sinus-like profile
@@ -106,17 +110,20 @@ def fitSpatialCA(xcoord, ycoord, CA, middleCoord):
 
     # Calculate theta_apparent:
     prefactor = 9  # OG = 9
-    R = 10E-6  # slip length, 10 micron?                     -macroscopic
+    R = 1E-6  # slip length, 10 micron?                     -macroscopic -
     l = 3E-9  # capillary length, ongeveer              -microscopic
-    Ca = 4E-8 * np.sin(angle - np.pi / 2)  # OG standard Ca curve: normal sinus between + and - the value.  OG = -1.55E-7 *
-    print(
-        f"Calculated Cap.Nr's from CA_adv, _mid & _rec: {CapNr(52 * 1E-6 / 60, mu, gamma):.2E}, {CapNr(55 * 1E-6 / 60, mu, gamma):.2E}, {CapNr(140 * 1E-6 / 60, mu, gamma):.2E}")
+    Ca = 4.8E-8 * np.sin(angle - np.pi / 2)  # OG standard Ca curve: normal sinus between + and - the value.  OG = -1.55E-7 *
+    print(f"Calculated R/l: {R/l}, ln(R/l): {np.log(R/l)}")
+    print(f"Calculated Cap.Nr's from CA_adv, _mid & _rec: {CapNr(52 * 1E-6 / 60, mu, gamma):.2E}, {CapNr(55 * 1E-6 / 60, mu, gamma):.2E}, {CapNr(140 * 1E-6 / 60, mu, gamma):.2E}")
+    print(f"Calculated 9Ca*ln(R/l): {prefactor * max(Ca) * np.log(R / l)}")
     theta_app = ((theta_eq / 180 * np.pi) ** 3 + prefactor * Ca * np.log(R / l)) ** (1 / 3) * 180 / np.pi  # [deg]
 
     # plot eq & apparent contact angle vs azimuthal angle
     fig1, ax1 = plt.subplots(figsize=(6, 4))
     ax1.plot(angle * 180 / np.pi, theta_eq, label=r'$\theta_{eq}$ - no friction')
     ax1.plot(angle * 180 / np.pi, theta_app, '.', label=r'$\theta_{app}$ - with friction')
+    ax1.plot(azimuthalX * 180, CA, '.', label=r'$\theta$ - experimental')
+
     ax1.set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
             title='Example influence hydrolic resistance on apparent contact angle')
     ax1.legend(loc='best')
@@ -152,16 +159,134 @@ def fitSpatialCA(xcoord, ycoord, CA, middleCoord):
 
     return
 
+def fitSpatialCA_simplified(xcoord, ycoord, CA, middleCoord):
+
+    #theta_app = (theta_eq^3 + someFactor)^0.333
+    #in which someFactor varies between [-varyingfactor, varyingfactor] (velocity: - -> + in moving direction.). someFactor varies for now with a sinus curve
+    f_theta_app_simple = lambda theta_eq, varyingfactor: np.power(np.power(theta_eq, 3) + varyingfactor, 1/3)         #Cox-Voinov equation, in this 'varyingfactor' is the combination of '9Ca ln(R/l)'
+
+    phi, rArray = coordsToPhi(xcoord, ycoord, middleCoord[0], 4608 - middleCoord[1])
+    azimuthalX, phi_normalRadians = convertPhiToazimuthal(phi)
+
+    anglerange = np.linspace(0, 1, len(CA))  # 0-1
+    angle = np.linspace(-np.pi, np.pi, len(CA))  # -pi - pi
+
+    #Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
+    #Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
+    CA_eq_adv = 1.875;
+    CA_eq_rec = 1.725  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
+    Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2  # 'middle' CA value around which we build the sinus-like profile
+    Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # difference between middle CA value & the 'eq' ones - for in the sinus-like function
+
+    #Function to vary between CA_max&_min with a sinus-like shape.
+    #Input: anglerange = a range between [0, 1]
+    #       k = int value. Defines steepness of sinus-like curve
+    f_theta_eq = lambda anglerange, k: ((
+                                    np.power(0.5 + np.sin(anglerange * np.pi - np.pi / 2) / 2,
+                                    np.power(2 * (1 - anglerange), k) )
+                                    ) * 2 - 1) * np.pi / 180  # base function - [-1,1], so around 0+-1
+
+
+    theta_eq_cover = np.flip(f_theta_eq(anglerange[:len(anglerange) // 2], 0))  # under cover = less steep
+    theta_eq_open = np.flip(f_theta_eq(anglerange[len(anglerange) // 2:], 3))  # open air = steep
+    theta_eq = np.concatenate([theta_eq_open, theta_eq_cover]) * 180 / np.pi
+    # perform operation to shift CA values to desired CA_eq range
+    theta_eq = theta_eq * Ca_eq_diff + Ca_eq_mid
+
+    #fit theta_app function to experimental data
+    popt, pcov = scipy.optimize.curve_fit(f_theta_app_simple, theta_eq, CA, bounds = (0, 1E-05))
+
+    # plot eq & apparent contact angle vs azimuthal angle
+    fig1, ax1 = plt.subplots(figsize=(6, 4))
+    ax1.plot(angle * 180 / np.pi, theta_eq, label=r'$\theta_{eq}$ - no friction')
+    ax1.plot(angle * 180 / np.pi, f_theta_app_simple(theta_eq, *popt), '.', label=r'$\theta_{app}$ - with friction')
+    ax1.plot(azimuthalX * 180, CA, '.', label=r'$\theta$ - experimental')
+
+    ax1.set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
+            title='Example influence hydrolic resistance on apparent contact angle')
+    ax1.legend(loc='best')
+    # fig1.savefig(f"C:\\Downloads\\CA vs azimuthal Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
+    plt.show()
+
+    return
+
+def trial1(xcoord, ycoord, CA, middleCoord):
+    fig3, ax3 = plt.subplots(2,2, figsize=(18, 12))
+    phi, rArray = coordsToPhi(xcoord, ycoord, middleCoord[0], 4608 - middleCoord[1])
+    azimuthalX, phi_normalRadians = convertPhiToazimuthal(phi)
+
+    anglerange = np.linspace(0, 1, len(CA))  # 0-1
+    angle = np.linspace(-np.pi, np.pi, len(CA))  # -pi - pi
+
+    #Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
+    #Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
+    CA_eq_adv = 1.875;
+    CA_eq_rec = 1.725  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
+    Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2  # 'middle' CA value around which we build the sinus-like profile
+    Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # difference between middle CA value & the 'eq' ones - for in the sinus-like function
+
+    #Function to vary between CA_max&_min with a sinus-like shape.
+    #Input: anglerange = a range between [0, 1]
+    #       k = int value. Defines steepness of sinus-like curve
+    f_theta_eq = lambda anglerange, k: ((
+                                    np.power(0.5 + np.sin(anglerange * np.pi - np.pi / 2) / 2,
+                                    np.power(2 * (1 - anglerange), k) )
+                                    ) * 2 - 1) * np.pi / 180  # base function - [-1,1], so around 0+-1
+
+    theta_eq_cover = np.flip(f_theta_eq(anglerange[:len(anglerange) // 2], 0))  # under cover = less steep
+    theta_eq_open = np.flip(f_theta_eq(anglerange[len(anglerange) // 2:], 3))  # open air = steep
+    theta_eq = np.concatenate([theta_eq_open, theta_eq_cover]) * 180 / np.pi
+    # perform operation to shift CA values to desired CA_eq range
+    theta_eq = theta_eq * Ca_eq_diff + Ca_eq_mid
+
+    # plot eq & apparent contact angle vs azimuthal angle
+    ax3[0,0].plot(angle * 180 / np.pi, theta_eq, label=r'$\theta_{eq}$ - no friction')
+    ax3[0,0].plot(azimuthalX * 180, CA, '.', label=r'$\theta$ - experimental')
+    ax3[0,0].set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
+            title='Example influence hydrolic resistance on apparent contact angle')
+    ax3[0,0].legend(loc='best')
+
+
+
+    varyFactor = np.power(np.array(CA) / 180 * np.pi, 3) - np.power(np.array(theta_eq) / 180 * np.pi, 3)
+
+    R = 1E-6  # slip length, 10 micron?                     -macroscopic -
+    l = 3E-9  # capillary length, ongeveer              -microscopic
+    Ca = varyFactor / 9 / np.log(R / l)
+
+    mu = 1.34 / 1000  # Pa*s
+    gamma = 25.55 / 1000  # N/m
+    local_velocity = Ca * gamma / mu
+
+    ax3[0,1].plot(phi, local_velocity * 60 * 1E6, '.')
+    ax3[0,1].set(xlabel = r'radial angle ($\phi$)', ylabel = r'local velocity ($\mu$m/min)', title = 'Local velocity plot')
+
+    xArrFinal = np.cos(phi)
+    yArrFinal = np.sin(phi)
+    im3 = ax3[1,1].scatter(xArrFinal, yArrFinal, c=local_velocity * 60 * 1E6, cmap='jet', vmin=min(local_velocity * 60 * 1E6), vmax=max(local_velocity * 60 * 1E6))
+    ax3[1,1].set_xlabel("X-coord");
+    ax3[1,1].set_ylabel("Y-Coord");
+    ax3[1,1].set_title(f"Model: spatial local velocity colormap", fontsize=20)
+    fig3.colorbar(im3)
+    plt.show()
+    return
+
 def main():
-    fitSpatialCA(xcoord, ycoord, CA, middleCoord)
+    try:
+        #fitSpatialCA(xcoord, ycoord, CA, middleCoord)
 
-    angle = np.linspace(0, np.pi, 1000)
-    # theta_eq = (np.sin(angle-np.pi/2) + 2) * np.pi / 180
+        #fitSpatialCA_simplified(xcoord, ycoord, CA, middleCoord)
+        trial1(xcoord, ycoord, CA, middleCoord)
 
-    # Ca = -1.55E-7 * np.sin(angle-np.pi/2)  #OG standard Ca curve: normal sinus between + and - the value
-    # fig1, ax1 = plt.subplots(figsize=(6,4))
-    # ax1.plot(angle*180/np.pi, Ca)
-    # ax1.set(xlabel = 'Contact angle', ylabel = 'Capillary number')
+        angle = np.linspace(0, np.pi, 1000)
+        # theta_eq = (np.sin(angle-np.pi/2) + 2) * np.pi / 180
+
+        # Ca = -1.55E-7 * np.sin(angle-np.pi/2)  #OG standard Ca curve: normal sinus between + and - the value
+        # fig1, ax1 = plt.subplots(figsize=(6,4))
+        # ax1.plot(angle*180/np.pi, Ca)
+        # ax1.set(xlabel = 'Contact angle', ylabel = 'Capillary number')
+    except:
+        print(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
