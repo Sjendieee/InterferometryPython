@@ -7,6 +7,8 @@ import json
 import scipy.optimize
 import traceback
 
+from Testing_ToCollapseCode import manualFitting
+
 # define img nr
 imgNr = 32
 # define folder path
@@ -47,7 +49,7 @@ def coordsToPhi(xArrFinal, yArrFinal, medianmiddleX, medianmiddleY):
     :return phi: range [-pi : pi]
     :return rArray: distance from the middle to the coordinate. UNIT= same as input units (so probably pixel, or e.g. mm)
 
-    phi = 0 at right side -> 0.5pi at top -> 1pi at left -> -1pi at left -> -0.5pi at bottom
+    phi = 0 at right side -> 0.5pi at top -> 1pi at left = -1pi at left -> -0.5pi at bottom
     example how phi evolves: https://stackoverflow.com/questions/17574424/how-to-use-atan2-in-combination-with-other-radian-angle-systems
     """
     dx = np.subtract(xArrFinal, medianmiddleX)
@@ -127,7 +129,7 @@ def fitSpatialCA(xcoord, ycoord, CA, middleCoord):
     ax1.set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
             title='Example influence hydrolic resistance on apparent contact angle')
     ax1.legend(loc='best')
-    # fig1.savefig(f"C:\\Downloads\\CA vs azimuthal Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
+    # fig1.savefig(f"C:\\TEMP\\CA vs azimuthal Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
     plt.show()
 
     # fig7, ax7 = plt.subplots()
@@ -145,7 +147,7 @@ def fitSpatialCA(xcoord, ycoord, CA, middleCoord):
     ax3.set_ylabel("Y-Coord");
     ax3.set_title(f"Model: No Hydrolic Resistance \nSpatial Equilibrium Contact Angles Colormap", fontsize=20)
     fig3.colorbar(im3)
-    # fig3.savefig("C:\\Downloads\\NOhydrolic.png", dpi=600)
+    # fig3.savefig("C:\\TEMP\\NOhydrolic.png", dpi=600)
 
     # plot apparent (W/ FRICTION) contact angle vs 'spatial X,Y-coordinates'
     fig4, ax4 = plt.subplots(figsize=(9, 6))
@@ -155,7 +157,7 @@ def fitSpatialCA(xcoord, ycoord, CA, middleCoord):
     ax4.set_ylabel("Y-Coord");
     ax4.set_title(f"Model: Effect of viscous friction\nSpatial Predicted Apparent Contact Angles Colormap", fontsize=20)
     fig4.colorbar(im4)
-    # fig4.savefig(f"C:\\Downloads\\YEShydrolic Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
+    # fig4.savefig(f"C:\\TEMP\\YEShydrolic Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
 
     return
 
@@ -205,7 +207,7 @@ def fitSpatialCA_simplified(xcoord, ycoord, CA, middleCoord):
     ax1.set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
             title='Example influence hydrolic resistance on apparent contact angle')
     ax1.legend(loc='best')
-    # fig1.savefig(f"C:\\Downloads\\CA vs azimuthal Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
+    # fig1.savefig(f"C:\\TEMP\\CA vs azimuthal Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
     plt.show()
 
     return
@@ -240,9 +242,10 @@ def trial1(xcoord, ycoord, CA, middleCoord):
     theta_eq = theta_eq * Ca_eq_diff + Ca_eq_mid
 
     # plot eq & apparent contact angle vs azimuthal angle
-    ax3[0,0].plot(angle * 180 / np.pi, theta_eq, label=r'$\theta_{eq}$ - no friction')
-    ax3[0,0].plot(azimuthalX * 180, CA, '.', label=r'$\theta$ - experimental')
-    ax3[0,0].set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
+    ax3[0,0].plot(angle / np.pi, theta_eq, label=r'$\theta_{eq}$ - no friction')
+    ax3[0,0].plot(azimuthalX, CA, '.', label=r'$\theta$ - experimental azi')
+
+    ax3[0,0].set(xlabel=r'Azimuthal angle ($\pi$)', ylabel='Contact angle (deg)',
             title='Example influence hydrolic resistance on apparent contact angle')
     ax3[0,0].legend(loc='best')
 
@@ -258,8 +261,30 @@ def trial1(xcoord, ycoord, CA, middleCoord):
     gamma = 25.55 / 1000  # N/m
     local_velocity = Ca * gamma / mu
 
+    phi_sorted, local_velocity_sorted = [list(a) for a in zip(*sorted(zip(phi, local_velocity)))]
+    for i in range(1, len(phi_sorted)):
+        if phi_sorted[i] <= phi_sorted[i - 1]:
+            phi_sorted[i] = phi_sorted[i - 1] + 1e-5
+    #Fit velocity profile with a normal sine wave:
+    f_local_velocity, func_single, N, _, _ = manualFitting(np.array(phi_sorted), np.array(local_velocity_sorted) * 60 * 1E6, f"C:\\TEMP", [r"Local Velocity", "[$\mu$m/min]"],
+                                                     [5], 'manual')
+
+    phi_range = np.linspace(-np.pi, np.pi, len(CA))
+    # def func(x, a, b, c):
+    #     return a * np.sin(x+b) + c
+    #
+    # popt, pcov = scipy.optimize.curve_fit(func, phi, local_velocity)
+
     ax3[0,1].plot(phi, local_velocity * 60 * 1E6, '.')
+    #ax3[0,1].plot(phi, func(phi, *popt) * 60 * 1E6, '.')
+    ax3[0,1].plot(phi_range, f_local_velocity(phi_range), '.')
     ax3[0,1].set(xlabel = r'radial angle ($\phi$)', ylabel = r'local velocity ($\mu$m/min)', title = 'Local velocity plot')
+
+    Ca_calculated = (np.array(f_local_velocity(phi_range)) * mu / gamma) / (60 * 1E6)
+    theta_app_calculated = np.power(np.power(theta_eq / 180 * np.pi, 3) + 9 * Ca_calculated * np.log(R/l), 1/3)
+    ax3[0,0].plot(phi_range / np.pi, theta_app_calculated * 180 / np.pi, '.', label=r'$\theta_{app}$ - modelled')
+    ax3[0, 0].legend(loc='best')
+
 
     xArrFinal = np.cos(phi)
     yArrFinal = np.sin(phi)
@@ -268,7 +293,17 @@ def trial1(xcoord, ycoord, CA, middleCoord):
     ax3[1,1].set_ylabel("Y-Coord");
     ax3[1,1].set_title(f"Model: spatial local velocity colormap", fontsize=20)
     fig3.colorbar(im3)
+
+    #plot spatial CA image
+    im3 = ax3[1,0].scatter(xArrFinal, yArrFinal, c=CA, cmap='jet', vmin=min(CA), vmax=max(CA))
+    ax3[1,0].set_xlabel("X-coord");
+    ax3[1,0].set_ylabel("Y-Coord");
+    ax3[1,0].set_title(f"Model: spatial Contact angle colormap", fontsize=20)
+    fig3.colorbar(im3)
+
     plt.show()
+
+
     return
 
 def main():

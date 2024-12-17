@@ -2216,8 +2216,8 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
 
     if abs(abs(inputX[0]) - np.pi) > 0.02:
         logging.critical(f"Gap in contour coords (={abs(abs(inputX[0]) - np.pi):.3f}rad) at -pi&pi -> Check if correctly fitted w/ implemented function in 'manualFitting(..)' ")
-    inputX = inputX + [np.pi + (np.pi-abs(inputX[0]))]   #add 1 value of x to the end of array at the 'positive x position' of the first x-value, for correct trapz integration
-    inputY = inputY + [inputY[0]]
+    inputX = list(inputX) + [np.pi + (np.pi-abs(inputX[0]))]   #add 1 value of x to the end of array at the 'positive x position' of the first x-value, for correct trapz integration
+    inputY = list(inputY) + [inputY[0]]
 
     #TODO: this will not work well if given range is filtered at -pi / pi (fit will oscillate wildly near -pi/pi).
     # Solution to try: since its periodic, shift entire set such that the 'gap' is not at -pi/pi anymore, but somewhere else.
