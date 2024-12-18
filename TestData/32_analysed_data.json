@@ -1,0 +1,62 @@
+{
+    "About": {
+        "__author__": "Sander Reuvekamp",
+        "__version__": "2.0"
+    },
+    "startDateTime": "2024-11-14 13:36:23.550055 ",
+    "imgnr": 32,
+    "len-x0arr-OG": 8878,
+    "XYcoord_k_half": [
+        1849,
+        3735
+    ],
+    "khalf_dxdy": [
+        1849,
+        1909,
+        3735,
+        3544,
+        [
+            60,
+            -191
+        ],
+        1673,
+        4298,
+        1834,
+        3783
+    ],
+    "timeFromStart": 349.645833,
+    "middleCoords-surfaceArea": [
+        2326,
+        2223
+    ],
+    "middleCoords-MeanIntersectingVectors": [
+        2350.771298405467,
+        2240.767881548975
+    ],
+    "middleCoords-MedianIntersectingVectors": [
+        2375.0,
+        2240.0
+    ],
+    "OuterLeftPixel": [
+        667,
+        2289
+    ],
+    "OuterRightPixel": [
+        3952,
+        2186
+    ],
+    "TopPixel": [
+        2334,
+        642
+    ],
+    "BottomPixel": [
+        2437,
+        3822
+    ],
+    "F_hor-quad-fphi": [
+        0.001106432225648788,
+        4.924342222691045e-09
+    ],
+    "F-hor-trapz-fphi": 0.0011110270249710674,
+    "F-hor-trapz-data": 0.0010919128119113268
+}

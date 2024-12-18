@@ -13,6 +13,7 @@ from Testing_ToCollapseCode import manualFitting
 imgNr = 32
 # define folder path
 folder_path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3\\Analysis CA Spatial"
+#folder_path = os.path.join(os.getcwd(), "TestData")
 # import CA datafile paths
 file_paths = [os.path.join(folder_path, f"ContactAngleData {imgNr}.csv")]
 
