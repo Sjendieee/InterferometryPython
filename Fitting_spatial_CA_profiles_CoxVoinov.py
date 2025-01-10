@@ -9,10 +9,13 @@ import traceback
 
 from Testing_ToCollapseCode import manualFitting
 
-# define img nr
-imgNr = 32
+# define img nr &
 # define folder path
+imgNr = 32
 folder_path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3\\Analysis CA Spatial"
+#imgNr = 47
+#folder_path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop\\Analysis CA Spatial"
+
 #folder_path = os.path.join(os.getcwd(), "TestData")
 # import CA datafile paths
 file_paths = [os.path.join(folder_path, f"ContactAngleData {imgNr}.csv")]
@@ -254,8 +257,9 @@ def trial1(xcoord, ycoord, CA, middleCoord):
 
     varyFactor = np.power(np.array(CA) / 180 * np.pi, 3) - np.power(np.array(theta_eq) / 180 * np.pi, 3)
 
-    R = 1E-6  # slip length, 10 micron?                     -macroscopic -
-    l = 3E-9  # capillary length, ongeveer              -microscopic
+    #values for R & l: https://www.sciencedirect.com/science/article/pii/S1359029422000139?via%3Dihub
+    R = 100E-6  # capillary length. slip length. >10 micron? 2.7mm for water      -macroscopic -
+    l = 3E-9  # e.g. 1nm              -microscopic/molecular length scale
     Ca = varyFactor / 9 / np.log(R / l)
 
     mu = 1.34 / 1000  # Pa*s
@@ -305,6 +309,116 @@ def trial1(xcoord, ycoord, CA, middleCoord):
     plt.show()
 
 
+    return
+
+
+
+
+def tiltedDrop(xcoord, ycoord, CA, middleCoord):
+    """
+    For tilted drops specifically.
+    Fit Cox-Voinov Ca_app to experimental data with an inputted theta_eq, Capillary number (Ca(phi)) profile along CL (local velocity depends on phi),
+    and R/l value.
+
+    :param xcoord:
+    :param ycoord:
+    :param CA:
+    :param middleCoord:
+    :return:
+    """
+    fig3, ax3 = plt.subplots(2, 2, figsize=(18, 12))
+    phi_exp, _ = coordsToPhi(xcoord, ycoord, middleCoord[0], 4608 - middleCoord[1])
+    azi_exp, rad_exp = convertPhiToazimuthal(phi_exp)
+
+#TODO from here onwards
+    anglerange = np.linspace(0, 1, len(CA))  # 0-1
+    angle = np.linspace(-np.pi, np.pi, len(CA))  # -pi - pi
+
+    # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
+    # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
+    CA_eq = 2.75        #eq CA, in case of flat droplet.
+
+    # CA_eq_adv = 1.875;
+    # CA_eq_rec = 1.725  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
+    # Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2  # 'middle' CA value around which we build the sinus-like profile
+    # Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # difference between middle CA value & the 'eq' ones - for in the sinus-like function
+
+    # Function to vary between CA_max&_min with a sinus-like shape.
+    # Input: anglerange = a range between [0, 1]
+    #       k = int value. Defines steepness of sinus-like curve
+    f_theta_eq = lambda anglerange, k: ((
+                                            np.power(0.5 + np.sin(anglerange * np.pi - np.pi / 2) / 2,
+                                                     np.power(2 * (1 - anglerange), k))
+                                        ) * 2 - 1) * np.pi / 180  # base function - [-1,1], so around 0+-1
+
+    theta_eq_cover = np.flip(f_theta_eq(anglerange[:len(anglerange) // 2], 0))  # under cover = less steep
+    theta_eq_open = np.flip(f_theta_eq(anglerange[len(anglerange) // 2:], 3))  # open air = steep
+    theta_eq = np.concatenate([theta_eq_open, theta_eq_cover]) * 180 / np.pi
+    # perform operation to shift CA values to desired CA_eq range
+    theta_eq = theta_eq * Ca_eq_diff + Ca_eq_mid
+
+    # plot eq & apparent contact angle vs azimuthal angle
+    ax3[0, 0].plot(angle / np.pi, theta_eq, label=r'$\theta_{eq}$ - no friction')
+    ax3[0, 0].plot(azimuthalX, CA, '.', label=r'$\theta$ - experimental azi')
+
+    ax3[0, 0].set(xlabel=r'Azimuthal angle ($\pi$)', ylabel='Contact angle (deg)',
+                  title='Example influence hydrolic resistance on apparent contact angle')
+    ax3[0, 0].legend(loc='best')
+
+    varyFactor = np.power(np.array(CA) / 180 * np.pi, 3) - np.power(np.array(theta_eq) / 180 * np.pi, 3)
+
+    #values for R & l: https://www.sciencedirect.com/science/article/pii/S1359029422000139?via%3Dihub
+    R = 100E-6  # capillary length. slip length. >10 micron? 2.7mm for water      -macroscopic -
+    l = 3E-9  # e.g. 1nm              -microscopic/molecular length scale
+    Ca = varyFactor / 9 / np.log(R / l)
+
+    mu = 1.34 / 1000  # Pa*s
+    gamma = 25.55 / 1000  # N/m
+    local_velocity = Ca * gamma / mu
+
+    phi_sorted, local_velocity_sorted = [list(a) for a in zip(*sorted(zip(phi, local_velocity)))]
+    for i in range(1, len(phi_sorted)):
+        if phi_sorted[i] <= phi_sorted[i - 1]:
+            phi_sorted[i] = phi_sorted[i - 1] + 1e-5
+    # Fit velocity profile with a normal sine wave:
+    f_local_velocity, func_single, N, _, _ = manualFitting(np.array(phi_sorted),
+                                                           np.array(local_velocity_sorted) * 60 * 1E6, f"C:\\TEMP",
+                                                           [r"Local Velocity", "[$\mu$m/min]"],
+                                                           [5], 'manual')
+
+    phi_range = np.linspace(-np.pi, np.pi, len(CA))
+    # def func(x, a, b, c):
+    #     return a * np.sin(x+b) + c
+    #
+    # popt, pcov = scipy.optimize.curve_fit(func, phi, local_velocity)
+
+    ax3[0, 1].plot(phi, local_velocity * 60 * 1E6, '.')
+    # ax3[0,1].plot(phi, func(phi, *popt) * 60 * 1E6, '.')
+    ax3[0, 1].plot(phi_range, f_local_velocity(phi_range), '.')
+    ax3[0, 1].set(xlabel=r'radial angle ($\phi$)', ylabel=r'local velocity ($\mu$m/min)', title='Local velocity plot')
+
+    Ca_calculated = (np.array(f_local_velocity(phi_range)) * mu / gamma) / (60 * 1E6)
+    theta_app_calculated = np.power(np.power(theta_eq / 180 * np.pi, 3) + 9 * Ca_calculated * np.log(R / l), 1 / 3)
+    ax3[0, 0].plot(phi_range / np.pi, theta_app_calculated * 180 / np.pi, '.', label=r'$\theta_{app}$ - modelled')
+    ax3[0, 0].legend(loc='best')
+
+    xArrFinal = np.cos(phi)
+    yArrFinal = np.sin(phi)
+    im3 = ax3[1, 1].scatter(xArrFinal, yArrFinal, c=local_velocity * 60 * 1E6, cmap='jet',
+                            vmin=min(local_velocity * 60 * 1E6), vmax=max(local_velocity * 60 * 1E6))
+    ax3[1, 1].set_xlabel("X-coord");
+    ax3[1, 1].set_ylabel("Y-Coord");
+    ax3[1, 1].set_title(f"Model: spatial local velocity colormap", fontsize=20)
+    fig3.colorbar(im3)
+
+    # plot spatial CA image
+    im3 = ax3[1, 0].scatter(xArrFinal, yArrFinal, c=CA, cmap='jet', vmin=min(CA), vmax=max(CA))
+    ax3[1, 0].set_xlabel("X-coord");
+    ax3[1, 0].set_ylabel("Y-Coord");
+    ax3[1, 0].set_title(f"Model: spatial Contact angle colormap", fontsize=20)
+    fig3.colorbar(im3)
+
+    plt.show()
     return
 
 def main():
