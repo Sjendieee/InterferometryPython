@@ -9,37 +9,38 @@ import traceback
 
 from Testing_ToCollapseCode import manualFitting
 
-# define img nr &
-# define folder path
-imgNr = 32
-folder_path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3\\Analysis CA Spatial"
-#imgNr = 47
-#folder_path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop\\Analysis CA Spatial"
+def importData():
+    # define img nr &
+    # define folder path
+    imgNr = 32
+    folder_path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3\\Analysis CA Spatial"
+    #imgNr = 47
+    #folder_path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop\\Analysis CA Spatial"
 
-#folder_path = os.path.join(os.getcwd(), "TestData")
-# import CA datafile paths
-file_paths = [os.path.join(folder_path, f"ContactAngleData {imgNr}.csv")]
+    #folder_path = os.path.join(os.getcwd(), "TestData")
+    # import CA datafile paths
+    file_paths = [os.path.join(folder_path, f"ContactAngleData {imgNr}.csv")]
 
-# import middle coord
-with open(os.path.join(folder_path, f"Analyzed Data\\{imgNr}_analysed_data.json"), 'r') as file:
-    json_data = json.load(file)
-middleCoord = json_data['middleCoords-surfaceArea']
+    # import middle coord
+    with open(os.path.join(folder_path, f"Analyzed Data\\{imgNr}_analysed_data.json"), 'r') as file:
+        json_data = json.load(file)
+    middleCoord = json_data['middleCoords-surfaceArea']
 
-# import data from csv datafiles
-xcoord = []
-ycoord = []
-CA = []
-for file_path in file_paths:
-    with open(file_path, newline='') as csvfile:
-        data = csv.reader(csvfile, delimiter=',')
-        for row in data:
-            try:
-                xcoord.append(int(row[0]))
-                ycoord.append(int(row[1]))
-                CA.append(float(row[2]))
-            except:
-                print(f"some error: row info = {row}")
-
+    # import data from csv datafiles
+    xcoord = []
+    ycoord = []
+    CA = []
+    for file_path in file_paths:
+        with open(file_path, newline='') as csvfile:
+            data = csv.reader(csvfile, delimiter=',')
+            for row in data:
+                try:
+                    xcoord.append(int(row[0]))
+                    ycoord.append(int(row[1]))
+                    CA.append(float(row[2]))
+                except:
+                    print(f"some error: row info = {row}")
+    return xcoord, ycoord, CA
 
 # Plot spatial experimental CA profile vs X,Y-Coords
 # TODO uncomment
@@ -421,12 +422,87 @@ def tiltedDrop(xcoord, ycoord, CA, middleCoord):
     plt.show()
     return
 
+
+def testingQualitativeDescription():
+    angle = np.linspace(0, np.pi, 1000)
+    # theta_eq = (np.sin(angle-np.pi/2) + 2) * np.pi / 180
+
+    #Ca = -1.55E-7 * np.sin(angle - np.pi / 2)  # OG standard Ca curve: normal sinus between + and - the value
+    Ca = -5E-8 * np.sin(angle - np.pi / 2)  # OG standard Ca curve: normal sinus between + and - the value
+
+    for Ca in [-1E-7 * np.sin(angle - np.pi / 2)]:
+        #Figure: input capillary number (Ca) vs. phi
+        fig1, ax1 = plt.subplots(figsize=(6, 4))
+        ax1.plot(angle * 180 / np.pi, Ca)
+        ax1.set(xlabel='Contact angle', ylabel='Capillary number')
+
+        x = 10E-6  # slip length, 10 micron?                     -macroscopic
+        l = 2E-9  # capillary length, ongeveer              -micro/nanoscopic
+        for x in [10E-6, 100E-6, 1000E-6]:
+            anglerange = np.linspace(0, 1, 1000)
+            k = 3
+            # Ca = -1E-6 * ((((0.5+np.sin(anglerange*np.pi-np.pi/2)/2)**((2*(1-anglerange))**k)))*2 - 1)
+            theta_eq = (((0.5 + np.sin(anglerange * np.pi - np.pi / 2) / 2) ** (
+                        (2 * (1 - anglerange)) ** k)) * 2 + 1) * np.pi / 180
+            prefactor = 9  # OG = 9
+            theta_app = (theta_eq ** 3 + prefactor * Ca * np.log(x / l)) ** (1 / 3)
+            print(f"{x / l}")
+            print(f"{prefactor * np.log(x / l)}")
+            # xOverL = 0.01
+            # theta_app = (theta_eq**3 + 9*Ca*np.log(xOverL))**(1/3)
+
+
+
+            CA_max_i = np.argmax(theta_app)
+            CA_min_i = np.argmin(theta_app)
+
+            #Figure: plot w/ both CA_eq (non friction) & CA_app (friction)
+            fig1, ax1 = plt.subplots(figsize=(9, 6))
+            ax1.plot(angle * 180 / np.pi, theta_eq * 180 / np.pi, label=r'$\theta_{eq}$ - no friction')
+            ax1.plot(angle * 180 / np.pi, theta_app * 180 / np.pi, '.', label=r'$\theta_{app}$ - with friction')
+            ax1.set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
+                    title='Example influence hydrolic resistance on apparent contact angle\n'
+                          f'x={x:.1E}, l={l:.1E}, x/l={x/l:.1E}, Ca=[{min(Ca):.1E} - {max(Ca):.1E}]\n'
+                          f'CA_max at {angle[CA_max_i]:.2f}rad & CA_min at {angle[CA_min_i]:.2f}rad')
+            ax1.legend(loc='best')
+            fig1.savefig(f"C:\\Downloads\\CA vs azimuthal Ca={max(Ca):.1E}, x={x:.1E}, l={l:.1E}.png", dpi=600)
+            #
+
+            theta_eq = theta_eq * 180 / np.pi
+            theta_app = theta_app * 180 / np.pi
+
+            # #Figure: spatial colormap: CA_eq
+            # fig3, ax3 = plt.subplots(figsize=(9, 6))
+            # xArrFinal = np.cos(angle)
+            # yArrFinal = np.sin(angle)
+            # im3 = ax3.scatter([xArrFinal, np.flip(xArrFinal)], [yArrFinal, -np.flip(yArrFinal)], c=[theta_eq, np.flip(theta_eq)], cmap='jet', vmin=min(theta_eq), vmax=max(theta_eq))
+            # ax3.set_xlabel("X-coord");
+            # ax3.set_ylabel("Y-Coord");
+            # ax3.set_title(f"Model: No Hydrolic Resistance \nSpatial Equilibrium Contact Angles Colormap", fontsize=20)
+            # fig3.colorbar(im3)
+            # fig3.savefig("C:\\Downloads\\NOhydrolic.png", dpi=600)
+            # #
+            #
+            # #Figure: spatial colomap: CA_app
+            # fig4, ax4 = plt.subplots(figsize=(9, 6))
+            # im4 = ax4.scatter([xArrFinal, np.flip(xArrFinal)], [yArrFinal, -np.flip(yArrFinal)], c=[theta_app, np.flip(theta_app)], cmap='jet', vmin=min(theta_app), vmax=max(theta_app))
+            # ax4.set_xlabel("X-coord"); ax4.set_ylabel("Y-Coord");
+            # ax4.set_title(f"Model: Effect of viscous friction\nSpatial Predicted Apparent Contact Angles Colormap", fontsize=20)
+            # fig4.colorbar(im4)
+            # fig4.savefig(f"C:\\Downloads\\YEShydrolic Ca={max(Ca)}, x={x}, l={l}.png", dpi=600)
+            # #
+
+    plt.show()
+
 def main():
     try:
+        testingQualitativeDescription()
+
+        #xcoord, ycoord, CA = importData()
         #fitSpatialCA(xcoord, ycoord, CA, middleCoord)
 
         #fitSpatialCA_simplified(xcoord, ycoord, CA, middleCoord)
-        trial1(xcoord, ycoord, CA, middleCoord)
+        #trial1(xcoord, ycoord, CA, middleCoord)
 
         angle = np.linspace(0, np.pi, 1000)
         # theta_eq = (np.sin(angle-np.pi/2) + 2) * np.pi / 180
