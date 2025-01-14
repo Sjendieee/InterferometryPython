@@ -430,7 +430,7 @@ def testingQualitativeDescription():
     #Ca = -1.55E-7 * np.sin(angle - np.pi / 2)  # OG standard Ca curve: normal sinus between + and - the value
     Ca = -5E-8 * np.sin(angle - np.pi / 2)  # OG standard Ca curve: normal sinus between + and - the value
 
-    for Ca in [-1E-7 * np.sin(angle - np.pi / 2)]:
+    for Ca in [-1E-8 * np.sin(angle - np.pi / 2), -5E-8 * np.sin(angle - np.pi / 2), -1E-7 * np.sin(angle - np.pi / 2), -5E-7 * np.sin(angle - np.pi / 2)]:
         #Figure: input capillary number (Ca) vs. phi
         fig1, ax1 = plt.subplots(figsize=(6, 4))
         ax1.plot(angle * 180 / np.pi, Ca)
@@ -463,9 +463,10 @@ def testingQualitativeDescription():
             ax1.set(xlabel='Azimuthal angle (deg)', ylabel='Contact angle (deg)',
                     title='Example influence hydrolic resistance on apparent contact angle\n'
                           f'x={x:.1E}, l={l:.1E}, x/l={x/l:.1E}, Ca=[{min(Ca):.1E} - {max(Ca):.1E}]\n'
-                          f'CA_max at {angle[CA_max_i]:.2f}rad & CA_min at {angle[CA_min_i]:.2f}rad')
+                          f'CA_max at {angle[CA_max_i]* 180 / np.pi:.1f}deg & CA_min at {angle[CA_min_i]* 180 / np.pi:.1f}deg')
             ax1.legend(loc='best')
-            fig1.savefig(f"C:\\Downloads\\CA vs azimuthal Ca={max(Ca):.1E}, x={x:.1E}, l={l:.1E}.png", dpi=600)
+            #fig1.savefig(f"C:\\Downloads\\CA vs azimuthal Ca={max(Ca):.1E}, x={x:.1E}, l={l:.1E}.png", dpi=600)
+            fig1.savefig(f"C:\\Users\\ReuvekampSW\\Downloads\\CA vs azimuthal Ca={max(Ca):.1E}, x={x:.1E}, l={l:.1E}.png", dpi=600)
             #
 
             theta_eq = theta_eq * 180 / np.pi
