@@ -16,7 +16,7 @@ def path_in_use():
     path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
 
-    metadata = dict(title='4-panel Movie', artist='Sjendieee')
+    metadata = dict(title='Movie', artist='Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
 
     return path
@@ -76,8 +76,8 @@ def main():
     #imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"Complete overview*png"))]        #this grabs all the 4-panel images in folder
     #videoname = f'Complete_Overview_movie.mp4v'
 
-    videoname = f'rawImage_contourLine_movie.mp4v'
-    imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"rawImage_contourLine*png"))]        #this grabs all the 4-panel images in folder
+    videoname = f'ColorplotMovie.mp4v'
+    imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"Colorplot*filtered.png"))]        #this grabs all the 4-panel images in folder
 
     videoMakerOfImges(imgList, analysisFolder, videoname, fps = 5, compression = 50)
 
