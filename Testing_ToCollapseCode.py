@@ -2770,6 +2770,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                                 f"SEE CONTOUR GREYSCALED IMAGE to check if this is as desired/expected."
                                                 f"\n Eventual Brush Swelling profiles may be weird-looking because of shorter lines (to fit in image frame)")
 
+                    #TODO implement functino to remove 0 or even negative intensity data properly
+                    if any(np.array(profileOutwards) < 0):
+
+
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
                     # If not keep list empty and act as if we don't want the outside vector
                     # xOutwards is the x-distance (units) purely of swelling profile outside drop
@@ -3354,10 +3358,10 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #C Constant subtracted from the mean or weighted mean.
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
-    everyHowManyImages = 4  # when a range of image analysis is specified, analyse each n-th image
+    everyHowManyImages = 10  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(107, 117, everyHowManyImages))
-    usedImages = [46]       #36, 57
+    usedImages = [120]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
@@ -4278,6 +4282,10 @@ def main():
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M2 tilted drop"
 
+    #P12MA xp1.32 - moving drop:
+    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover"   #back & forwards moving
+
+
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
     #path = "E:\\2023_07_31_PODMA_Basler2x_dodecane_2_2_3_WEDGE_1coverslip spacer____MOVEMENT"
@@ -4288,6 +4296,7 @@ def main():
 
     #For Yi Li
     #path = "M:\\YiLi\\"
+
 
     #Zeiss = 520nm, Nikon=533nm
     primaryObtainCARoutine(path, wavelength_laser=520)
