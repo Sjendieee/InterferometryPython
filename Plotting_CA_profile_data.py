@@ -15,7 +15,7 @@ def path_in_use():
     Write path to folder in which the analyzed images (and subsequent analysis) are
     :return:
     """
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
 
     metadata = dict(title='Movie', artist='Sjendieee')
@@ -119,6 +119,8 @@ def plottingMaxima_And_Minima_vsTime(csv_data_list, analysisFolder, videoname, n
             # CA_min.append(values.min())
             # CA_max.append(values.max())
 
+            #TODO show both min & max from both sides, not only abs value
+
             # Find the max value and its position (index)
             max_value = values.max()
             max_position = values.idxmax()  # Get the index of the max value
@@ -151,7 +153,7 @@ def plottingMaxima_And_Minima_vsTime(csv_data_list, analysisFolder, videoname, n
     ax1.plot(np.array(timeList)/60, CA_max, '.', markersize=8, label=f'CA max')
     ax1.set(xlabel = 'time (min)', ylabel = 'Contact Angle (deg)', title = 'Min & Max Contact Angle (averaged 40 points) over time')
     ax1.legend(loc='best')
-    fig1.savefig(f"C:\\Downloads\\CAPlot", dpi=600)
+    #fig1.savefig(f"C:\\Downloads\\CAPlot", dpi=600)
 
     fig2, ax2 = plt.subplots(figsize = (9,6))
     ax2.plot(np.array(timeList)/60, np.absolute(phi_min) / np.pi * 180, '.', markersize=8, label=f'Angle of CA min')
