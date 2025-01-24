@@ -2770,9 +2770,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                                 f"SEE CONTOUR GREYSCALED IMAGE to check if this is as desired/expected."
                                                 f"\n Eventual Brush Swelling profiles may be weird-looking because of shorter lines (to fit in image frame)")
 
-                    #TODO implement functino to remove 0 or even negative intensity data properly
-                    if any(np.array(profileOutwards) < 0):
-
+                    #TODO implement function to remove 0 or even negative intensity data properly
+                    if any(np.array(profileOutwards) < 1):
+                        print('we should be pausin')
+                        pass
 
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
                     # If not keep list empty and act as if we don't want the outside vector
@@ -4119,7 +4120,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 def save_measurementdata_to_json(analysedData, coordLeft, coordRight, coordsBottom, coordsTop, error_quad, meanmiddleX,
                                  meanmiddleY, medianmiddleX, medianmiddleY, middleCoord, n, stats, total_force_quad,
                                  trapz_intForce_data, trapz_intForce_function, usedDeltaTs):
-    # TODO desired outputs:
+    # desired outputs:
     # Always write stats to json file
     # Standard measurement specific info
     stats['timeFromStart'] = usedDeltaTs[-1]  # time since image 0 in (s)
@@ -4283,7 +4284,7 @@ def main():
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M2 tilted drop"
 
     #P12MA xp1.32 - moving drop:
-    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover"   #back & forwards moving
+    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
 
 
     #PODMA on heating stage:
