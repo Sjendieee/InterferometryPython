@@ -1696,6 +1696,10 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
             ^NOTE/TODO: this one should be almost the same for all vectors right?
     :return fitInside: boolean to show whether to line fits inside the given image. If not, return a linelength of 0 and empty profile
     """
+
+    if x0arrcoord == 2866 and y0arrcoord == -3:
+        print('we pausin')
+
     fitInside = True
     profile = []
     if dxarrcoord - x0arrcoord == 0:  # 'flat' vector in x-dir: constant x, variable y
@@ -1728,17 +1732,22 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
             if coordy < 0 or coordy >= sy:
                 n_endy = n
                 break               #break there, and save the index
-        if n_endx > n_endy:
-            xlist = xlist[:n_endy]
-            ylist = ylist[:n_endy]
-        else:
-            xlist = xlist[:n_endx]
-            ylist = ylist[:n_endx]
 
-        coords = list(zip(xlist, ylist))
-        lineLengthPixels = ((xlist[0]-xlist[-1])**2 + (ylist[0]-ylist[-1])**2)**0.5
-        profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
-        fitInside = False
+        if n_endx == 0 or n_endy == 0 :     #if either one is 0, next function will break: skip vector
+            lineLengthPixels = 0
+            fitInside = False
+            logging.warning(f"Trying to extract intensity data from outside the given image. Skipping this vector.")
+        else:
+            if n_endx > n_endy:
+                xlist = xlist[:n_endy]
+                ylist = ylist[:n_endy]
+            else:
+                xlist = xlist[:n_endx]
+                ylist = ylist[:n_endx]
+            coords = list(zip(xlist, ylist))
+            lineLengthPixels = ((xlist[0]-xlist[-1])**2 + (ylist[0]-ylist[-1])**2)**0.5
+            profile = [np.transpose(greyresizedimg)[pnt] for pnt in coords]
+            fitInside = False
         #lineLengthPixels = 0
     elif HARDPASS:
         lineLengthPixels = 0
@@ -2743,7 +2752,9 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     profileOutwards, lineLengthPixelsOutwards, fitInside, coords_Outside = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],
                                                                                         dynegarr[k], outwardsLengthVector,
                                                                                         greyresizedimg)
-
+                    
+                    #TODO implement proper loop skip if linelineght == 0, because then no data is to be retrieved!
+                    
                     if not fitInside:
                         nrOfLinesOutsideImgFrame += 1
 
@@ -2764,16 +2775,23 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                         fitInside = True
                         if nrOfLinesOutsideImgFrame < 21:
-                            logging.warning(f"Trying to extract intensity data from outside the given image. New line lenght = {lineLengthPixelsOutwards:3f}.")
+                            logging.warning(f"Trying to extract intensity data from outside the given image. New line length = {lineLengthPixelsOutwards:3f}.")
                             if nrOfLinesOutsideImgFrame == 20:
                                 logging.warning(f"20th line encountered where line did not fit inside image frame. Not printing that information anymore\n"
                                                 f"SEE CONTOUR GREYSCALED IMAGE to check if this is as desired/expected."
                                                 f"\n Eventual Brush Swelling profiles may be weird-looking because of shorter lines (to fit in image frame)")
 
                     #TODO implement function to remove 0 or even negative intensity data properly
-                    if any(np.array(profileOutwards) < 1):
+                    #TODO adjust linel
+                    if any(np.array(profileOutwards[-len(profileOutwards)//5:]) < 1):  #check if any intensity values in the outer 1/5th datapoints is 0:
+                        i_first_zero = profileOutwards.index(0) - 10     #find first index of 0 in entire intensity list, and add some extra datapoints as 'spacer'
+                        cut_profileOutwards = profileOutwards[:i_first_zero]    #cut off 0's from intensity profile
+                        lineLengthPixelsOutwards = len(cut_profileOutwards) * (lineLengthPixelsOutwards/len(profileOutwards))       #calculate linelength [pixels] of cut profile
+                        coords_Outside = coords_Outside[:i_first_zero]      #shorten Coords_Outside list
+                        profileOutwards = cut_profileOutwards
+                        del i_first_zero, cut_profileOutwards
                         print('we should be pausin')
-                        pass
+
 
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
                     # If not keep list empty and act as if we don't want the outside vector
@@ -2784,7 +2802,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     profileOutwards.reverse()  # correct stitching of in-&outwards profiles requires reversing of the outwards profile
 
 
-                if k in plotHeightCondition or k == k_half_unfiltered: #color & show the vectors of the desried swelling profiles & always the 'middle' vector (of OG contour dataset)
+                if k in plotHeightCondition or k == k_half_unfiltered: #color & show the vectors of the desired swelling profiles & always the 'middle' vector (of OG contour dataset)
                     colorInwards = (255, 0, 0)  # draw blue vectors for desired swelling profiles
                     colorOutwards = (255, 0, 0)
                     resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), colorInwards,
