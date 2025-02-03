@@ -2752,9 +2752,10 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     profileOutwards, lineLengthPixelsOutwards, fitInside, coords_Outside = profileFromVectorCoords(x0arr[k], y0arr[k], dxnegarr[k],
                                                                                         dynegarr[k], outwardsLengthVector,
                                                                                         greyresizedimg)
-                    
-                    #TODO implement proper loop skip if linelineght == 0, because then no data is to be retrieved!
-                    
+
+                    if lineLengthPixelsOutwards == 0:   #skip current k in loop, and continue with next one if lineLengthPixelsOutwards == 0, because then no data is to be retrieved!
+                        continue
+
                     if not fitInside:
                         nrOfLinesOutsideImgFrame += 1
 
@@ -2790,8 +2791,6 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         coords_Outside = coords_Outside[:i_first_zero]      #shorten Coords_Outside list
                         profileOutwards = cut_profileOutwards
                         del i_first_zero, cut_profileOutwards
-                        print('we should be pausin')
-
 
                     # If intensities fit inside profile & are obtained as desired, fill an array with x-positions.
                     # If not keep list empty and act as if we don't want the outside vector
@@ -2944,7 +2943,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         ax1, fig1 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL_smoothened,
                                                                    offsetDropHeight, peaks, profile,
                                                                    profileOutwards, r2, startIndex, unwrapped,
-                                                                   wrapped, x, xBrushAndDroplet_units, xshift, smallExtraOutwardsVector, endIndex)
+                                                                   wrapped, x, xBrushAndDroplet_units, xshift, smallExtraOutwardsVector, endIndex, extraPartIndroplet)
                     else:       #for the profiles in plottingHeightCondition
                         # TODO WIP: swelling or height profile outside droplet
                         # TODO this part below sets the anchor at some index within the droplet regime
@@ -3377,13 +3376,13 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #C Constant subtracted from the mean or weighted mean.
     #thresholdSensitivityStandard = [11 * 3, 3 * 5]  # [blocksize, C].   OG: 11 * 5, 2 * 5;     working better now = 11 * 3, 2 * 5
     #thresholdSensitivityStandard = [25, 4]  # [blocksize, C].
-    everyHowManyImages = 10  # when a range of image analysis is specified, analyse each n-th image
+    everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
-    #usedImages = list(np.arange(107, 117, everyHowManyImages))
-    usedImages = [120]       #36, 57
+    #usedImages = list(np.arange(12, 117, everyHowManyImages))
+    usedImages = [112]       #36, 57
 
     #usedImages = [32]       #36, 57
-    thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     [5,3] for higher CA's or closed contours
+    thresholdSensitivityStandard = [11, 5]      #typical [13, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
 
     imgFolderPath, conversionZ, conversionXY, unitZ, unitXY = filePathsFunction(path, wavelength_laser)
 
@@ -4111,7 +4110,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                                              usedDeltaTs)
                 plt.close('all')
                 print("------------------------------------Succesfully finished--------------------------------------------\n"
-                      "------------------------------------   previous image  --------------------------------------------")
+                      f"------------------------------------   previous image {n} --------------------------------------------")
 
             except Exception:
                 logging.critical(f"Some error occured. Still plotting obtained contour & saving data to json file (as much as possible)")
@@ -4130,6 +4129,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     fig2, ax2 = plt.subplots()
     ax2.plot(np.divide(usedDeltaTs, 60), totalForce_afo_time)
     ax2.set_xlabel("Time (minutes)"); ax2.set_ylabel("Horizontal component force (mN)"); ax2.set_title("Horizontal component force over Time")
+    fig2.tight_layout()
     fig2.savefig(os.path.join(analysisFolder, f'Horizontal component force vs Time.png'), dpi=600)
     showPlot(SHOWPLOTS_SHORT, [fig2])
     #plt.show()
@@ -4161,7 +4161,7 @@ def save_measurementdata_to_json(analysedData, coordLeft, coordRight, coordsBott
 
 
 def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks, profile, profileOutwards,
-                                   r2, startIndex, unwrapped, wrapped, x, xOutwards, xshift, smallExtraOutwardsVector, endIndex):
+                                   r2, startIndex, unwrapped, wrapped, x, xOutwards, xshift, smallExtraOutwardsVector, endIndex, extraPartIndroplet):
     """"
     #for 4-panel plot:  Intensity vs datapoint [0,0],
                         Height vs distance [0,1],
@@ -4210,7 +4210,9 @@ def plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL, offsetDropHeight, peaks,
 
     ax1[0, 1].plot(x[startIndex], unwrapped[startIndex] * 1000, 'r.', label='Start linear regime droplet');
     ax1[0, 1].plot(x[endIndex], unwrapped[endIndex] * 1000, 'r.', label='End linear regime droplet');
-    ax1[0, 1].plot(x[smallExtraOutwardsVector - 1], unwrapped[smallExtraOutwardsVector - 1] * 1000 , '.', label = 'Stitch location')    #TODO check of deze werkt naar behoren
+
+    ax1[0, 1].plot(x[smallExtraOutwardsVector], unwrapped[smallExtraOutwardsVector] * 1000 , '.b', label = 'Stitch location')    #TODO check of deze werkt naar behoren
+    ax1[0, 1].plot(xOutwards[-extraPartIndroplet], heightNearCL[-extraPartIndroplet], '.b')      #Stitch location brush part
 
     ax1[0, 1].legend(loc='best')
     ax1[0, 1].set_title("Brush & drop height vs distance")
@@ -4301,8 +4303,12 @@ def main():
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M2 tilted drop"
 
+    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-1deg-covered"
+
     #P12MA xp1.32 - moving drop:
-    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
+    #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
+    #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
+
 
 
     #PODMA on heating stage:

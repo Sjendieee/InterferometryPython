@@ -16,6 +16,9 @@ def path_in_use():
     path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
 
+    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"
+    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
+
     metadata = dict(title='Movie', artist='Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
 
@@ -76,10 +79,14 @@ def main():
     #imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"Complete overview*png"))]        #this grabs all the 4-panel images in folder
     #videoname = f'Complete_Overview_movie.mp4v'
 
-    videoname = f'ColorplotMovie.mp4v'
-    imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"Colorplot*filtered.png"))]        #this grabs all the 4-panel images in folder
+    #Typical files to make into a movie:
+    #   -   Complete overview *.png
+    #   -   Colorplot XYcoord-CA *-filtered.png
+    #   -   rawImage_contourLine_*.png
+    videoname = f'Complete overview Movie.mp4v'
+    imgList = [f for f in glob.glob(os.path.join(analysisFolder, f"Complete overview *.png"))]        #this grabs all the 4-panel images in folder
 
-    videoMakerOfImges(imgList, analysisFolder, videoname, fps = 5, compression = 50)
+    videoMakerOfImges(imgList, analysisFolder, videoname, fps = 2, compression = 50)
 
 
 if __name__ == '__main__':
