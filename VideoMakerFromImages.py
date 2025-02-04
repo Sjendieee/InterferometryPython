@@ -18,6 +18,9 @@ def path_in_use():
 
     path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"
     path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
+    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-1deg-covered"
+    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-3deg-covered"
+
 
     metadata = dict(title='Movie', artist='Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
