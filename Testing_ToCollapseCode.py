@@ -3379,7 +3379,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [43, 52, 70, 102, 138, 154, 158, 203, 220, 247, ]       #36, 57
+    usedImages = [205]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -4285,7 +4285,7 @@ def main():
     # path = "D:\\2023_11_27_PLMA_Basler10x_and5x_dodecane_1_28_S2_WEDGE"
 
     #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v2____GOOD"
-    #path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
+    path = "D:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_WEDGE_v2"
 
     #New P12MA dataset from 2024/05/07
     #path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S1_WEDGE_2coverslip_spacer_V4"
@@ -4293,7 +4293,7 @@ def main():
 
     #path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024_05_17_PLMA_180nm_hexadecane_Basler15uc_Zeiss5x_Xp1_31_S3_v3FLAT_COVERED"
-    #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
+    path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
     #path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
 
     #path = "D:\\2024_05_17_PLMA_180nm_dodecane_Basler15uc_Zeiss5x_Xp1_31_S3_v1FLAT_COVERED"
@@ -4313,7 +4313,7 @@ def main():
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
 
-    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_TILTEDplate-1deg-MOVINGDROP_halfCovered"                #moving against gravity (half-cover + 1&5deg tilt)
+    #path = "E:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_TILTEDplate-1deg-MOVINGDROP_halfCovered"                #moving against gravity (half-cover + 1&5deg tilt)
 
     #P12MA dodecane: Flat + moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M2 flat drop open + closed"
