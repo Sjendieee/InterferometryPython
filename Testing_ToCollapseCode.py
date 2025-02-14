@@ -3379,7 +3379,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [205]       #36, 57
+    usedImages = [20, 40, 134, 230, 244, 264]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -4305,6 +4305,8 @@ def main():
 
     #path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-1deg-covered"
     #path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-3deg-covered"
+    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-5deg-covered"
+
 
     #path = "F:\\2025-01-30 PLMA-hexadecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-5deg"
     #path = "D:\\2025-01-21 PLMA hexadecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop tilted cover + open - LargeDrop"

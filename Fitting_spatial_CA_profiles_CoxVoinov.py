@@ -314,7 +314,7 @@ def trial1(xcoord, ycoord, CA, middleCoord):
 
 
 
-
+#TODO: fit experimental data to Cox-Voinov
 def tiltedDrop(xcoord, ycoord, CA, middleCoord):
     """
     For tilted drops specifically.
@@ -422,6 +422,53 @@ def tiltedDrop(xcoord, ycoord, CA, middleCoord):
     plt.show()
     return
 
+def tiltedDropQuantitative():
+    """
+    Model theta_app for a tilted droplet with 'known' values: input constant thetha_eq, R & L. Vary Ca(phi)
+    𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙
+    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎
+    :return:
+    """
+    nr_of_datapoints = 1000
+    theta_eq_deg = np.ones(nr_of_datapoints) * 3            #deg
+    v0 = 700 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction
+
+    mu = 1.34 / 1000  # Pa*s
+    gamma = 25.55 / 1000  # N/m
+    R = 100E-6  # slip length, 10 micron?                     -macroscopic
+    l = 2E-9  # capillary length, ongeveer              -micro/nanoscopic
+
+    theta_eq_rad = theta_eq_deg / 180 * np.pi
+
+    phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)          #angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
+
+    #assuming v(0) = -v(pi)
+    #velocity_local = np.cos(phi) * v0        #v0 at advancing, -v0 at receding
+    #correcting for v(0) < -v(pi)
+    v_adv = 1500 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]
+    v_rec = 1200 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction      [150]
+
+    velocity_local = np.array([np.cos(phi_l) * v_adv if abs(phi_l) < np.pi/2 else np.cos(phi_l) * v_rec for phi_l in phi])
+    fig2, ax2 = plt.subplots()
+    ax2.plot(phi, velocity_local)
+    ax2.set(xlabel='radial angle [rad]', ylabel='local velocity [m/s]', title='local velocity profile adjusted for difference in advancing and receding speed')
+    fig2.tight_layout()
+
+    Ca_local = mu * velocity_local / gamma
+    print(f"Ca = {max(Ca_local)}")
+    theta_app_calculated = np.power(np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R/l), 1/3)
+    theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
+    R_drop = 1  # [mm]
+    x_coord = R_drop * np.cos(phi)
+    y_coord = R_drop * np.sin(phi)
+    fig1, ax1 = plt.subplots(figsize= (15, 9.6))
+    im1 = ax1.scatter(x_coord, y_coord, c=theta_app_calculated_deg, cmap='jet', vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
+    ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord");
+    ax1.set_title(f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description", fontsize=20)
+    fig1.colorbar(im1)
+    fig1.tight_layout()
+    plt.show()
+    return
 
 def testingQualitativeDescription():
     angle = np.linspace(0, np.pi, 1000)
@@ -497,7 +544,8 @@ def testingQualitativeDescription():
 
 def main():
     try:
-        testingQualitativeDescription()
+        #testingQualitativeDescription()
+        tiltedDropQuantitative()
 
         #xcoord, ycoord, CA = importData()
         #fitSpatialCA(xcoord, ycoord, CA, middleCoord)
