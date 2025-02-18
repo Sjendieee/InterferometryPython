@@ -1,3 +1,25 @@
+""""
+Decripated: use Testting_ToCollapseCode.py instead.
+For analysis of low contact angle droplets on a surface by monochromatic fringe analysis.
+
+Method:
+1st time use: select various experimental settings (micropscope lens zoom, output settings, etc)
+For each image, select the contour at the contact line of a droplet.
+Normal to that contour, for each pixel on the contour, a line (pointing inwards, and optionally outwards) will be drawn
+and intensity values are extracted. With the known light wavelength, this intensity profile is converted to a height
+profile (of the droplet, and optionally outside the drop e.g. swollen brush). The droplet profile is linearly fitted
+to obtain the local apparent contact angle.
+
+During the analysis, filtering of the obtained contact angles is possible by selecting the 'undesired' angles in a plot
+(e.g. near pinning sites).
+
+Analysis data & plots/figures are saved to a '..\Analysis CA Spatial' folder: CA-profiles colorplots,
+4-panel complete overview images, Contact Angle data .csv, rawImage+analyzed lines, etc...
+Coordinates of the un-&filtered coordinates are saved for ease of re-analysis in '..\..\ContourCoords'.
+Some key parameters & analysis values are saved to json-files in '..\..\Analyzed Data'
+Individual swelling profiles (images, intensity profiles .csv,  indices of max&minima) are saved to ..\Swellingimages
+
+"""
 import itertools
 import os.path
 import pickle

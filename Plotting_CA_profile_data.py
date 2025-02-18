@@ -9,20 +9,60 @@ import re
 import pandas as pd
 from matplotlib.animation import FFMpegWriter
 import cv2
+from matplotlib.widgets import RectangleSelector
+from scipy.signal import savgol_filter
+import traceback
+import pickle
 
 def path_in_use():
     """
     Write path to folder in which the analyzed images (and subsequent analysis) are
     :return:
     """
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    #path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
+    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-5deg-covered"
+
 
     metadata = dict(title='Movie', artist='Sjendieee')
     writer = FFMpegWriter(fps=15, metadata=metadata)
 
     return path
 
+right_clicks = list()
+def click_event(event, x, y, flags, params):
+    '''
+    Click event for the setMouseCallback cv2 function. Allows to select 2 points on the image and return it coordinates.
+    '''
+    if event == cv2.EVENT_LBUTTONDOWN:
+        global right_clicks
+        right_clicks.append([x, y])
+    if len(right_clicks) == 2:
+        cv2.destroyAllWindows()
+class Highlighter(object):
+    def __init__(self, ax, x, y):
+        self.ax = ax
+        self.canvas = ax.figure.canvas
+        self.x, self.y = x, y
+        self.mask = np.zeros(x.shape, dtype=bool)
+        self._highlight = ax.scatter([], [], s=200, color='yellow', zorder=10)
+        self.selector = RectangleSelector(ax, self, useblit=True)
+
+    def __call__(self, event1, event2):
+        self.mask |= self.inside(event1, event2)
+        xy = np.column_stack([self.x[self.mask], self.y[self.mask]])
+        self._highlight.set_offsets(xy)
+        self.canvas.draw()
+
+    def inside(self, event1, event2):
+        """Returns a boolean mask of the points inside the rectangle defined by
+        event1 and event2."""
+        # Note: Could use points_inside_poly, as well
+        x0, x1 = sorted([event1.xdata, event2.xdata])
+        y0, y1 = sorted([event1.ydata, event2.ydata])
+        mask = ((self.x > x0) & (self.x < x1) &
+                (self.y > y0) & (self.y < y1))
+        return mask
 
 def tryint(s):
     try:
@@ -223,6 +263,144 @@ def plottingTop_And_BottomCA_vsTime(csv_data_list, analysisFolder, videoname, nr
     plt.show()
     return
 
+
+
+
+def selectCA_minmax(csv_data_list, analysisFolder, videoname, nrList, timeList, neighborhood_size=20):
+    """
+    Reads data from a list of CSV files, plots the CA profile, and allows the user to select where a min or max is to be found.
+    Then, plots this info vs. time.
+
+    Parameters:
+        csv_data_list (list): List of paths to the CSV files.
+    Returns:
+        list:
+    """
+
+    CA_min = []
+    CA_max = []
+    phi_min = []
+    phi_max = []
+    infotuple = []      #will contain tuples of (time(int), 'min' (str), CA (flt), phi(flt))
+    if os.path.exists(os.path.join(analysisFolder, "pickle dumps\\CA analysis.p")):
+        infotuple = pickle.load(open(os.path.join(analysisFolder, "pickle dumps\\CA analysis.p"), "rb"))
+    else:
+        for n, csv_file in enumerate(csv_data_list):
+            try:
+                #extract nr from filepath
+                json_data = json.load(open(os.path.join(analysisFolder, f"Analyzed Data\\{nrList[n]}_analysed_data.json"), 'r'))
+                middleOfArea = (json_data['middleCoords-surfaceArea'])
+
+                # Read the CSV file into a DataFrame
+                data = pd.read_csv(csv_file)
+
+                # Assuming the CSV has a single column or a specific column name, adapt accordingly
+                # If the data column is unnamed, it'll be automatically indexed as data.iloc[:, 0]
+                values = np.array(data.iloc[:, 2])  # Select the first column
+                xvals = data.iloc[:, 0]  # Select the first column
+                yvals = data.iloc[:, 1]  # Select the first column
+
+                phi_total, _ = coordsToPhi(xvals, yvals, middleOfArea[0], middleOfArea[1])
+
+                #plot CA in colorplot & allow for selection where to find min & maxima
+                #FIRST MAXIMA
+                fig1, ax1 = plt.subplots(figsize=(9,6))
+                im1 = ax1.scatter(xvals, yvals, c=values, cmap='jet', vmin=min(values), vmax=max(values), label=f'Local contact angles')
+                highlighter = Highlighter(ax1, np.array(xvals), np.array(yvals))
+                ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord"); ax1.set_title(f"Spatial Contact Angle Colormap\n SELECT MAXIMA")
+                fig1.colorbar(im1, format="%.3f")
+                plt.show()
+                #determine selected areas and what to do with them: TODO
+                selected_regions_MAXIMA = highlighter.mask
+                plt.close()
+
+                #THEN MINIMA
+                fig1, ax1 = plt.subplots(figsize=(9,6))
+                im1 = ax1.scatter(xvals, yvals, c=values, cmap='jet', vmin=min(values), vmax=max(values), label=f'Local contact angles')
+                highlighter = Highlighter(ax1, np.array(xvals), np.array(yvals))
+                ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord"); ax1.set_title(f"Spatial Contact Angle Colormap\n SELECT MINIMA")
+                fig1.colorbar(im1, format="%.3f")
+                plt.show()
+                #determine selected areas and what to do with them: TODO
+                selected_regions_MINIMA = highlighter.mask
+
+                def findRanges(selected_regions):
+                    # Indices are found here
+                    a_true_ranges = np.argwhere(np.diff(selected_regions, prepend=False, append=False))
+                    # Conversion into list of 2-tuples
+                    a_true_ranges = a_true_ranges.reshape(len(a_true_ranges) // 2, 2)
+                    a_true_ranges = [tuple(r) for r in a_true_ranges if abs(r[0] - r[1]) > 20]  #! below >20 to remove smaller 'selected regions'
+
+                    if len(a_true_ranges) > 1:  #if multiple regions are 'selected':
+                        if a_true_ranges[0][0] == 0 and a_true_ranges[-1][1] == len(selected_regions):  #selected regions wrap around end-of-list back to beginning
+                            a_true_ranges[0][0] = a_true_ranges[-1][0]      #add 'last range' starting point into 'first range'
+                            a_true_ranges = a_true_ranges[0:-1]     #remove last 'selected range'
+                            #TODO fix deze range bussiness: wanneer wrapping door het einde van list
+                    return a_true_ranges
+
+                a_true_ranges_maxima = findRanges(selected_regions_MAXIMA)
+                a_true_ranges_minima = findRanges(selected_regions_MINIMA)
+
+                print(f"nr. of ranges selected MAXIMA: {len(a_true_ranges_maxima)}.\n Selected ranges are: {a_true_ranges_maxima}")
+                print(f"nr. of ranges selected MINIMA: {len(a_true_ranges_minima)}.\n Selected ranges are: {a_true_ranges_minima}")
+
+                for range in a_true_ranges_maxima:      #for all selected ranges, find maximum (w/ some averaging around it)
+
+                    i_range = np.arange(range[0], range[1], 1)        #index numbers of range
+                    i_max = np.argmax(values[i_range])                  #find local max, and
+                    #TODO deze +20 % gaan ook sowieso fout in de wrapping
+                    CA = np.mean(values[i_range[i_max-20%len(i_range):i_max+20%len(i_range)]])    #average over 20left&20right nearby for CA
+                    CA_max.append(CA)
+                    phi = phi_total[i_max]
+                    phi_max.append(phi)
+                    infotuple.append((timeList[n], 'max', CA, phi))
+                for range in a_true_ranges_minima:      #for all selected ranges, find maximum (w/ some averaging around it)
+                    i_range = np.arange(range[0], range[1], 1)        #index numbers of range
+                    i_min = np.argmin(values[i_range])                  #find local max, and
+                    CA = np.mean(values[i_range[i_min-20%len(i_range):i_min+20%len(i_range)]])    #average over 20left&20right nearby for CA
+                    CA_min.append(CA)
+                    phi = phi_total[i_min]
+                    phi_min.append(phi)
+                    infotuple.append((timeList[n], 'min', CA, phi))
+
+                # #Determine min & max when 2 regions are selected
+                # inverted_selected_regions = [not elem for elem in selected_regions]  # invert booleans to 'deselect' the selected regions
+                # xrange1, yrange1 = np.array(xvals)[inverted_selected_regions], np.array(yvals)[inverted_selected_regions]
+
+                # #show something TODO
+                # filtered_angleDegArr = np.array(values)[inverted_selected_regions]
+                # fig3, ax3 = plt.subplots(figsize=(15, 9.6))
+                # im3 = ax3.scatter(xrange1, abs(np.subtract(4608, yrange1)), c=filtered_angleDegArr, cmap='jet', vmin=min(filtered_angleDegArr), vmax=max(filtered_angleDegArr))
+                # ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title( f"FILTERED Spatial Contact Angles Colormap")
+                # fig3.colorbar(im3)
+                # plt.show()
+
+            except Exception as e:
+                print(f"Error processing {csv_file}: {e}")
+                print(traceback.format_exc())
+
+        pickle.dump(infotuple, open(os.path.join(analysisFolder, "pickle dumps\\CA analysis.p"), "wb"))
+
+    fig1, ax1 = plt.subplots(figsize=(9, 6))
+    for datapoint in infotuple:
+        if datapoint[1] == 'max':       #maximum
+            ax1.plot(datapoint[0]/60, datapoint[2], 'r.', markersize=8)
+        elif datapoint[1] == 'min':       #minimum
+            ax1.plot(datapoint[0]/60, datapoint[2], 'b.', markersize=8)
+    ax1.set(xlabel = 'time (min)', ylabel = 'Contact Angle (deg)', title = 'Min & Max Contact Angle (averaged 40 points) over time')
+    ax1.legend(loc='best')
+    #fig1.savefig(f"C:\\Downloads\\CAPlot", dpi=600)
+
+    fig2, ax2 = plt.subplots(figsize = (9,6))
+    ax2.plot(np.array(timeList)/60, np.absolute(phi_min) / np.pi * 180, '.', markersize=8, label=f'Angle of CA min')
+    ax2.plot(np.array(timeList)/60, np.absolute(phi_max) / np.pi * 180, '.', markersize=8, label=f'Angle of CA max')
+    ax2.set(xlabel = 'time (min)', ylabel = 'Angle (deg)', title = 'Angle at which CA_min and CA_max are found\n Note: both top & bottom half combined (abs value)')
+    ax2.legend(loc='best')
+
+    plt.show()
+    return
+
+
 def main():
     path_images = path_in_use()
     analysisFolder = os.path.join(path_images, "Analysis CA Spatial")  # name of output folder of Spatial Contact Analysis
@@ -260,6 +438,9 @@ def main():
 
 
     #Functions for plotting
+
+    selectCA_minmax(filtered_csv_dataList, analysisFolder, outputname, nrList, timeList)
+
     plottingMaxima_And_Minima_vsTime(filtered_csv_dataList, analysisFolder, outputname, nrList, timeList)
     #plottingTop_And_BottomCA_vsTime(filtered_csv_dataList, analysisFolder, outputname, nrList, timeList)
 

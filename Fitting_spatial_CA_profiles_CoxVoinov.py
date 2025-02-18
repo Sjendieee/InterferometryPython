@@ -1,3 +1,5 @@
+import logging
+
 import matplotlib.pyplot as plt
 import numpy as np
 import math
@@ -430,7 +432,7 @@ def tiltedDropQuantitative():
     :return:
     """
     nr_of_datapoints = 1000
-    theta_eq_deg = np.ones(nr_of_datapoints) * 3            #deg
+    theta_eq_deg = np.ones(nr_of_datapoints) * 1.0            #deg
     v0 = 700 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction
 
     mu = 1.34 / 1000  # Pa*s
@@ -445,19 +447,26 @@ def tiltedDropQuantitative():
     #assuming v(0) = -v(pi)
     #velocity_local = np.cos(phi) * v0        #v0 at advancing, -v0 at receding
     #correcting for v(0) < -v(pi)
-    v_adv = 1500 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]
-    v_rec = 1200 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction      [150]
+    v_adv = 100 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]
+    v_rec = 40 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction      [150]
 
     velocity_local = np.array([np.cos(phi_l) * v_adv if abs(phi_l) < np.pi/2 else np.cos(phi_l) * v_rec for phi_l in phi])
-    fig2, ax2 = plt.subplots()
-    ax2.plot(phi, velocity_local)
-    ax2.set(xlabel='radial angle [rad]', ylabel='local velocity [m/s]', title='local velocity profile adjusted for difference in advancing and receding speed')
-    fig2.tight_layout()
+    fig2, ax2 = plt.subplots(1,2, figsize= (15, 9.6))
+    ax2[0].plot(phi, velocity_local)
+    ax2[0].set(xlabel='radial angle [rad]', ylabel='local velocity [m/s]', title='local velocity profile adjusted for difference in advancing and receding speed')
 
     Ca_local = mu * velocity_local / gamma
     print(f"Ca = {max(Ca_local)}")
+    if 0 > np.power(min(theta_eq_rad), 3) + (9 * min(Ca_local) * np.log(R/l)):
+        logging.error(f"Some calculated CA's will be NaN: min(Ca) = {min(Ca_local)} +  min(theta_eq_rad) = {min(theta_eq_rad)} will be negative:"
+        f"{np.power(min(theta_eq_rad), 3) + (9 * min(Ca_local) * np.log(R / l))}, ()^1/3 = {np.power(np.power(min(theta_eq_rad), 3) + 9 * min(Ca_local) * np.log(R/l), 1/3)} ")
     theta_app_calculated = np.power(np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R/l), 1/3)
     theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
+
+    ax2[1].plot(phi, theta_app_calculated_deg)
+    ax2[1].set(xlabel='radial angle [rad]', ylabel='CA_app [deg]', title='Calculated apparent contact angle profile')
+    fig2.tight_layout()
+
     R_drop = 1  # [mm]
     x_coord = R_drop * np.cos(phi)
     y_coord = R_drop * np.sin(phi)
