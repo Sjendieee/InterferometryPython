@@ -13,6 +13,10 @@ from matplotlib.widgets import RectangleSelector
 from scipy.signal import savgol_filter
 import traceback
 import pickle
+from natsort import natsorted
+
+from shapely.predicates import is_empty
+
 
 def path_in_use():
     """
@@ -21,7 +25,7 @@ def path_in_use():
     """
     #path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
     #path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
-    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-5deg-covered"
+    path = "F:\\2023_11_13_PLMA_Dodecane_Basler5x_Xp_1_24S11los_misschien_WEDGE_v2"
 
 
     metadata = dict(title='Movie', artist='Sjendieee')
@@ -186,8 +190,7 @@ def plottingMaxima_And_Minima_vsTime(csv_data_list, analysisFolder, videoname, n
             phi_min.append(phimin)
         except Exception as e:
             print(f"Error processing {csv_file}: {e}")
-
-
+            print(traceback.format_exc())
 
     ax1.plot(np.array(timeList)/60, CA_min, '.', markersize=8, label=f'CA min')
     ax1.plot(np.array(timeList)/60, CA_max, '.', markersize=8, label=f'CA max')
@@ -265,10 +268,10 @@ def plottingTop_And_BottomCA_vsTime(csv_data_list, analysisFolder, videoname, nr
 
 
 
-
+#USABLE!#
 def selectCA_minmax(csv_data_list, analysisFolder, videoname, nrList, timeList, neighborhood_size=20):
     """
-    Reads data from a list of CSV files, plots the CA profile, and allows the user to select where a min or max is to be found.
+    Reads data from a list of CSV files, plots the CA profile, and allows the user to select MANUALLY IN A REGION where a min or max is to be found.
     Then, plots this info vs. time.
 
     Parameters:
@@ -327,16 +330,19 @@ def selectCA_minmax(csv_data_list, analysisFolder, videoname, nrList, timeList, 
                 def findRanges(selected_regions):
                     # Indices are found here
                     a_true_ranges = np.argwhere(np.diff(selected_regions, prepend=False, append=False))
-                    # Conversion into list of 2-tuples
+                    # # Conversion into list of 2-lists
                     a_true_ranges = a_true_ranges.reshape(len(a_true_ranges) // 2, 2)
-                    a_true_ranges = [tuple(r) for r in a_true_ranges if abs(r[0] - r[1]) > 20]  #! below >20 to remove smaller 'selected regions'
 
                     if len(a_true_ranges) > 1:  #if multiple regions are 'selected':
-                        if a_true_ranges[0][0] == 0 and a_true_ranges[-1][1] == len(selected_regions):  #selected regions wrap around end-of-list back to beginning
+                        if (a_true_ranges[0][0] == 0 or a_true_ranges[0][0] == 1) and a_true_ranges[-1][1] == len(selected_regions):  #selected regions wrap around end-of-list back to beginning
                             a_true_ranges[0][0] = a_true_ranges[-1][0]      #add 'last range' starting point into 'first range'
                             a_true_ranges = a_true_ranges[0:-1]     #remove last 'selected range'
-                            #TODO fix deze range bussiness: wanneer wrapping door het einde van list
-                    return a_true_ranges
+
+                    a_true_ranges_final = []
+                    for range in a_true_ranges:     #only add index 'ranges' into list if more than 10 datapoints were selected (to ftiler off weird short ranges of e.g. 1 point)
+                        if abs(range[1] - range[0]) > 10:
+                            a_true_ranges_final.append(range)
+                    return a_true_ranges_final
 
                 a_true_ranges_maxima = findRanges(selected_regions_MAXIMA)
                 a_true_ranges_minima = findRanges(selected_regions_MINIMA)
@@ -345,19 +351,32 @@ def selectCA_minmax(csv_data_list, analysisFolder, videoname, nrList, timeList, 
                 print(f"nr. of ranges selected MINIMA: {len(a_true_ranges_minima)}.\n Selected ranges are: {a_true_ranges_minima}")
 
                 for range in a_true_ranges_maxima:      #for all selected ranges, find maximum (w/ some averaging around it)
-
-                    i_range = np.arange(range[0], range[1], 1)        #index numbers of range
-                    i_max = np.argmax(values[i_range])                  #find local max, and
-                    #TODO deze +20 % gaan ook sowieso fout in de wrapping
-                    CA = np.mean(values[i_range[i_max-20%len(i_range):i_max+20%len(i_range)]])    #average over 20left&20right nearby for CA
+                    #if first value>second value, it wrapped around end-of-list: For proper analysis split up again and
+                    #do analysis on both ranges 'combined'
+                    if range[0] > range[1]:
+                        i_range = np.arange(0, range[1], 1) + np.arange(range[0], len(values), 1)        #index numbers of range
+                    else:   #else do analysis on single range
+                        i_range = np.arange(range[0], range[1], 1)        #index numbers of range
+                    i_max = i_range[np.argmax(values[i_range])]                  #find local max, and return its index in entire list
+                    CA = np.mean(           #average over 20left&20right nearby for CA
+                        np.roll(values, -i_max+20)[0:(20*2+1)]  #shift array so no issues arise when taking datapoints near the end-of-list
+                    )
                     CA_max.append(CA)
                     phi = phi_total[i_max]
                     phi_max.append(phi)
                     infotuple.append((timeList[n], 'max', CA, phi))
+
                 for range in a_true_ranges_minima:      #for all selected ranges, find maximum (w/ some averaging around it)
-                    i_range = np.arange(range[0], range[1], 1)        #index numbers of range
-                    i_min = np.argmin(values[i_range])                  #find local max, and
-                    CA = np.mean(values[i_range[i_min-20%len(i_range):i_min+20%len(i_range)]])    #average over 20left&20right nearby for CA
+                    #if first value>second value, it wrapped around end-of-list: For proper analysis split up again and
+                    #do analysis on both ranges 'combined'
+                    if range[0] > range[1]:
+                        i_range = np.arange(0, range[1], 1) + np.arange(range[0], len(values), 1)        #index numbers of range
+                    else:   #else do analysis on single range
+                        i_range = np.arange(range[0], range[1], 1)        #index numbers of range
+                    i_min = i_range[np.argmin(values[i_range])]                  #find local min, and return its index in entire list
+                    CA = np.mean(           #average over 20left&20right nearby for CA
+                        np.roll(values, -i_min+20)[0:(20*2+1)]  #shift array so no issues arise when taking datapoints near the end-of-list
+                    )
                     CA_min.append(CA)
                     phi = phi_total[i_min]
                     phi_min.append(phi)
@@ -382,21 +401,41 @@ def selectCA_minmax(csv_data_list, analysisFolder, videoname, nrList, timeList, 
         pickle.dump(infotuple, open(os.path.join(analysisFolder, "pickle dumps\\CA analysis.p"), "wb"))
 
     fig1, ax1 = plt.subplots(figsize=(9, 6))
+    xdatamax = []; ydatamax = []
+    xdatamin = []; ydatamin = []
+    infotuple = sorted(infotuple)   #to sort the times from low-high (for plotting purposes; lines between points)
+
     for datapoint in infotuple:
         if datapoint[1] == 'max':       #maximum
-            ax1.plot(datapoint[0]/60, datapoint[2], 'r.', markersize=8)
+            xdatamax.append(datapoint[0])
+            ydatamax.append(datapoint[2])
         elif datapoint[1] == 'min':       #minimum
-            ax1.plot(datapoint[0]/60, datapoint[2], 'b.', markersize=8)
+            xdatamin.append(datapoint[0])
+            ydatamin.append(datapoint[2])
+    ax1.plot(np.array(xdatamax) / 60, ydatamax, 'r.-', markersize=8, label=f'CA max')
+    ax1.plot(np.array(xdatamin) / 60 , ydatamin, 'b.-', markersize=8, label=f'CA min')
     ax1.set(xlabel = 'time (min)', ylabel = 'Contact Angle (deg)', title = 'Min & Max Contact Angle (averaged 40 points) over time')
     ax1.legend(loc='best')
-    #fig1.savefig(f"C:\\Downloads\\CAPlot", dpi=600)
+    fig1.savefig(os.path.join(analysisFolder, "plot-minMaxCA_vs_time_manSelected.png"), dpi=600)
 
     fig2, ax2 = plt.subplots(figsize = (9,6))
-    ax2.plot(np.array(timeList)/60, np.absolute(phi_min) / np.pi * 180, '.', markersize=8, label=f'Angle of CA min')
-    ax2.plot(np.array(timeList)/60, np.absolute(phi_max) / np.pi * 180, '.', markersize=8, label=f'Angle of CA max')
-    ax2.set(xlabel = 'time (min)', ylabel = 'Angle (deg)', title = 'Angle at which CA_min and CA_max are found\n Note: both top & bottom half combined (abs value)')
-    ax2.legend(loc='best')
+    xdatamax = []; ydatamax = []
+    xdatamin = []; ydatamin = []
+    for datapoint in infotuple:
+        if datapoint[1] == 'max':       #maximum
+            xdatamax.append(datapoint[0])
+            ydatamax.append(datapoint[3])
+        elif datapoint[1] == 'min':       #minimum
+            xdatamin.append(datapoint[0])
+            ydatamin.append(datapoint[3])
+    ax2.plot(np.array(xdatamax) / 60, np.array(ydatamax) / np.pi * 180, 'r.-', markersize=8, label=f'Angle of CA max')
+    ax2.plot(np.array(xdatamin) / 60 , np.array(ydatamin) / np.pi * 180, 'b.-', markersize=8, label=f'Angle of CA min')
 
+    # ax2.plot(np.array(timeList)/60, np.absolute(phi_min) / np.pi * 180, '.', markersize=8, label=f'Angle of CA min')
+    # ax2.plot(np.array(timeList)/60, np.absolute(phi_max) / np.pi * 180, '.', markersize=8, label=f'Angle of CA max')
+    ax2.set(xlabel = 'time (min)', ylabel = 'Angle (deg)', title = 'Angle at which CA_min and CA_max are found')
+    ax2.legend(loc='best')
+    fig2.savefig(os.path.join(analysisFolder, "plot-angle of minmaxCA_vs_time.png"), dpi=600)
     plt.show()
     return
 
@@ -416,7 +455,7 @@ def main():
         nr.append(json_data['imgnr'])
         time.append(json_data['timeFromStart'])     #in seconds
 
-    csv_dataList = [f for f in glob.glob(os.path.join(analysisFolder, f"ContactAngleData*.csv"))]  # grab all json files
+    csv_dataList = natsorted([f for f in glob.glob(os.path.join(analysisFolder, f"ContactAngleData*.csv"))])  # grab all json files
 
     # Filter CSV paths to retain only those containing an imgnr
     filtered_csv_dataList = [
@@ -432,13 +471,17 @@ def main():
         if any(str(number) in os.path.basename(csv_path) for csv_path in csv_dataList)
     ]
     # Rebuild `nr` and `time` lists with only valid entries
-    nr_time_mapping = dict(zip(nr, time))  # Map `nr` to `time`
-    nrList = [number for number in valid_nrs]
-    timeList = [nr_time_mapping[number] for number in nr]
+    nr_time_mapping = dict(sorted(zip(nr, time)))  # Map `nr` to `time`
+    nrList = [number for number in nr_time_mapping]
+    timeList = [nr_time_mapping[number] for number in nr_time_mapping]
 
-
+    #final check the timelist & csv list are sorted in same order:
+    for n, csv_path in enumerate(csv_dataList):
+        if not str(nrList[n]) in os.path.basename(csv_path):
+            logging.critical(f"number is sorted csv file does not match number is sorted nrList. That means either list is incorrectly sorted:\n"
+                             f"n={n}, nrList[n] ={nrList[n]}, csvpath = {csv_path}")
+            break
     #Functions for plotting
-
     selectCA_minmax(filtered_csv_dataList, analysisFolder, outputname, nrList, timeList)
 
     plottingMaxima_And_Minima_vsTime(filtered_csv_dataList, analysisFolder, outputname, nrList, timeList)

@@ -432,7 +432,7 @@ def tiltedDropQuantitative():
     :return:
     """
     nr_of_datapoints = 1000
-    theta_eq_deg = np.ones(nr_of_datapoints) * 2.30            #deg
+    theta_eq_deg = np.ones(nr_of_datapoints) * 1.05            #deg
     v0 = 700 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction
 
     mu = 1.34 / 1000  # Pa*s
@@ -447,7 +447,7 @@ def tiltedDropQuantitative():
     #assuming v(0) = -v(pi)
     #velocity_local = np.cos(phi) * v0        #v0 at advancing, -v0 at receding
     #correcting for v(0) < -v(pi)
-    v_adv = 250 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]
+    v_adv = 25 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]
     v_rec = 135 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction      [150]
 
     velocity_local = np.array([np.cos(phi_l) * v_adv if abs(phi_l) < np.pi/2 else np.cos(phi_l) * v_rec for phi_l in phi])

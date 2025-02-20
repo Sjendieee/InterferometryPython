@@ -11,14 +11,17 @@ import glob
 import re
 import traceback
 
+from fontTools.misc.cython import returns
+
+
 def path_in_use():
     """
     Write path to folder in which the analyzed images (and subsequent analysis) are
     :return:
     """
-    path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
-    #filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]        #filter w/ moving camera
-    filter_images = list(np.arange(0, 21)) + [88, 92, 96, 100, 104, 108]                                #filter only big pinning & partial missing drop
+    # path = "H:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    # #filter_images = list(np.arange(0, 21)) + [48, 72] + [96, 100] + [88, 92, 96, 100, 104, 108]        #filter w/ moving camera
+    # filter_images = list(np.arange(0, 21)) + [88, 92, 96, 100, 104, 108]                                #filter only big pinning & partial missing drop
 
 
     # path = "G:\\2024_02_05_PLMA 160nm_Basler17uc_Zeiss5x_dodecane_FULLCOVER_v3"
@@ -26,8 +29,15 @@ def path_in_use():
     #
     # path = "D:\\2024-09-04 PLMA dodecane Xp1_31_2 ZeissBasler15uc 5x M3 tilted drop"
     # filter_images = [63, 67]
+
+    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-3deg-covered"
+    filter_images = [17, 42, 59, 146, 151, 167]  #fshift 16-17, 41-45, 57-61-63, 143-147-149, 151-155,
+
     return path, filter_images
 
+def print_analysisInfo(imgList: list):
+    print(f"Analyzing {len(imgList)} frames: {imgList}")
+    return
 
 def tryint(s):
     try:
@@ -83,6 +93,9 @@ def analyzeForcevsTime(JSON_folder, path_images, filter_images, analysisFolder):
             force_quad_used.append(force_quad[n])
             force_trapz_function_used.append(force_trapz_function[n])
             force_trapz_data_used.append(force_trapz_data[n])
+
+    print_analysisInfo(imgnr_used)
+
     fig1, ax1 = plt.subplots()
     ax2 = ax1.twiny()  # create double x-axis
     ax1.plot([min(time_used)/60, max(time_used)/60], [0, 0], 'k-', linewidth=0.5)
@@ -141,6 +154,8 @@ def analyzeVelocityProfile_middleSurfaceArea(JSON_folder, path_images, filter_im
         time.append(json_data['timeFromStart'])
         middleCoord_surfaceArea.append(json_data['middleCoords-surfaceArea'])
         imgnr.append(json_data["imgnr"])
+
+    print_analysisInfo(imgnr)
 
     for n, coord in enumerate(middleCoord_surfaceArea):
         if imgnr[n] in filter_images:
@@ -251,6 +266,8 @@ def analyzeVelocityProfile_adv_rec(JSON_folder, path_images, filter_images, anal
                 time_used.append(time[n])
                 imgnr_used.append(imgnr[n])
 
+    print_analysisInfo(imgnr_used)
+
     ax1.plot(np.array(time_used) / time_factor, np.array(velocity_right) * velocity_factor, '.', label="velocity right")
     ax1.plot(np.array(time_used) / time_factor, np.array(velocity_left) * velocity_factor, '*', label="velocity left")
     ax1.set(xlabel='time (min)', ylabel='velocity ($\mu$m/min)', title='Velocity profile')
@@ -261,11 +278,12 @@ def analyzeVelocityProfile_adv_rec(JSON_folder, path_images, filter_images, anal
     fig1.savefig(os.path.join(analysisFolder, 'A_adv_rec_velocityVStime.png'), dpi=600)
     return time_used, velocity_left, velocity_right, imgnr_used
 
+
+
 def main():
     path_images, filter_images = path_in_use()
     analysisFolder = os.path.join(path_images, "Analysis CA Spatial") #name of output folder of Spatial Contact Analysis
     JSON_folder = os.path.join(analysisFolder, "Analyzed Data")
-
 
     try:
         analyzeForcevsTime(JSON_folder, path_images, filter_images, analysisFolder)
