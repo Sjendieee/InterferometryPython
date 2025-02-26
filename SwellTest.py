@@ -469,7 +469,7 @@ Out: height profile in the inputted range of extrema.
 """
 def idk(xdata, ydata, indexPeak1, indexPeak2):
     ## I vs h has been shown to fit in a cos. General form: I  =a*cos(x) + b, in which a & b can be fitted to the minium&maximum of profile part, and crossingvalue (half-height)
-    ## in which x = (4*pi*h*lambda / n)
+    ## in which x = (4*pi*h*n / lambda)
     middleCrossingYValue, middleCrossingXval = findMiddleCrossing(indexPeak1, indexPeak2, xdata, ydata)
     a = abs((ydata[indexPeak1] - ydata[indexPeak2])) / 2
     b = middleCrossingYValue
@@ -492,7 +492,7 @@ def idk(xdata, ydata, indexPeak1, indexPeak2):
 Input xdata & ydata which reach till at least the second extremum (to calculate to middle crossing)"""
 def idkPre1stExtremum(xdata, ydata, indexPeak1, indexPeak2):
     ## I vs h has been shown to fit in a cos. General form: I  =a*cos(x) + b, in which a & b can be fitted to the minium&maximum of profile part, and crossingvalue (half-height)
-    ## in which x = (4*pi*h*lambda / n)
+    ## in which x = (4*pi*h*n / lambda) (but is generalised)
     middleCrossingYValue, middleCrossingXval = findMiddleCrossing(indexPeak1, indexPeak2, xdata, ydata)
     a = abs((ydata[indexPeak1] - ydata[indexPeak2])) / 2
     b = middleCrossingYValue
@@ -516,7 +516,7 @@ def idkPre1stExtremum(xdata, ydata, indexPeak1, indexPeak2):
 
 def idkPostLastExtremum(xdata, ydata, indexPeak1, indexPeak2):
     ## I vs h has been shown to fit in a cos. General form: I  =a*cos(x) + b, in which a & b can be fitted to the minium&maximum of profile part, and crossingvalue (half-height)
-    ## in which x = (4*pi*h*lambda / n)
+    ## in which x = (4*pi*h*n / lambda)
     middleCrossingYValue, middleCrossingXval = findMiddleCrossing(indexPeak1, indexPeak2, xdata, ydata)
     a = abs((ydata[indexPeak1] - ydata[indexPeak2])) / 2
     b = middleCrossingYValue

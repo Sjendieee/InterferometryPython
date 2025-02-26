@@ -280,7 +280,33 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
                                  ax0, ax1, cmap, colorGradient, dryBrushThickness, elapsedtime, fig0, fig1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
                                  range1, range2, source, xshifted, vectorNumber, outwardsLengthVector, unitXY= "mm", extraPartIndroplet=0):
+    """
+    Convert intensity profiles to height profiles:
+    For a known light wavelength [lambda] , medium refractive index (n), and order of interference (N), the height (h) of a sample can be calculated.
+    h = lambda*N / 2n
+    For this, the order of interference is required. In a more general sense however, we can thus say the height difference
+    covering ONE fringe (1N) is:
+    dh = lambda/2n      , which is a constant (assuming n does not change with varying thickness).
 
+    Experimentally we measure the Intensity (I) of the system, resulting from thin-film interference.
+    This means I(h). I vs h has been shown to fit in a cos.
+    In this analysis, we use this concept to convert Intensity to height using the general form: I=a*cos(x) + b.
+    a & b and b are fitted to the minium&maximum of profile, and half-height respectively. x is in principle equal
+    to = (4*pi*h*n / lambda), but the values fall away against each other, leaving only N*2pi.
+    covering the range of N=[0, 1], effectively we model Intensity profile of the height of '[0, dh]'
+
+    In this analysis, we do this between each maximum and nearby minium, to best approximate the 'local' a&b values in the 'cos' function.
+    So in practice we evaluate half-fringes every time: N=[0, 0.5], N=[0.5, 1], [1, 1.5] etc..
+
+    Intensity profiles in between min- and maxima are then easily evaluated, as both extremum I1 and I2 are known.
+    For Intensity profiles outside the first & last extremum no 'true' extremum intensity value is known to determine a&b.
+    We therefore approximate those by using the Intensity of the most nearby extremum I3, or the largest/smallest profile Intensity value min/max(I)
+    (if that Imax/min > I3)
+
+    TODO's
+    -hardcoded height with wavelength: change to vary with input wavelength.   (now. dh=181.1nm for 1 fringe!)
+
+    """
 
     if not os.path.exists(os.path.join(source, f"Swellingimages")):
         os.mkdir(os.path.join(source, f"Swellingimages"))
@@ -434,6 +460,7 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
             dataI = np.divide(np.array(intensityProfileZoomConverted)[extremum1:extremum2+1],
                               normalizeFactor)  # intensity (y) data
             datax = np.array(xshifted)[extremum1:extremum2+1]  # time (x) data
+            #Calculate the height profile and add it into the array
             h_newrange = np.add(idk(datax, dataI, 0, len(datax) - 1), h_1stextremum + i * 90.9)
             xrange = np.concatenate([xrange, datax[:-1]])        #TODO datax[1:] ??
             h = np.concatenate([h, h_newrange[:-1]])
