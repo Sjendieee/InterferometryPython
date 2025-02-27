@@ -624,22 +624,37 @@ def movingDropQualitative_fitting():
     with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎
     :return:
     """
+    exp_CAs_advrec = [1.47, 1.43]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.91, 1.63]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+
+    # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
+    # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
+    CA_eq_adv = 1.20;  # initiall guesses
+    CA_eq_rec = 1.8  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
+
+
+    mu = 1.34 / 1000  # Pa*s
+    gamma = 25.55 / 1000  # N/m
+    R = 100E-6  # slip length, 10 micron?                     -macroscopic
+    l = 2E-9  # capillary length, ongeveer              -micro/nanoscopic
+    nr_of_datapoints = 1000 #must be a multiple of 4!!
+    phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
+
     fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
-    nr_of_datapoints = 1000         #must be a multiple of 4!!
     if not nr_of_datapoints % 4 == 0:
         nr_of_datapoints = nr_of_datapoints + (4-(nr_of_datapoints % 4))
         logging.warning(f"nr_of_datapoints is not a multiple of 4: changing it to = {nr_of_datapoints}")
 
-    # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
-    # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
-    CA_eq_adv = 1.20;
-    CA_eq_rec = 1.8  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
 
-
-    sol = scipy.optimize.minimize(calculating_CA_app, [CA_eq_adv, CA_eq_rec])
+    sol = scipy.optimize.minimize(
+        optimizeInputCA,
+        [CA_eq_adv, CA_eq_rec],
+        bounds=((0.5, 3), (0.5, 3)),
+        args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l))
     print(f"sol = {sol.x}")
-    phi, theta_app_calculated_deg = calculating_CA_app(CA_eq_adv, CA_eq_rec, ax1, nr_of_datapoints)
-
+    print(sol)
+    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l)
+    theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
 
 
     ax1[1,0].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
@@ -655,28 +670,62 @@ def movingDropQualitative_fitting():
     fig1.colorbar(im1)
     fig1.tight_layout()
 
-    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    #fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp2.png'), dpi=600)
+    #fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
+    fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
 
     plt.show()
     return
 
 
-def calculating_CA_app(CAs_input):
-    CA_eq_adv, CA_eq_rec = CAs_input
-    target_localextrema_CAs = [1.91, 1.63]
+def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l):
+
+    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l)
+
+    def trial2(fx, gx, A, phi):
+        CA_app = np.power(np.power(fx, 3) + A * np.power(gx, 3), 1 / 3)
+
+        dfx = np.concatenate([np.diff(fx), [0]])
+        dgx = np.concatenate([np.diff(gx), [0]])
+        part1 = np.power(fx, 2) * dfx / np.power(A * gx + np.power(fx, 3), 2 / 3)
+        part2 = A * dgx / (3 * np.power(A * gx + np.power(fx, 3), 2 / 3))
+
+        tot = part1 + part2
+        peaks, _ = scipy.signal.find_peaks(-abs(tot),
+                                           width=5)  # minimal peak width  = 5 datapoints to remove artifacts from stitching curves
+        # np.set_printoptions(precision=2)
+        # print(f"extremum CA predicted= {(CA_app[peaks] * 180 / np.pi)}"
+        #       f"\ndeg at phi = {phi[peaks]}rad")
+        # np.set_printoptions(precision=8)
+        return (CA_app[peaks] * 180 / np.pi)  # return values of the peaks
+
+    # TODO check/fix hier - om de een of andere reden missen er hier nu een aantal calculated extrema
+    local_extrema_calculated = trial2(theta_eq_rad, velocity_local, 9 * mu * np.log(R / l) / gamma,
+                                      phi)  # i0=local max, i1= local min        (i2 right max, i3 local min, i4 local max)
+    try:
+        difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0],
+                                        target_localextrema_CAs[1] - local_extrema_calculated[1]]
+    except:
+        print(
+            f"too few extrema are found from the trial2 function: min&max CA's used are {min(theta_eq_rad) * 180 / np.pi:.2f} & {max(theta_eq_rad) * 180 / np.pi:.2f} deg\n with velocities min&max: {min(velocity_local) * 1E6 / 60:.3e}, {max(velocity_local) * 1E6 / 60:.3e} um/min.")
+        if len(local_extrema_calculated) == 0:
+            difference_target_calculated = [np.NAN, np.NAN]
+        elif len(local_extrema_calculated) == 1:
+            difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0], np.NAN]
+    return difference_target_calculated[0] ** 2 + difference_target_calculated[1] ** 2      #TODO check dit & of abs() niet beter werkt..
+
+def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l):
+    CA_eq_adv, CA_eq_rec = CAs_eq_advrec_input
+    exp_CA_adv, exp_CA_rec = exp_CAs_advrec
     nr_of_datapoints = 1000
     # Input velocities at advancing & receding point.
     v_adv = 150 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction       [70]    (right side)
     v_rec = 150 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction      [150]    (left side)
-    mu = 1.34 / 1000  # Pa*s
-    gamma = 25.55 / 1000  # N/m
-    R = 100E-6  # slip length, 10 micron?                     -macroscopic
-    l = 2E-9  # capillary length, ongeveer              -micro/nanoscopic
+
     # print(f"For water, CA_eq=60 velocities are: {targetExtremumCA_to_inputVelocity(np.array([63]) / 180 * np.pi, 60 / 180 * np.pi, 72/1000, 1.0016/1000, R, l)}")
     # Input target advancing and receding CA (outer moving droplet) to calculate required local velocities
-    v_adv, v_rec = targetExtremumCA_to_inputVelocity(np.array([1.47, 1.43]) / 180 * np.pi,
-                                                     np.array([CA_eq_adv, CA_eq_rec]) / 180 * np.pi, gamma, mu, R, l)
+    v_adv, v_rec = targetExtremumCA_to_inputVelocity(np.array([exp_CA_adv, exp_CA_rec]) / 180 * np.pi,                              #TODO check deze hardcoded values: zijn de CA's aan adv & rec point -> uiteindelijke CA's MOETEN dus ook die waarde zijn... Maar zijn dat dus niet nu
+                                                     np.array([CA_eq_adv, CA_eq_rec]) / 180 * np.pi,
+                                                     gamma, mu, R, l)
     ratio_wettablitygradient = 0.5  # 0=fully covered, 0.5=50:50, 1=fully open
     anglerange1 = np.linspace(0, 0.5,
                               round(nr_of_datapoints / 2 * ratio_wettablitygradient))  # 0-1        #for open side
@@ -698,8 +747,6 @@ def calculating_CA_app(CAs_input):
     # perform operation to shift CA values to desired CA_eq range
     theta_eq_deg = theta_eq * Ca_eq_diff + Ca_eq_mid
     theta_eq_rad = theta_eq_deg / 180 * np.pi
-    phi = np.linspace(-np.pi, np.pi,
-                      nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
 
     velocity_local = np.array(
         [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
@@ -709,30 +756,8 @@ def calculating_CA_app(CAs_input):
     if any(inBetweenClaculation < 0):
         logging.error(f"Some calculated CA's will be NaN")
     theta_app_calculated = np.power(np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R / l), 1 / 3)
-    theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
 
-    def trial2(fx, gx, A, phi):
-        CA_app = np.power(np.power(fx, 3) + A * np.power(gx, 3), 1 / 3)
-
-        dfx = np.concatenate([np.diff(fx), [0]])
-        dgx = np.concatenate([np.diff(gx), [0]])
-        part1 = np.power(fx, 2) * dfx / np.power(A * gx + np.power(fx, 3), 2 / 3)
-        part2 = A * dgx / (3 * np.power(A * gx + np.power(fx, 3), 2 / 3))
-
-        tot = part1 + part2
-        peaks, _ = scipy.signal.find_peaks(-abs(tot), width=5)  # minimal peak width  = 5 datapoints to remove artifacts from stitching curves
-        # np.set_printoptions(precision=2)
-        # print(f"extremum CA predicted= {(CA_app[peaks] * 180 / np.pi)}"
-        #       f"\ndeg at phi = {phi[peaks]}rad")
-        # np.set_printoptions(precision=8)
-        return (CA_app[peaks] * 180 / np.pi)  # return values of the peaks
-
-    #TODO check/fix hier - om de een of andere reden missen er hier nu een aantal calculated extrema
-    local_extrema_calculated = trial2(theta_eq_rad, velocity_local, 9 * mu * np.log(R / l) / gamma, phi)    #i0=local max, i1= local min        (i2 right max, i3 local min, i4 local max)
-    target_localextrema_CAs     #i0=local max, i1 = local min
-    difference_target_calculated = [target_localextrema_CAs[0]-local_extrema_calculated[0], target_localextrema_CAs[1]-local_extrema_calculated[1]]
-
-    return difference_target_calculated[0], difference_target_calculated[1]
+    return theta_app_calculated, velocity_local, theta_eq_rad
 
 
 def targetExtremumCA_to_inputVelocity(CA_app: float, CA_eq: float, sigma: float, mu:float, R:float, l:float):
@@ -745,7 +770,7 @@ def targetExtremumCA_to_inputVelocity(CA_app: float, CA_eq: float, sigma: float,
     :return: velocity [m/s] or [um/min]
     """
     velocity = ((np.power(CA_app, 3) - np.power(CA_eq, 3)) * sigma) / (9*mu * np.log(R/l))
-    return velocity * 60 / 1E-6
+    return velocity
 
 def testingQualitativeDescription():
     angle = np.linspace(0, np.pi, 1000)
