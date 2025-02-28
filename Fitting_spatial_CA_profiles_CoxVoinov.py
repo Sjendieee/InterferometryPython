@@ -653,6 +653,11 @@ def movingDropQualitative_fitting():
         args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l))
     print(f"sol = {sol.x}")
     print(sol)
+    calc_vel = targetExtremumCA_to_inputVelocity(np.array(sol.x)/180*np.pi, np.array(target_localextrema_CAs)/180*np.pi, gamma, mu, R, l)
+    print(f"Corresponding velocities are = {np.array(calc_vel)/(1E-6 / 60)} mu/min")
+
+    #TODO check deze functie voor het WAAROM CA adv&rec niet zijn wat ze moeten zijn!
+    #Calc velocties ^lijken oke-ish? Check andere values & velocity profile
     theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l)
     theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
 
@@ -670,8 +675,8 @@ def movingDropQualitative_fitting():
     fig1.colorbar(im1)
     fig1.tight_layout()
 
-    #fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
+    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
+    #fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
 
     plt.show()
     return
@@ -682,7 +687,20 @@ def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu,
     theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l)
 
     def trial2(fx, gx, A, phi):
+        """
+        calculates Apparent Contact Angle over entire contact line range with:
+        𝜃_𝑎= (𝜃_𝑒𝑞^3 + 9𝐶𝑎 𝑙𝑛 𝑅/𝑙)^1/3
+
+        Then, where
+        where:
+        :param fx: given CA_eq profile  [rad]
+        :param gx: given velocity profile   [m/s]
+        :param A: combination of some constants: 9*𝜇/𝜎 * 𝑙𝑛(𝑅/𝑙)
+        :param phi: radial position
+        :return:
+        """
         CA_app = np.power(np.power(fx, 3) + A * np.power(gx, 3), 1 / 3)
+
 
         dfx = np.concatenate([np.diff(fx), [0]])
         dgx = np.concatenate([np.diff(gx), [0]])
