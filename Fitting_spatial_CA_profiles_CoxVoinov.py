@@ -618,20 +618,36 @@ def movingDropQualitative():
 
 def movingDropQualitative_fitting():
     """
-    Model theta_app for a moving droplet with 'known' values:
-    input constant, R & L. Vary thetha_eq(phi) & Ca(phi).
-    𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙
-    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎
+    Model the CA_app(phi) along a MOVING DROPLET contact line, using only some experimental constants (R,l,𝜇,𝜎) &
+    EXPERIMENTALLY OBSERVED 'CA_adv,rec' at the outer drop positions, & 'CA_max,min' at the local extrema !
+
+    Based an the Cox-Voinov formula, 𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎,
+    from these 4 values, an Optimizer function determines the 'best' CA_eq_adv,rec & wettability steepness factors.
+
+    To do that, the calculating_CA_app(...) function is used to:
+    -First, from the inputted CA_eq_adv,rec + experimental CA_app_adv,rec, the v_adv,rec are calculated.
+    These are then used to create a v(phi) profile along the CL using a normal sin function.
+    -The inputted CA_eq_adv,rec are used to create the entire CA_eq(phi) profile using the inputted wettability gradient & steepness factors.
+
+    Knowing CA_eq(phi), v(phi) and (R,l,𝜇,𝜎), we calculate CA_app(phi)
+
+    BE MINDFULL of the programn finding & comparing the correct CA values in the optimizer: It SHOULD compare the EXPERIMENTAL CA_max,min local extrema values with
+    the CALCULATED  CA_max,min values, but the latter were sometimes not found properly (if the profile did e.g. not have a local min/max). Implemented fix seems to work,
+    but ALWAYS CHECK afterwards if the local max&minima are correct.
+
+    TODO improvements: fix when wettability_gradient =! 0.5. Currently only that one seems to work properly. E.g. 0.3 tends
+        to give NaN CA values at the transition location.
     :return:
     """
+
     exp_CAs_advrec = [1.28, 1.31]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
     target_localextrema_CAs = [1.8, 0.95]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
-    wettability_gradient = 0.5    # 0=fully covered, 0.5=50:50, 1=fully open
+    wettability_gradient = 0.3    # 0=fully covered, 0.5=50:50, 1=fully open
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
-    CA_eq_adv = 1.20;  # initiall guesses
+    CA_eq_adv = 1.20;  # initial guesses
     CA_eq_rec = 1.8  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
 
 
@@ -653,6 +669,7 @@ def movingDropQualitative_fitting():
         iterations.append(xk)
         print(f"Current iteration: CA_eq_adv={xk[0]:.4f}, CA_eq_rec={xk[1]:.4f}, power cover {xk[2]:.4f}, power open air {xk[3]:.4f}")
 
+    #Older minimize optimizer approach. Sometimes got stuck in local minima (or code was not bug-free yet)
     # sol = scipy.optimize.minimize(              #.minimize
     #     optimizeInputCA,
     #     [CA_eq_adv, CA_eq_rec],
@@ -664,38 +681,37 @@ def movingDropQualitative_fitting():
     #     method='Powell',
     #     callback=callback)
 
-    #TODO start commenting this in & out: for faster data checking
-    sol = scipy.optimize.differential_evolution(
-        optimizeInputCA,
-        bounds=((0.5, exp_CAs_advrec[0]),       #advancing  upper&lower bound
-                (exp_CAs_advrec[1], 3),        #receding  upper&lower bound
-                (0, 10),        #steepness of wettability gradient  - covered part
-                (0, 10)),       #steepness of wettability gradient  - open part
-        # bounds=((1.2, 1.25),  # advancing  upper&lower bound
-        #         (2.2, 2.3),  # receding  upper&lower bound
-        #         (0.5, 10),  # steepness of wettability gradient  - covered part
-        #         (0.5, 8)),  # steepness of wettability gradient  - open part
-        args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient),
-        callback=callback)
-    print(f"sol = {sol.x}")
-    print(sol)
-    calculated_CA_eq_adv_rec = np.array(sol.x)[0:2]
-    # TODO end commenting this in & out: for faster data checking
+    OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
+    if OPTIMIZE:
+        sol = scipy.optimize.differential_evolution(
+            optimizeInputCA,
+            bounds=((0.5, exp_CAs_advrec[0]),       #advancing  upper&lower bound
+                    (exp_CAs_advrec[1], 3),        #receding  upper&lower bound
+                    (0, 10),        #steepness of wettability gradient  - covered part
+                    (0, 10)),       #steepness of wettability gradient  - open part
+            # bounds=((1.2, 1.25),  # advancing  upper&lower bound
+            #         (2.2, 2.3),  # receding  upper&lower bound
+            #         (0.5, 10),  # steepness of wettability gradient  - covered part
+            #         (0.5, 8)),  # steepness of wettability gradient  - open part
+            args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient),
+            callback=callback)
+        print(f"sol = {sol.x}")
+        print(sol)
+        calculated_CA_eq_adv_rec = np.array(sol.x)[0:2]
 
-    #calculated_CA_eq_adv_rec = [1.5733, 2.085]
-    #calculated_CA_eq_adv_rec = [1.58, 2.25579468]
-    calc_vel = targetExtremumCA_to_inputVelocity(np.array(exp_CAs_advrec)/180*np.pi, np.array(calculated_CA_eq_adv_rec)/180*np.pi, gamma, mu, R, l)
+        calc_vel = targetExtremumCA_to_inputVelocity(np.array(exp_CAs_advrec)/180*np.pi, np.array(calculated_CA_eq_adv_rec)/180*np.pi, gamma, mu, R, l)
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+    else:
+        #Input required/desired CA_eq_adv,rec angles & wettability steepness factors below
+        calculated_CA_eq_adv_rec = [0.92541827, 1.90594351]
+        calc_vel = targetExtremumCA_to_inputVelocity(np.array(exp_CAs_advrec)/180*np.pi, np.array(calculated_CA_eq_adv_rec)/180*np.pi, gamma, mu, R, l)
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [7.67019303, 9.91537312], exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+
     print(f"Corresponding velocities are = {np.array(calc_vel)/(1E-6 / 60)} mu/min")
-
-    #Calc velocties ^lijken oke-ish? Check andere values & velocity profile
-    # TODO start commenting this in & out: for faster data checking
-    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
-    # TODO end commenting this in & out: for faster data checking
-    #theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [0.53676881, 2.21129564], exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints)
-
     theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
-    A = 9 * mu * np.log(R/l) / gamma
+
     #TODO can be removed: for showing peaks found in CA_app only
+    A = 9 * mu * np.log(R / l) / gamma
     calc_local_extrema_values(theta_eq_rad, velocity_local, A, phi, PLOTTING=True)
 
     ## Input CA_eq profile
@@ -744,7 +760,7 @@ def calc_local_extrema_values(fx, gx, A, phi, PLOTTING=False):
     :param phi: radial position
     :return: CA_extrema values [deg], corresponding radial position [rad]
     """
-    CA_app = np.power(np.power(fx, 3) + A * gx, 1/3)        #TODO big bug before?? gx^3
+    CA_app = np.power(np.power(fx, 3) + A * gx, 1/3)
 
     dfx = np.concatenate([np.diff(fx), [0]])
     dgx = np.concatenate([np.diff(gx), [0]])
@@ -772,14 +788,27 @@ def calc_local_extrema_values(fx, gx, A, phi, PLOTTING=False):
     return (CA_app[peaks] * 180 / np.pi), phi[peaks]  # return values of the peaks
 
 def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient):
+    """
+    Optimizer function for determining the 'best' CA_eq_adv,rec & wettability steepness factors for MOVING DROPLETS RIGHT with
+    a given input of:
 
+    :param CAs_input: 4 values!  CA_eq_adv&rec AND wettability profile steepness factors under cover&openair.
+            ^THESE values will be fitted for in the optimizer.
+    :param exp_CAs_advrec: EXPERIMENTALLY OBSERVED CA's at the outer advancing & receding position
+            ^THESE are used to calculate the velocity of the droplet at the outer advancing & receding position
+    :param phi: radial angle range [-pi, pi]
+    :param target_localextrema_CAs:  EXPERIMENTALLY OBSERVED CA's at the local maximum and minimum, respectively. SO INPUT=from left to right in droplet.
+            ^THESE are the target valuse for the optimizer.
+    :param mu:          viscosity       [Pa*s]
+    :param gamma:       surface tension  [N/m]
+    :param R:           macroscopic cutoff length   [m]
+    :param l:           micro/nanoscopic cutoff length [m]
+    :param nr_of_datapoints: nr. of datapoints of input.
+    :param wettability_gradient: value 'size' of the respective wettability gradients under plate and in open air: 0=fully covered, 0.5=50:50, 1=fully open
+    :return: difference between calculated local min/max & experimental target min/max. Lower=better.
+    """
     theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
 
-
-
-    # TODO check/fix hier - om de een of andere reden missen er hier nu een aantal calculated extrema
-    # TODO: hier worden meer extrema bepaald dan de gewenste of +- 11 & 1 uur. Ook degene van 9,12&3 worden gevonden als
-    #  het effect vd. velocity niet groot genoeg is om locale min/max te creeren, waardoor de minimizing analyse verkeerde waardes pakt om te refereren met de target_extrema
     local_extrema_calculated, phi_local_extrema = calc_local_extrema_values(theta_eq_rad, velocity_local, 9 * mu * np.log(R / l) / gamma, phi)  # i0=local max, i1= local min        (i2 right max, i3 local min, i4 local max)
     local_extrema_calculated_temp = local_extrema_calculated
     phi_local_extrema_temp = phi_local_extrema
@@ -803,11 +832,33 @@ def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu,
                 difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0], error_to_giveback]
     else:
         difference_target_calculated = [error_to_giveback, error_to_giveback]
-
-    #return difference_target_calculated[0] ** 2 + difference_target_calculated[1] ** 2      #TODO check dit & of abs() niet beter werkt..
-    return abs(difference_target_calculated[0]) + abs(difference_target_calculated[1])      #TODO check dit & of abs() niet beter werkt..
+    return abs(difference_target_calculated[0]) + abs(difference_target_calculated[1])
 
 def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, ratio_wettablitygradient = 0.5):
+    """
+    Calculating function of the CA_app along the contact line from the following input values.
+    -First, from the inputted CA_eq_adv,rec + experimental CA_app_adv,rec, the v_adv,rec are calculated.
+    These are then used to create a v(phi) profile along the CL using a normal sin function.
+    -The inputted CA_eq_adv,rec are used to create the entire CA_eq(phi) profile using the inputted wettability gradient & steepness factors.
+
+    With these two profile in place, the resulting CA_app(phi) profile is calculated along the CL.
+
+    :param CAs_eq_advrec_input: 4 values!  CA_eq_adv&rec AND wettability profile steepness factors under cover&openair.
+            ^THESE values will be fitted for in the optimizer.
+    :param exp_CAs_advrec: EXPERIMENTALLY OBSERVED CA's at the outer advancing & receding position
+            ^THESE are used to calculate the velocity of the droplet at the outer advancing & receding position
+    :param phi: radial angle range [-pi, pi]
+    :param target_localextrema_CAs:  EXPERIMENTALLY OBSERVED CA's at the local maximum and minimum, respectively. SO INPUT=from left to right in droplet.
+            ^THESE are the target valuse for the optimizer.
+    :param mu:          viscosity       [Pa*s]
+    :param gamma:       surface tension  [N/m]
+    :param R:           macroscopic cutoff length   [m]
+    :param l:           micro/nanoscopic cutoff length [m]
+    :param nr_of_datapoints: nr. of datapoints of input.
+    :param wettability_gradient: value 'size' of the respective wettability gradients under plate and in open air: 0=fully covered, 0.5=50:50, 1=fully open
+    :return: CA_app(phi), v(phi), CA_eq(phi)    all along contact line position
+    """
+
     # fitting inputs: first 2 are adv&rec eq. contact angle. second 2 are for steepness of wettability gradient.
     CA_eq_adv, CA_eq_rec, steepnessWettability_cover, steepnessWettability_open = CAs_eq_advrec_input
 
@@ -862,9 +913,8 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
 
 def targetExtremumCA_to_inputVelocity(CA_app: float, CA_eq: float, sigma: float, mu:float, R:float, l:float):
     """
-    Tilted droplets:
     Calculate what the (maximum) velocity must be for the inputted CA_app at the advancing or receding location
-    for tilted droplets.
+    for any droplet. Simply Cox_voinov rewritten.
     :param CA_app: target maximum or minimum CA at adv./rec. respectively [rad]
     :param CA_eq: input CA_eq [rad]
     :return: velocity [m/s] or [um/min]
@@ -950,7 +1000,7 @@ def main():
 
         #tiltedDropQualitative()        #using this one to model tilted droplets
         #movingDropQualitative()
-        movingDropQualitative_fitting()
+        movingDropQualitative_fitting() #Using this one to FIT moving droplets!
 
         #xcoord, ycoord, CA = importData()
         #fitSpatialCA(xcoord, ycoord, CA, middleCoord)
