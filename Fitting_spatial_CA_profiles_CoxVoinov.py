@@ -688,7 +688,7 @@ def movingDropQualitative_fitting():
     #     method='Powell',
     #     callback=callback)
 
-    OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
+    OPTIMIZE = False         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
     if OPTIMIZE:
         sol = scipy.optimize.differential_evolution(
             optimizeInputCA,
@@ -709,10 +709,11 @@ def movingDropQualitative_fitting():
         calc_vel = targetExtremumCA_to_inputVelocity(np.array(exp_CAs_advrec)/180*np.pi, np.array(calculated_CA_eq_adv_rec)/180*np.pi, gamma, mu, R, l)
         theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
     else:
+        print(f"NOT OPTIMIZING: USING MANUAL INPUT TO SHOW & CALCULATE CA_app")
         #Input required/desired CA_eq_adv,rec angles & wettability steepness factors below
-        calculated_CA_eq_adv_rec = [0.92541827, 1.90594351]
+        calculated_CA_eq_adv_rec = [1.58, 2.19]
         calc_vel = targetExtremumCA_to_inputVelocity(np.array(exp_CAs_advrec)/180*np.pi, np.array(calculated_CA_eq_adv_rec)/180*np.pi, gamma, mu, R, l)
-        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [7.67019303, 9.91537312], exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [9.24, 3.37], exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
 
     print(f"Corresponding velocities are = {np.array(calc_vel)/(1E-6 / 60)} mu/min")
     theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
@@ -730,8 +731,13 @@ def movingDropQualitative_fitting():
     ax1[0,1].set(xlabel='radial angle [rad]', ylabel='velocity [$\mu$m/min]', title='Input local velocity profile')
 
     ## calculated  CA_App profile 2D
+    peaks,_ = scipy.signal.find_peaks(theta_app_calculated_deg, width = 5)
+    minima, _ = scipy.signal.find_peaks(-theta_app_calculated_deg, width = 5)
     ax1[1,0].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
+    ax1[1,0].plot(phi[peaks[0]], theta_app_calculated_deg[peaks[0]], '.', color='blue', markersize=10, label=r'CA$_{target, max}$=CA$_{calc}$=' + f'{target_localextrema_CAs[0]:.2f}')
+    ax1[1, 0].plot(phi[minima[0]], theta_app_calculated_deg[minima[0]], '.', color='blue', markersize=10, label=r'CA$_{target, min}$=CA$_{calc}$=' + f'{target_localextrema_CAs[1]:.2f}')
     ax1[1,0].set(xlabel='radial angle [rad]', ylabel='CA$_{app}$ [deg]', title='Calculated apparent contact angle profile')
+    ax1[1,0].legend(loc='best')
     fig1.tight_layout()
 
     R_drop = 1  # [mm]
@@ -743,8 +749,9 @@ def movingDropQualitative_fitting():
     fig1.colorbar(im1)
     fig1.tight_layout()
 
-    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    #fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
+
+    #fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
+    fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
 
     plt.show()
     return
