@@ -1,5 +1,12 @@
-import logging
+"""
+Attempts at quali- & quantitatively calculating/fitting/plotting CA_apparent using the Cox-Voinov equation
+𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎,
 
+AFAIK (best) working functions:
+        tiltedDropQualitative()         #using this one to model tilted droplets
+        movingDropQualitative_fitting() #Using this one to FIT moving droplets!
+"""
+import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import math
@@ -640,10 +647,10 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.28, 1.31]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.8, 0.95]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    exp_CAs_advrec = [1.85, 1.76]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.99, 1.70]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
-    wettability_gradient = 0.3    # 0=fully covered, 0.5=50:50, 1=fully open
+    wettability_gradient = 0.5    # 0=fully covered, 0.5=50:50, 1=fully open
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)

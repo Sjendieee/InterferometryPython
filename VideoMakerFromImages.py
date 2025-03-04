@@ -1,3 +1,6 @@
+"""
+Create .mp4 videos from all images with a desired (partial) name in a folder.
+"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt
