@@ -647,8 +647,8 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.85, 1.76]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.99, 1.70]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    exp_CAs_advrec = [1.64, 1.67]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.92, 1.58]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
     wettability_gradient = 0.5    # 0=fully covered, 0.5=50:50, 1=fully open
 
@@ -711,9 +711,12 @@ def movingDropQualitative_fitting():
     else:
         print(f"NOT OPTIMIZING: USING MANUAL INPUT TO SHOW & CALCULATE CA_app")
         #Input required/desired CA_eq_adv,rec angles & wettability steepness factors below
-        calculated_CA_eq_adv_rec = [1.58, 2.19]
+        calculated_CA_eq_adv_rec = [1.57, 2.08]
         calc_vel = targetExtremumCA_to_inputVelocity(np.array(exp_CAs_advrec)/180*np.pi, np.array(calculated_CA_eq_adv_rec)/180*np.pi, gamma, mu, R, l)
-        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [9.24, 3.37], exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [6.76, 1.18],
+                                                                                exp_CAs_advrec, phi, mu, gamma, R, l,
+                                                                                nr_of_datapoints, wettability_gradient,
+                                                                                np.array([32, -275])*(1E-6 / 60))
 
     print(f"Corresponding velocities are = {np.array(calc_vel)/(1E-6 / 60)} mu/min")
     theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
@@ -750,8 +753,8 @@ def movingDropQualitative_fitting():
     fig1.tight_layout()
 
 
-    #fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
+    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
+    #fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
 
     plt.show()
     return
@@ -848,7 +851,7 @@ def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu,
         difference_target_calculated = [error_to_giveback, error_to_giveback]
     return abs(difference_target_calculated[0]) + abs(difference_target_calculated[1])
 
-def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, ratio_wettablitygradient = 0.5):
+def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, ratio_wettablitygradient = 0.5, calculateVelocies = []):
     """
     Calculating function of the CA_app along the contact line from the following input values.
     -First, from the inputted CA_eq_adv,rec + experimental CA_app_adv,rec, the v_adv,rec are calculated.
@@ -881,15 +884,21 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
 
 
     # Input velocities at advancing & receding point.
-    v_adv = 150 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction       [70]    (right side)
-    v_rec = 150 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction      [150]    (left side)
+    #v_adv = 150 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction       [70]    (right side)
+    #v_rec = 150 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction      [150]    (left side)
 
-    # print(f"For water, CA_eq=60 velocities are: {targetExtremumCA_to_inputVelocity(np.array([63]) / 180 * np.pi, 60 / 180 * np.pi, 72/1000, 1.0016/1000, R, l)}")
-    # Input target advancing and receding CA (outer moving droplet) to calculate required local velocities
-    v_adv, v_rec = targetExtremumCA_to_inputVelocity(np.array([exp_CA_adv, exp_CA_rec]) / 180 * np.pi,
-                                                     np.array([CA_eq_adv, CA_eq_rec]) / 180 * np.pi,
-                                                     gamma, mu, R, l)
-    v_rec = -v_rec      #Swap sign of v_rec, because of how it's implemented in the local velocity along the CL later on #TODO not the nicest - change if needed
+    if len(calculateVelocies) == 0: #If no given input velocities, calculate them from the input experimental CA_adv,rec
+                                    #This is the prefered way - and gives physically correct&matching CA_adv,rec angles
+        # Input target advancing and receding CA (outer moving droplet) to calculate required local velocities
+        v_adv, v_rec = targetExtremumCA_to_inputVelocity(np.array([exp_CA_adv, exp_CA_rec]) / 180 * np.pi,
+                                                         np.array([CA_eq_adv, CA_eq_rec]) / 180 * np.pi,
+                                                         gamma, mu, R, l)
+        v_rec = -v_rec      #swap sign: input in formula below should be positive (it'll make it negative) #TODO not the nicest - change if needed
+    else: #else, use the given input velocities for
+        if not len(calculateVelocies) == 2:
+            logging.critical(f"Wrong amount of in put velocities. Input 2 values: [v_adv, v_rec] in m/s")
+        v_adv = calculateVelocies[0]
+        v_rec = -calculateVelocies[1]       #swap sign: input in formula below should be positive (it'll make it negative)
     #print(f"Velocities in between: adv {v_adv/(1E-6 / 60):.2f} $\mu$/min, rec {v_rec/(1E-6 / 60):.2f} $\mu$/min.")
 
     anglerange1 = np.linspace(0, 0.5,
