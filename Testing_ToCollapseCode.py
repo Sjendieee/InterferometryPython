@@ -3402,7 +3402,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [20, 40, 134, 230, 244, 264]       #36, 57
+    usedImages = [51]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -3433,9 +3433,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     # A list of vector numbers, for which an outwardsVector (if desired) will be shown & heights can be plotted
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
-
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
-
     plotHeightCondition = lambda xlist: []
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
@@ -3849,7 +3847,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         #Show the filtered result, and decide whether done filtering, or more must be performed
                         if MANUAL_FILTERING:
                             filtered_angleDegArr = np.array(temp_angleDegArr)[inverted_selected_regions]
-                            fig3, ax3 = plt.subplots(figsize= (15, 9.6))
+                            fig3, ax3 = plt.subplots(figsize= (15, 9.6))       #15, 9.6
                             im3 = ax3.scatter(xrange1, abs(np.subtract(imgshape[0], yrange1)), c=filtered_angleDegArr, cmap='jet',
                                               vmin=min(filtered_angleDegArr), vmax=max(filtered_angleDegArr))
                             ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n}, or t = {deltat_formatted[n]}\n RESULTING FILTERED PROFILE. NEXT: CHOOSE WHETHER THIS IS GOOD (ENOUGH)")
@@ -3857,6 +3855,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             fig3.colorbar(im3)
 
                             closed = [False]
+
                             fig3.show()
                             fig3.canvas.mpl_connect('close_event', on_close)         # Connect the close event to the figure
                             #plt.show()
@@ -3920,6 +3919,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
 
                             plt.close(fig3)
 
+
                     #TODO save filtered coordinates, contact angles and vectors to a .txt file for even faster analysis
                     if saveCoordinates == True:
                         if os.path.exists(os.path.dirname(filtered_coordinatesListFilePath)):
@@ -3929,6 +3929,17 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                             logging.critical(
                                 "Path to folder in which the contour coordinates file is to be saved DOES NOT exist.\n"
                                 "When parsing 'saveCoordinates' = True, make sure 'coordinatesListFilePath' is parsed (correctly) as well")
+
+
+                ## Plotting & saving the 'final' CA scatterplot profile in a nice square figure for on screen
+                fig3, ax3 = plt.subplots()  # 15, 9.6 figsize=(6.4 * 3, 4.8 * 3)
+                im3 = ax3.scatter(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), c=angleDegArr, cmap='jet', vmin=min(angleDegArr), vmax=max(angleDegArr))
+                ax3.set_xlabel("X-coord"); ax3.set_ylabel("Y-Coord"); ax3.set_title(f"Spatial Contact Angles Colormap n = {n} at t = {deltat_formatted[n]}")
+                #ax3.legend([f"Median CA (deg): {(statistics.median(filtered_angleDegArr)):.2f}"], loc='center left')
+                fig3.colorbar(im3)
+                fig3.savefig(os.path.join(analysisFolder, f'Colorplot XYcoord-CA {n:04}-filtered.png'), dpi=600)
+                plt.close(fig3)
+                ##
 
                 #calculate the nett force over given CA en droplet range
                 tangent_forces = CA_And_Coords_To_Force(xArrFinal, abs(np.subtract(imgshape[0], yArrFinal)), vectorsFinal, angleDegArr, analysisFolder, lg_surfaceTension)
@@ -4339,7 +4350,7 @@ def main():
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
 
     #path = "E:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_TILTEDplate-1deg-MOVINGDROP_halfCovered"                #moving against gravity (half-cover + 1&5deg tilt)
-
+    path = 'G:\\2025-02-19 PLMA dodecaneXp1_32BIBB_S4-ZeissBasler15uc 5x open flat 5 deg tilt'
     #P12MA dodecane: Flat + moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M2 flat drop open + closed"
 
