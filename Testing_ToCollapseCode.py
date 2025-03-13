@@ -3144,6 +3144,12 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                  f"\nNow plotting various contact angle & swelling profile plots.")
 
     if DETERMINE_HEIGHT_NEAR_CL:
+        #TODO possible ways to better visualize the 3d plots (inspiration):
+        # https://datashader.org/user_guide/Plotting_Pitfalls.html
+        # https://towardsdatascience.com/how-to-create-fast-and-accurate-scatter-plots-with-lots-of-data-in-python-a1d3f578e551/
+        # https://jakevdp.github.io/PythonDataScienceHandbook/04.12-three-dimensional-plotting.html
+        # https://matplotlib.org/stable/gallery/mplot3d/custom_shaded_3d_surface.html#sphx-glr-gallery-mplot3d-custom-shaded-3d-surface-py
+
         ax3D.set(xlabel = 'X-Coord', ylabel = 'Y-Coord', zlabel = 'Height (nm)', title = f'Spatial Height Profile Colormap n = {n}, or t = ...')   #{deltat_formatted[n]}
         # Create the color bar
         #cax = fig3D.add_axes([0.94, 0.1, 0.05, 0.75])  # [left, bottom, width 5% of figure width, height 75% of figure height]
