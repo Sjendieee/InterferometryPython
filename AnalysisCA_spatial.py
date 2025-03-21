@@ -1,5 +1,5 @@
 """"
-Decripated: use Testting_ToCollapseCode.py instead.
+Decripated: use Testing_ToCollapseCode.py instead.
 For analysis of low contact angle droplets on a surface by monochromatic fringe analysis.
 
 Method:

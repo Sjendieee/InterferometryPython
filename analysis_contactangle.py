@@ -15,6 +15,9 @@ IMPORTANT
 
 THIS CODE IS STILL UNDOCUMENTED. USE WITH CARE.
 
+2025-03-21 SR: I think this is Harmen's old code for analysing a single line intensity profile and conveting it to a height profile, from which a CA is extracted.
+    Better version have been written since then I believe in other files
+
 '''
 
 

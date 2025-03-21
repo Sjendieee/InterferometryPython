@@ -519,7 +519,7 @@ def heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, S
 
         # Saves data in time vs height profile plot so a csv file.
         wrappedPath = os.path.join(source,
-                                   f"Swellingimages\\data{timeFormat(elapsedtime)}_anchor{knownPixelPosition}_PureIntensity.csv")
+                                   f"Swellingimages\\data_n={idx}_k={vectorNumber}_t={timeFormat(elapsedtime)}_anchor{knownPixelPosition}_PureIntensity.csv")
         d = dict(
             {f'xshifted ({unitXY})': xshifted, 'Intensity converted (-)': intensityProfileZoomConverted, f'xrange ({unitXY})': xrange,
              'height (nm)': h, 'Swelling ratio (-)': h_ratio})
