@@ -1622,11 +1622,11 @@ def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber
     :return height: np.array with absolute heights (nm).
     :return h_ratio: np.array with swelling ratios.
     """
-    EVALUATERIGHTTOLEFT = True         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
+    EVALUATERIGHTTOLEFT = False         #evaluate from left to right, or the other way around    (required for correct conversion of intensity to height profile)
     if EVALUATERIGHTTOLEFT:
-        list(xdata).reverse()
-        list(ydata).reverse()
-        list(xBrushAndDroplet_units).reverse()
+        xdata = np.flip(xdata)
+        ydata.reverse()
+        xBrushAndDroplet_units = np.flip(xBrushAndDroplet_units)
 
     FLIP = False                 #True=flip data after h analysis to have the height increase at the left
     MANUALPEAKSELECTION = True
@@ -1654,7 +1654,7 @@ def swellingRatioNearCL(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber
     height, h_ratio = heightFromIntensityProfileV2(FLIP, MANUALPEAKSELECTION, PLOTSWELLINGRATIO, SAVEFIG, SEPERATEPLOTTING, USESAVEDPEAKS,
                                  axswel0, axswel1, cmap, colorGradient, dryBrushThickness, elapsedtime, figswel0, figswel1, idx, idxx,
                                  intensityProfileZoomConverted, knownHeightArr, knownPixelPosition, normalizeFactor,
-                                 range1, range2, source, xshifted, vectorNumber, outwardsLengthVector, unitXY="pixels", extraPartIndroplet=extraPartIndroplet)
+                                 range1, range2, source, xshifted, vectorNumber, outwardsLengthVector, unitXY="um", extraPartIndroplet=extraPartIndroplet)
     return height, h_ratio
 
 def swellingRatioNearCL_knownpeaks(xdata, ydata, elapsedtime, path, imgNumber, vectorNumber, outwardsLengthVector, extraPartIndroplet, peaks, minima):
@@ -2761,9 +2761,25 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         right_part = np.arange(k_half_unfiltered + 1, len(x0arr))
         # Concatenate into a single array
         k_range = np.concatenate((middle, left_part, right_part))
-        #k_range = np.concatenate((middle, np.array([0,1,2])))       #TODO Temp, to have the code run faster
+
+        #k_range = np.concatenate((middle, np.array([5000])))       #TODO Temp, to have the code run faster
+        #k_range = np.array([5000])       #TODO Temp, to have the code run faster
+
         logging.info(f"STARTING with k={k_range[0]}")
         for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
+
+            #TODO checks for linelengths
+
+            #inside droplet: fringe analysis
+
+            #Brush part
+
+            #Small bit inside droplet
+
+            #small bit outside droplet
+
+            # TODO end checks
+
             if k % (len(k_range) // 25) == 0:
                 logging.info(f"Analyzing line {k}/{len(k_range)}")
 
@@ -2925,6 +2941,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
                     #If plotting swelling, determine swellingprofile outside drop
                     if xOutwards[-1] != 0:
+                        if k == 4100:
+                            print(f"pause")
                         xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet - 1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
                         #below is weird looking, but correct! y is obtained through correctly stitched intensity profiles
                         #x is just 'added' together from 2 profiles (x was shifted before). Since the 1st point was overlapped in that shift, we take 1:extraPartInDroplet .
@@ -2934,10 +2952,19 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         #TODO below is wrong i think
                         #xBrushAndDroplet_units = np.linspace(0, lineLengthPixelsOutwards + lineLengthPixelsExtraOut - 1, len(xBrushAndDroplet)) * conversionXY * 1000# x-distance swelling profile + bit inside drop. units= um
 
+                        print(f"lineLengthPixelsOutwards = {lineLengthPixelsOutwards}\n"
+                              f"lineLengthPixelsExtraOut = {lineLengthPixelsExtraOut}\n"
+                              f"len(xBrushAndDroplet) = {len(xBrushAndDroplet)}")
+
                         #TODO this should be correct?
                         xBrushAndDroplet_units = np.linspace(0, (lineLengthPixelsOutwards + lineLengthPixelsExtraOut) * conversionXY * 1000, len(xBrushAndDroplet))# x-distance swelling profile + bit inside drop. units= um
 
                         yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
+
+                        #TODO CHECK - to remove
+                        totL = len(profile); partialL = len(profile[1:extraPartIndroplet])
+                        partialLlineLengthPixels = lineLengthPixels * (partialL / totL)
+                        # TODO end
 
                         heightNearCL_smoothened, xBrushAndDroplet, yBrushAndDroplet_smoothened, matchedPeakIndexArr = intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
                                                                                                                                        lineLengthPixelsOutwards, path, profile,
@@ -3244,17 +3271,43 @@ def intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeak
     :return yBrushAndDroplet: array of intensity values corresponding to ^
 
     """
+    MANUALSMOOTHINGREGION = True
+
     fig, ax = plt.subplots()
 
-
     ax.plot(xBrushAndDroplet, yBrushAndDroplet, 'ob', label = 'raw data')
+    ax.set(title = 'intensityToHeightOutside_bitInsideDrop function\n'
+                   'SELECT REGION THAT HAS TO BE SMOOTHENED', xlabel = 'index (-)', ylabel = 'intensity(-)')
     #TODO filter until the first peak from the left
     peaks, minima, I_peaks, I_minima = FindMinimaAndMaxima(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima)
-    yBrushAndDroplet_smoothened = list(scipy.signal.savgol_filter(yBrushAndDroplet[0:peaks[0]], len(yBrushAndDroplet)//10, 3)) + yBrushAndDroplet[peaks[0]:] # apply a savgol filter for data smoothing
-    # TODO check if I really want savgol filtering on input data: peaks of
+    if MANUALSMOOTHINGREGION:
+        # manually select region which is to be smoothened
+        # for manual closing of plot - without showing all other figures
+        closed = [False]
+        def on_close(event):
+            closed[0] = True
+        fig.show()  # show figure
+        # Connect the close event to the figure
+        fig.canvas.mpl_connect('close_event', on_close)
+        highlighter = Highlighter(ax, np.array(xBrushAndDroplet), np.array(yBrushAndDroplet))
+        # Run a loop to block until the figure is closed
+        while not closed[0]:
+            fig.canvas.flush_events()
+
+        selected_regions = highlighter.mask
+        inverted_selected_regions = [not elem for elem in selected_regions]  # invert booleans to 'deselect' the selected regions
+        xrange1, yrange1 = np.array(yBrushAndDroplet)[selected_regions], np.array(yBrushAndDroplet)[selected_regions]
+        plt.close(fig)
+
+        yBrushAndDroplet_smoothened = list(scipy.signal.savgol_filter(yrange1, len(yBrushAndDroplet) // 10, 3)) + list(np.array(yBrushAndDroplet)[inverted_selected_regions])  # apply a savgol filter for data smoothing
+    else:
+        yBrushAndDroplet_smoothened = list(scipy.signal.savgol_filter(yBrushAndDroplet[0:peaks[0]], len(yBrushAndDroplet) // 10, 3)) + yBrushAndDroplet[peaks[0]:]  # apply a savgol filter for data smoothing
+
+# TODO check if I really want savgol filtering on input data: peaks of
     ax.plot(xBrushAndDroplet, yBrushAndDroplet_smoothened, 'r.', label= 'smoothened before 1st peak')
     ax.set(title = 'intensityToHeightOutside_bitInsideDrop function', xlabel = 'index (-)', ylabel = 'intensity(-)')
     ax.legend()
+    plt.close(fig)
     #plt.show()
 
     if extraPartIndroplet >= outwardsLengthVector:
