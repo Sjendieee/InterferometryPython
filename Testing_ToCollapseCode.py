@@ -2660,10 +2660,10 @@ def removeLeftLocalExtrama(peaks, minima, y_intensity: np.array):
     return newpeaks, newminima
 
 def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsCombined, conversionXY, conversionZ,
-                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
-                         lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
-                         resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS,
-                         SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered, makeVideoOfData = False):
+                           deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg, heightPlottedCounter,
+                           lengthVector, n, omittedVectorCounter, outwardsLengthVector, path, plotHeightCondition,
+                           resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr, yArrFinal, IMPORTEDCOORDS,
+                           SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet_pixels, smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered, makeVideoOfData = False):
     """
 
     :param FLIPDATA:
@@ -2764,7 +2764,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         k_range = np.concatenate((middle, left_part, right_part))
 
         #k_range = np.concatenate((middle, np.array([5000])))       #TODO Temp, to have the code run faster
-        #k_range = np.array([5000])       #TODO Temp, to have the code run faster
+        #k_range = np.array([295])       #TODO Temp, to have the code run faster
 
         logging.info(f"STARTING with k={k_range[0]}")
         for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
@@ -2883,6 +2883,8 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 unwrapped, x, wrapped, peaks, nrOfLinesDifferenceInMaxMin_unwrappingHeight = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
                                                                         conversionZ, FLIPDATA, nrOfLinesDifferenceInMaxMin_unwrappingHeight)
 
+                x_pixels = np.linspace(0,lineLengthPixelsExtraOut + lineLengthPixels, len(x))       #array with corresponding pixel nr's
+
                 # (units) shift x (bitbrush+drop) to match with the end of xOutwards (brush).
                 #If xOutwards = 0, no shift occurs. Otherwise, x[0] and xOutwards[-1] are overlapped.
                 xshift = xOutwards[-1] - x[smallExtraOutwardsVector-1]
@@ -2944,31 +2946,34 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     if xOutwards[-1] != 0:
                         if k == 4100:
                             print(f"pause")
-                        xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet - 1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
+
+                        #TODO find how many datapoints inside the 'profile' represent e.g. 50 or 75 pixels
+                        extraPartIndroplet_datapoints = np.argmin(abs(x_pixels-extraPartIndroplet_pixels))     #at this datapoint, x is closest to 'extraPartIndroplet_pixels'.
+                        xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet_datapoints - 1) #TODO check out this -1    # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
                         #below is weird looking, but correct! y is obtained through correctly stitched intensity profiles
                         #x is just 'added' together from 2 profiles (x was shifted before). Since the 1st point was overlapped in that shift, we take 1:extraPartInDroplet .
                         #xBrushAndDroplet_units = np.concatenate([xOutwards, x[1:extraPartIndroplet]])           #x-distance swelling profile + bit inside drop. units= um
                         #Same as above, but more intuitively written
                         #linelength_extrapartInDroplet =
 
-                        print(f"Brush: lineLengthPixelsOutwards = {lineLengthPixelsOutwards}, nrOfDatapoints = {len(profileOutwards)}\n"
-                              f"bit Drop: lineLengthPixelsExtraOut = {lineLengthPixelsExtraOut}, nrOfDatapoints = {extraPartIndroplet}\n"
+                        print(f"Brush: lineLengthPixelsOutwards = {lineLengthPixelsOutwards}, nrOfDatapoints = {len(profileOutwards)} \t pixels/datapoint = {lineLengthPixelsOutwards/len(profileOutwards):.2f}\n"
+                              f"bit Brush: extraPartIndroplet_pixels = {extraPartIndroplet_pixels}, nrOfDatapoints = {extraPartIndroplet_datapoints} \t pixels/datapoint = {extraPartIndroplet_pixels / extraPartIndroplet_datapoints} \n"
                               f"total len(xBrushAndDroplet) = {len(xBrushAndDroplet)}"
                               f"")
 
                         #TODO this should be correct?
-                        xBrushAndDroplet_units = np.linspace(0, (lineLengthPixelsOutwards + lineLengthPixelsExtraOut) * conversionXY * 1000, len(xBrushAndDroplet))# x-distance swelling profile + bit inside drop. units= um
+                        xBrushAndDroplet_units = np.linspace(0, (lineLengthPixelsOutwards + extraPartIndroplet_pixels) * conversionXY * 1000, len(xBrushAndDroplet))# x-distance swelling profile + bit inside drop. units= um
 
-                        yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
+                        yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet_datapoints]  # intensity data of brush & some datapoints within droplet
 
                         #TODO CHECK - to remove
-                        totL = len(profile); partialL = len(profile[1:extraPartIndroplet])
+                        totL = len(profile); partialL = len(profile[1:extraPartIndroplet_datapoints])
                         partialLlineLengthPixels = lineLengthPixels * (partialL / totL)
                         # TODO end
 
                         heightNearCL_smoothened, xBrushAndDroplet, yBrushAndDroplet_smoothened, matchedPeakIndexArr = intensityToHeightOutside_bitInsideDrop(deltatFromZeroSeconds, k, matchedPeakIndexArr, n,
-                                                                                                                                       lineLengthPixelsOutwards, path, profile,
-                                                                                                                                       profileOutwards, extraPartIndroplet, minIndex_maxima, minIndex_minima,xBrushAndDroplet,yBrushAndDroplet, xBrushAndDroplet_units)
+                                                                                                                                                             lineLengthPixelsOutwards, path, profile,
+                                                                                                                                                             profileOutwards, extraPartIndroplet_pixels, minIndex_maxima, minIndex_minima, xBrushAndDroplet, yBrushAndDroplet, xBrushAndDroplet_units)
 
                         x_ks.append(x0arr[k])       #x-coord of 'chosen CL' current line
                         y_ks.append(y0arr[k])       #y-coord of 'chosen CL' current line
@@ -2991,7 +2996,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         #
 
                         # Determine difference in h between brush+bitdroplet & bitbrush+droplet profile at 'profileExtraOut' distance from contour
-                        offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL_smoothened[-extraPartIndroplet] / 1000))
+                        offsetDropHeight = (unwrapped[smallExtraOutwardsVector] - (heightNearCL_smoothened[-extraPartIndroplet_datapoints] / 1000))
 
                     #TODO: shift x-index of droplet profile to
 
@@ -3006,7 +3011,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         ax1, fig1 = plotPanelFig_I_h_wrapped_CAmap(coef1, heightNearCL_smoothened,
                                                                    offsetDropHeight, peaks, profile,
                                                                    profileOutwards, r2, startIndex, unwrapped,
-                                                                   wrapped, x, xBrushAndDroplet_units, xshift, smallExtraOutwardsVector, endIndex, extraPartIndroplet)
+                                                                   wrapped, x, xBrushAndDroplet_units, xshift, smallExtraOutwardsVector, endIndex, extraPartIndroplet_datapoints)
                     else:       #for the profiles in plottingHeightCondition
                         # TODO WIP: swelling or height profile outside droplet
                         # TODO this part below sets the anchor at some index within the droplet regime
@@ -3019,7 +3024,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                                     zorder=len(x0arr),
                                                     label=f'Anchor at = {distanceOfEqualHeight:.2f} um, {equalHeight:.2f} nm')
                             ax_heightsCombined.axvspan(0, xOutwards[-1], facecolor='orange', alpha=0.3)
-                            ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet - 1], facecolor='blue',
+                            ax_heightsCombined.axvspan(xOutwards[-1], x[extraPartIndroplet_datapoints - 1], facecolor='blue',
                                                        alpha=0.3)
                         else:
                             indexOfEqualHeight = np.argmin(abs(xOutwards - distanceOfEqualHeight))
@@ -3092,23 +3097,23 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                     - y-height (nm or um)           -> heightNearCL
                     """
                     #Set correct x & y profiles over total line
-                    xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet - 1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
-                    xBrushAndDroplet_units = np.linspace(0, outwardsLengthVector + extraPartIndroplet - 1, len(xBrushAndDroplet)) * conversionXY * 1000  # x-distance swelling profile + bit inside drop. units= um
-                    yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet]  # intensity data of brush & some datapoints within droplet
+                    xBrushAndDroplet = np.arange(0, len(profileOutwards) + extraPartIndroplet_datapoints - 1)  # distance of swelling outside drop + some datapoints within of the drop profile (nr of datapoints (NOT pixels!))
+                    xBrushAndDroplet_units = np.linspace(0, outwardsLengthVector + extraPartIndroplet_datapoints - 1, len(xBrushAndDroplet))         * conversionXY * 1000  # x-distance swelling profile + bit inside drop. units= um
+                    yBrushAndDroplet = profileOutwards + profile[1:extraPartIndroplet_datapoints]  # intensity data of brush & some datapoints within droplet
 
                     #Make arrays with all x & y coords of Outside part
                     xCoordsOutside = np.array([val[0] for val in coords_Outside])
                     yCoordsOutside = np.array([val[1] for val in coords_Outside])
                     # Make arrays with all x & y coords of Outside part
-                    xCoordsInside = np.array([val[0] for val in coords_Profile[1:extraPartIndroplet]])
-                    yCoordsInside = np.array([val[1] for val in coords_Profile[1:extraPartIndroplet]])
+                    xCoordsInside = np.array([val[0] for val in coords_Profile[1:extraPartIndroplet_datapoints]])
+                    yCoordsInside = np.array([val[1] for val in coords_Profile[1:extraPartIndroplet_datapoints]])
                     xCoordsProfile = np.concatenate((np.flip(xCoordsOutside), xCoordsInside))
                     yCoordsProfile = np.concatenate((np.flip(yCoordsOutside), yCoordsInside))
 
                     # TODO filter until the first peak from the left
                     try:
                         # Find peaks & minima automatically in [brush & part inside droplet], by automatic peakfinding.
-                        peaks, minima, y_intensity_smoothened = FindMinimaAndMaxima_v2(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima, vectornr = k, lenIn = extraPartIndroplet, lenOut = len(profileOutwards))
+                        peaks, minima, y_intensity_smoothened = FindMinimaAndMaxima_v2(xBrushAndDroplet, yBrushAndDroplet, minIndex_maxima, minIndex_minima, vectornr = k, lenIn = extraPartIndroplet_datapoints, lenOut = len(profileOutwards))
                         if k == 0:
                             cmap_minval = 0     #set initial cmap values for h-spatial plot, and overwrite later to the actual min & max in entire dataset
                             cmap_maxval = 1
@@ -3129,7 +3134,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                                 axvid.clear()
 
                                 #Determine height profile in [brush & part inside droplet], by making use of peaks found before.
-                                heightNearCL, heightRatioNearCL = swellingRatioNearCL_knownpeaks(xBrushAndDroplet_units, y_intensity_smoothened, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector, extraPartIndroplet, peaks, minima)
+                                heightNearCL, heightRatioNearCL = swellingRatioNearCL_knownpeaks(xBrushAndDroplet_units, y_intensity_smoothened, deltatFromZeroSeconds[n], path, n, k, outwardsLengthVector, extraPartIndroplet_pixels, peaks, minima)
 
                                 # TODO this part below sets the anchor at some index within the droplet regime
                                 # TODO But it's not (really) valid if even far away on one side it's more swollen than the other. So removed for now
@@ -3477,7 +3482,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [52]       #36, 57
+    usedImages = [41]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -3489,7 +3494,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     lengthVector = 200  # typically:200 .length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
 
-    extraPartIndroplet = 50  # extra datapoints from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
+    extraPartIndroplet_pixels = 75  # length of line [pixels] from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
     smallExtraOutwardsVector = 50    #small vector e.g. '25', pointing outwards from CL (for wrapped calculation). Goal: overlap some height fitting from CA analysis inside w/ swelling profile outside. #TODO working code, but profile  outside CL has lower frequency than fringes inside, and this seems to mess with the phase wrapping & unwrapping. So end of height profile is flat-ish..
 
     minIndex_maxima_standard =  400; minIndex_minima_standard = 0; #index below which no minima are to be found (for filtering of extrema when investigating swelling profiles or fringe locations outside drop). Default = 0.
@@ -3509,7 +3514,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
-    plotHeightCondition = lambda xlist: [295, 2690, 4100, 5000, 7179]
+    #plotHeightCondition = lambda xlist: [295, 2690, 4100, 5000, 7179]
+    plotHeightCondition = lambda xlist: [2679, 4148, 5735, 8456]
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
@@ -3746,7 +3752,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         deltatFromZeroSeconds, dxarr, dxnegarr, dyarr, dynegarr, greyresizedimg,
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr, xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet, smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered)
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet_pixels, smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered)
                     elapsed_time = time.time() - start_time
                     logging.info(f"Finished coordsToIntensity_CAv2: Extracted intensity profiles, contact angles, and possibly height profiles.\n"
                                  f"This took {elapsed_time / 60 if elapsed_time > 90 else elapsed_time:.2f} {'min' if elapsed_time > 90 else 'sec'}")
@@ -3798,7 +3804,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                         heightPlottedCounter, lengthVector, n, omittedVectorCounter, outwardsLengthVector, path,
                         plotHeightCondition(useablexlist), resizedimg, sensitivityR2, vectors, vectorsFinal, x0arr,
                         xArrFinal, y0arr,
-                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet,
+                        yArrFinal, IMPORTEDCOORDS, SHOWPLOTS_SHORT, dxExtraOutarr, dyExtraOutarr, extraPartIndroplet_pixels,
                         smallExtraOutwardsVector, minIndex_maxima_standard, minIndex_minima_standard, middleCoord, k_half_unfiltered)
 
                     print(f"Normals, intensities & Contact Angles Succesffuly obtained. Next: plotting overview of all data for 1 timestep")
