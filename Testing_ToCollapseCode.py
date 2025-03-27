@@ -1875,7 +1875,8 @@ def intensityToHeightProfile(profile, lineLengthPixels, conversionXY, conversion
 
     # x = np.arange(0, len(unwrapped)) * conversionXY * 1000 #TODO same ^
     # TODO conversionXY generally in mm, so *1000 -> unit in um.
-    x = np.linspace(0, lineLengthPixels, len(unwrapped)) * conversionXY * 1000  # converts pixels to desired unit (prob. um)
+
+    x = np.linspace(0, lineLengthPixels * conversionXY * 1000, len(unwrapped))   # converts pixels to desired unit (prob. um)
 
     # fig1, ax1 = plt.subplots(2, 2)
     # ax1[0, 0].plot(profile);
@@ -2949,12 +2950,11 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         #xBrushAndDroplet_units = np.concatenate([xOutwards, x[1:extraPartIndroplet]])           #x-distance swelling profile + bit inside drop. units= um
                         #Same as above, but more intuitively written
                         #linelength_extrapartInDroplet =
-                        #TODO below is wrong i think
-                        #xBrushAndDroplet_units = np.linspace(0, lineLengthPixelsOutwards + lineLengthPixelsExtraOut - 1, len(xBrushAndDroplet)) * conversionXY * 1000# x-distance swelling profile + bit inside drop. units= um
 
-                        print(f"lineLengthPixelsOutwards = {lineLengthPixelsOutwards}\n"
-                              f"lineLengthPixelsExtraOut = {lineLengthPixelsExtraOut}\n"
-                              f"len(xBrushAndDroplet) = {len(xBrushAndDroplet)}")
+                        print(f"Brush: lineLengthPixelsOutwards = {lineLengthPixelsOutwards}, nrOfDatapoints = {len(profileOutwards)}\n"
+                              f"bit Drop: lineLengthPixelsExtraOut = {lineLengthPixelsExtraOut}, nrOfDatapoints = {extraPartIndroplet}\n"
+                              f"total len(xBrushAndDroplet) = {len(xBrushAndDroplet)}"
+                              f"")
 
                         #TODO this should be correct?
                         xBrushAndDroplet_units = np.linspace(0, (lineLengthPixelsOutwards + lineLengthPixelsExtraOut) * conversionXY * 1000, len(xBrushAndDroplet))# x-distance swelling profile + bit inside drop. units= um
@@ -3509,7 +3509,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
-    plotHeightCondition = lambda xlist: [2690, 4100, 5000, 7179]
+    plotHeightCondition = lambda xlist: [295, 2690, 4100, 5000, 7179]
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
