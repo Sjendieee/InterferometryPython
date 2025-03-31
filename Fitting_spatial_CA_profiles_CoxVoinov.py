@@ -764,10 +764,11 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.64, 1.67]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.92, 1.58]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    exp_CAs_advrec = [1.49, 1.42]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.79, 1.3]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
     wettability_gradient = 0.5    # 0=fully covered, 0.5=50:50, 1=fully open
+    OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
@@ -805,7 +806,6 @@ def movingDropQualitative_fitting():
     #     method='Powell',
     #     callback=callback)
 
-    OPTIMIZE = False         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
     if OPTIMIZE:
         sol = scipy.optimize.differential_evolution(
             optimizeInputCA,
@@ -827,6 +827,7 @@ def movingDropQualitative_fitting():
         theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
     else:
         print(f"NOT OPTIMIZING: USING MANUAL INPUT TO SHOW & CALCULATE CA_app")
+        logging.critical(f"MAKE SURE TO INPUT DESIRED PARAMETERS IN THE SCRIPT 'else' FUNCTION")
         #Input required/desired CA_eq_adv,rec angles & wettability steepness factors below
         calculated_CA_eq_adv_rec = [1.57, 2.08]
         calc_vel = CA_app_to_inputVelocity(np.array(exp_CAs_advrec) / 180 * np.pi, np.array(calculated_CA_eq_adv_rec) / 180 * np.pi, gamma, mu, R, l)
@@ -870,8 +871,8 @@ def movingDropQualitative_fitting():
     fig1.tight_layout()
 
 
-    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    #fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
+    #fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
+    fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
 
     plt.show()
     return
@@ -1139,9 +1140,10 @@ def main():
         #testingQualitativeDescription()
 
         #tiltedDropQualitative()        #using this one to model tilted droplets
-        tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
+        #TODO below was uncommented - check if working or indeed still WIP
+        #tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
         #movingDropQualitative()
-        movingDropQualitative_fitting() #Using this one to FIT moving droplets!
+        movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
 
         #xcoord, ycoord, CA = importData()
         #fitSpatialCA(xcoord, ycoord, CA, middleCoord)
