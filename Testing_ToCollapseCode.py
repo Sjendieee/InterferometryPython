@@ -3515,7 +3515,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [295, 2690, 4100, 5000, 7179]
-    plotHeightCondition = lambda xlist: [2679, 4148, 5735, 8456]
+    plotHeightCondition = lambda xlist: [2679, 4148, 5735, 8456]    #MOVING RIGHT LEFT n41
+    plotHeightCondition = lambda xlist: []
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
