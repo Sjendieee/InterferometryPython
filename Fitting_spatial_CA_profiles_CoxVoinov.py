@@ -6,6 +6,7 @@ AFAIK (best) working functions:
         tiltedDropQualitative()         #using this one to model tilted droplets
         movingDropQualitative_fitting() #Using this one to FIT moving droplets!
 """
+from datetime import datetime
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,8 +16,11 @@ import csv
 import json
 import scipy.optimize
 import traceback
+import pickle
 
 from Testing_ToCollapseCode import manualFitting
+
+countNAN = 0
 
 def importData():
     # define img nr &
@@ -764,17 +768,25 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.49, 1.42]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.79, 1.3]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    exp_CAs_advrec = [1.336, 1.331]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.609, 1.150]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
-    wettability_gradient = 0.5    # 0=fully covered, 0.5=50:50, 1=fully open
-    OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
+    wettability_gradient = 0.35    # 0=fully covered, 0.5=50:50, 1=fully open
+
+    OPTIMIZE = False         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
     CA_eq_adv = 1.20;  # initial guesses
     CA_eq_rec = 1.8  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
 
+    path = 'C:\\Users\\ReuvekampSW\\Downloads'
+    if not os.path.exists(path):
+        path = 'C:\\Downloads'
+    if not os.path.exists(path):
+        logging.critical("Path does not exist: put a correct one in")
+        exit()
+    logging.info(f"Dumping data to the following directory:\n {path}")
 
     mu = 1.34 / 1000  # Pa*s
     gamma = 25.55 / 1000  # N/m
@@ -792,49 +804,49 @@ def movingDropQualitative_fitting():
     def callback(xk, convergence=None):
         """Function called at each iteration."""
         iterations.append(xk)
-        print(f"Current iteration: CA_eq_adv={xk[0]:.4f}, CA_eq_rec={xk[1]:.4f}, power cover {xk[2]:.4f}, power open air {xk[3]:.4f}")
-
-    #Older minimize optimizer approach. Sometimes got stuck in local minima (or code was not bug-free yet)
-    # sol = scipy.optimize.minimize(              #.minimize
-    #     optimizeInputCA,
-    #     [CA_eq_adv, CA_eq_rec],
-    #     # upper&lowerbounds. For advancing, v>!0, thus CA_app>CA_eq. Thus,
-    #     #For receding, v<!0, thus CA_eq > CA_app
-    #     bounds=((0.5, exp_CAs_advrec[0]),
-    #             (exp_CAs_advrec[1], 3)),
-    #     args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints),
-    #     method='Powell',
-    #     callback=callback)
+        if np.mod(len(iterations), 5) == 0:
+            print(f"Current iteration: CA_eq_adv={xk[0]:.4f}, CA_eq_rec={xk[1]:.4f}, power cover {xk[2]:.4f}, power open air {xk[3]:.4f}")
 
     if OPTIMIZE:
         sol = scipy.optimize.differential_evolution(
             optimizeInputCA,
             bounds=((0.5, exp_CAs_advrec[0]),       #advancing  upper&lower bound
                     (exp_CAs_advrec[1], 3),        #receding  upper&lower bound
-                    (0, 10),        #steepness of wettability gradient  - covered part
-                    (0, 10)),       #steepness of wettability gradient  - open part
+                    (0.8, 10),        #steepness of wettability gradient  - covered part
+                    (0.8, 10)),       #steepness of wettability gradient  - open part
             # bounds=((1.2, 1.25),  # advancing  upper&lower bound
             #         (2.2, 2.3),  # receding  upper&lower bound
             #         (0.5, 10),  # steepness of wettability gradient  - covered part
             #         (0.5, 8)),  # steepness of wettability gradient  - open part
             args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient),
-            callback=callback)
+            callback=callback,
+            maxiter=3000)
+
         print(f"sol = {sol.x}")
         print(sol)
+        print(logging.critical(f"#of NaN counts in calculated CA's = {countNAN}"))
         calculated_CA_eq_adv_rec = np.array(sol.x)[0:2]
 
         calc_vel = CA_app_to_inputVelocity(np.array(exp_CAs_advrec) / 180 * np.pi, np.array(calculated_CA_eq_adv_rec) / 180 * np.pi, gamma, mu, R, l)
         theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+
+
     else:
         print(f"NOT OPTIMIZING: USING MANUAL INPUT TO SHOW & CALCULATE CA_app")
         logging.critical(f"MAKE SURE TO INPUT DESIRED PARAMETERS IN THE SCRIPT 'else' FUNCTION")
         #Input required/desired CA_eq_adv,rec angles & wettability steepness factors below
-        calculated_CA_eq_adv_rec = [1.57, 2.08]
+        calculated_CA_eq_adv_rec = [1.20230661, 2.01276367]
         calc_vel = CA_app_to_inputVelocity(np.array(exp_CAs_advrec) / 180 * np.pi, np.array(calculated_CA_eq_adv_rec) / 180 * np.pi, gamma, mu, R, l)
-        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [6.76, 1.18],
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [5.76472212, 6.7508957],
                                                                                 exp_CAs_advrec, phi, mu, gamma, R, l,
                                                                                 nr_of_datapoints, wettability_gradient,
-                                                                                np.array([32, -275])*(1E-6 / 60))
+                                                                                np.array([40.4, -360])*(1E-6 / 60))
+        sol = []
+
+    with open(os.path.join(path, f"CoxVoinovFit_w={wettability_gradient}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pickle"), 'wb') as internal_filename:
+        # Dump data in order: Calculated CA [rad], velocity profile [m/s], input CA_eq profile [rad], solution fit where
+        # sol[0 & 1] CA_eq adv & rec,    sol[2&3] wettability gradient factor covered&open part
+        pickle.dump([theta_app_calculated, velocity_local, theta_eq_rad, sol], internal_filename)
 
     print(f"Corresponding velocities are = {np.array(calc_vel)/(1E-6 / 60)} mu/min")
     theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
@@ -871,9 +883,7 @@ def movingDropQualitative_fitting():
     fig1.tight_layout()
 
 
-    #fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    fig1.savefig(os.path.join('C:\\Downloads', 'temp1.png'), dpi=600)
-
+    fig1.savefig(os.path.join(path, 'temp1.png'), dpi=600)
     plt.show()
     return
 
@@ -922,6 +932,29 @@ def calc_local_extrema_values(fx, gx, A, phi, PLOTTING=False):
         ax[1,1].set(title='derivate sum')
     return (CA_app[peaks] * 180 / np.pi), phi[peaks]  # return values of the peaks
 
+def determine_local_extrema_values(theta_app_calculated, phi):
+    #peaks, _ = scipy.signal.find_peaks(theta_app_calculated, width=5)  # minimal peak width  = 5 datapoints to remove artifacts from stitching curves
+    #minima, _ = scipy.signal.find_peaks(-theta_app_calculated, width=5)
+
+    peak = np.argmax(theta_app_calculated)
+    minimum = np.argmin(theta_app_calculated)
+
+    PLOTTING = False
+    if PLOTTING:
+        fig, ax = plt.subplots()
+        ax.plot(phi, theta_app_calculated * 180 / np.pi)
+        ax.plot(phi[peak], theta_app_calculated[peak]* 180 / np.pi, '.', markersize=15, label = 'maxima')
+        ax.plot(phi[minimum], theta_app_calculated[minimum] * 180 / np.pi, '.', markersize=15, label = 'minima')
+        ax.set(title='CA_app profile calculated')
+        ax.legend(loc='best')
+        plt.show()
+
+    extrema = np.array([peak, minimum])
+    extrema = np.sort(extrema)
+
+    return theta_app_calculated[extrema] * 180 / np.pi, phi[extrema]
+
+
 def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient):
     """
     Optimizer function for determining the 'best' CA_eq_adv,rec & wettability steepness factors for MOVING DROPLETS RIGHT with
@@ -942,29 +975,35 @@ def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu,
     :param wettability_gradient: value 'size' of the respective wettability gradients under plate and in open air: 0=fully covered, 0.5=50:50, 1=fully open
     :return: difference between calculated local min/max & experimental target min/max. Lower=better.
     """
-    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
-
-    local_extrema_calculated, phi_local_extrema = calc_local_extrema_values(theta_eq_rad, velocity_local, 9 * mu * np.log(R / l) / gamma, phi)  # i0=local max, i1= local min        (i2 right max, i3 local min, i4 local max)
-    local_extrema_calculated_temp = local_extrema_calculated
-    phi_local_extrema_temp = phi_local_extrema
-    local_extrema_calculated = []
-    phi_local_extrema = []
     error_to_giveback = 1e6
-    if len(local_extrema_calculated_temp) > 5:      #if less than 6 local max/minima found, give large error: solution will not contain desired local max/minim
-        for n, CA in enumerate(local_extrema_calculated_temp):              #remove local extrema from list at 9&3 `o clock
-            #if abs(phi_local_extrema_temp[n]) > np.pi/5 and abs(phi_local_extrema_temp[n]) < (4*np.pi/5):
-            local_extrema_calculated.append(CA)
-            phi_local_extrema.append(phi_local_extrema_temp[n])
-        try:
-            difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0],           # difference experimentally observed local min/max vs. modelled
-                                            target_localextrema_CAs[1] - local_extrema_calculated[2]]
-        except:
-            print(
-                f"too few extrema are found from the trial2 function: min&max CA's used are {min(theta_eq_rad) * 180 / np.pi:.2f} & {max(theta_eq_rad) * 180 / np.pi:.2f} deg\n with velocities min&max: {min(velocity_local) * 1E6 / 60:.3e}, {max(velocity_local) * 1E6 / 60:.3e} um/min.")
-            if len(local_extrema_calculated) == 0:
-                difference_target_calculated = [error_to_giveback, error_to_giveback]
-            elif len(local_extrema_calculated) == 1:
-                difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0], error_to_giveback]
+    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+    PLOTTING = False
+    #local_extrema_calculated, phi_local_extrema = calc_local_extrema_values(theta_eq_rad, velocity_local, 9 * mu * np.log(R / l) / gamma, phi, PLOTTING)  # i0=local max, i1= local min        (i2 right max, i3 local min, i4 local max)
+    if len (theta_app_calculated) > 0:
+        local_extrema_calculated, phi_local_extrema = determine_local_extrema_values(theta_app_calculated, phi)
+
+        local_extrema_calculated_temp = local_extrema_calculated
+        phi_local_extrema_temp = phi_local_extrema
+        local_extrema_calculated = []
+        phi_local_extrema = []
+
+        if len(local_extrema_calculated_temp) > 1:      #if less than 6 local max/minima found, give large error: solution will not contain desired local max/minim
+            for n, CA in enumerate(local_extrema_calculated_temp):              #remove local extrema from list at 9&3 `o clock
+                #if abs(phi_local_extrema_temp[n]) > np.pi/5 and abs(phi_local_extrema_temp[n]) < (4*np.pi/5):
+                local_extrema_calculated.append(CA)
+                phi_local_extrema.append(phi_local_extrema_temp[n])
+            try:
+                difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0],           # difference experimentally observed local min/max vs. modelled
+                                                target_localextrema_CAs[1] - local_extrema_calculated[1]]
+            except:
+                print(
+                    f"too few extrema are found from the trial2 function: min&max CA's used are {min(theta_eq_rad) * 180 / np.pi:.2f} & {max(theta_eq_rad) * 180 / np.pi:.2f} deg\n with velocities min&max: {min(velocity_local) * 1E6 / 60:.3e}, {max(velocity_local) * 1E6 / 60:.3e} um/min.")
+                if len(local_extrema_calculated) == 0:
+                    difference_target_calculated = [error_to_giveback, error_to_giveback]
+                elif len(local_extrema_calculated) == 1:
+                    difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0], error_to_giveback]
+        else:
+            difference_target_calculated = [error_to_giveback, error_to_giveback]
     else:
         difference_target_calculated = [error_to_giveback, error_to_giveback]
     return abs(difference_target_calculated[0]) + abs(difference_target_calculated[1])
@@ -1019,26 +1058,65 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
         v_rec = -calculateVelocies[1]       #swap sign: input in formula below should be positive (it'll make it negative)
     #print(f"Velocities in between: adv {v_adv/(1E-6 / 60):.2f} $\mu$/min, rec {v_rec/(1E-6 / 60):.2f} $\mu$/min.")
 
-    anglerange1 = np.linspace(0, 0.5,
-                              round(nr_of_datapoints / 2 * ratio_wettablitygradient))  # 0-1        #for open side
-    anglerange2 = np.linspace(0.5, 1,
-                              round(nr_of_datapoints / 2 * (1 - ratio_wettablitygradient)))  # 0-1    #for closed side
-    Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2  # 'middle' CA value around which we build the sinus-like profile
-    Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # difference between middle CA value & the 'eq' ones - for in the sinus-like function
-    # Function to vary between CA_max&_min with a sinus-like shape.
-    # Input: anglerange = a range between [0, 1]
-    #       k = int value. Defines steepness of sinus-like curve
-    f_theta_eq = lambda anglerange, k: ((
-                                            np.power(0.5 + np.sin(anglerange * np.pi - np.pi / 2) / 2,
-                                                     np.power(2 * (1 - anglerange), k))
-                                        ) * 2 - 1) * np.pi / 180  # base function - [-1,1], so around 0+-1
-    theta_eq_cover = f_theta_eq(anglerange2, steepnessWettability_cover)  # under cover = less steep         #0      or even 3
-    theta_eq_open = f_theta_eq(anglerange1, steepnessWettability_open)  # open air = steep                  #3      or even 7
-    theta_eq = np.concatenate(
-        [theta_eq_open, theta_eq_cover, np.flip(theta_eq_cover), np.flip(theta_eq_open)]) * 180 / np.pi
-    # perform operation to shift CA values to desired CA_eq range
+    # anglerange1 = np.linspace(0, 0.5,
+    #                           round(nr_of_datapoints / 2 * ratio_wettablitygradient))  # 0-1        #for open side
+    # anglerange2 = np.linspace(0.5, 1,
+    #                           round(nr_of_datapoints / 2 * (1 - ratio_wettablitygradient)))  # 0-1    #for closed side
+    #
+
+
+    #TODO commented start
+    # anglerange = np.linspace(0,1, nr_of_datapoints//2)
+    #
+    # anglerange1 = anglerange[0:round(nr_of_datapoints*ratio_wettablitygradient/2)]  # 0-1        #for open side
+    # anglerange2 = anglerange[round(nr_of_datapoints*ratio_wettablitygradient/2):]  # 0-1    #for closed side
+    #
+    # Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2  # 'middle' CA value around which we build the sinus-like profile
+    # Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # difference between middle CA value & the 'eq' ones - for in the sinus-like function
+    # # Function to vary between CA_max&_min with a sinus-like shape.
+    # # Input: anglerange = a range between [0, 1]
+    # #       k = int value. Defines steepness of sinus-like curve
+    # f_theta_eq = lambda anglerange, k: ((
+    #                                         np.power(0.5 + np.sin(anglerange * np.pi - np.pi / 2) / 2,
+    #                                                  np.power(2 * (1 - anglerange), k))
+    #                                     ) * 2 - 1) * np.pi / 180  # base function - [-1,1], so around 0+-1
+    # theta_eq_cover = f_theta_eq(anglerange2, steepnessWettability_cover)  # under cover = less steep         #0      or even 3
+    # theta_eq_open = f_theta_eq(anglerange1, steepnessWettability_open)  # open air = steep                  #3      or even 7
+    # theta_eq = np.concatenate(
+    #     [theta_eq_open, theta_eq_cover, np.flip(theta_eq_cover), np.flip(theta_eq_open)]) * 180 / np.pi
+    # # perform operation to shift CA values to desired CA_eq range
+    # theta_eq_deg = theta_eq * Ca_eq_diff + Ca_eq_mid
+    # theta_eq_rad = theta_eq_deg / 180 * np.pi
+    # TODO commented end
+    # Derived parameters
+    Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2
+    Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # amplitude
+
+    # Create base x range
+    anglerange = np.linspace(0, 1, nr_of_datapoints // 2)
+
+    y = np.zeros_like(anglerange)
+
+    # Left part: [0, switch]
+    left_mask = anglerange <= ratio_wettablitygradient
+    x_left = anglerange[left_mask] / ratio_wettablitygradient
+    warped_left = x_left ** steepnessWettability_open
+    y[left_mask] = -np.cos(0.5 * np.pi * warped_left)
+
+    # Right part: [switch, 1]
+    right_mask = anglerange > ratio_wettablitygradient
+    x_right = (anglerange[right_mask] - ratio_wettablitygradient) / (1 - ratio_wettablitygradient)
+    warped_right = 1 - (1 - x_right) ** steepnessWettability_cover
+    y[right_mask] = -np.cos(0.5 * np.pi * warped_right + 0.5 * np.pi)  # shift phase to connect smoothly
+
+    # Normalize to go from -1 to 1
+    theta_eq_full = 2 * (y - np.min(y)) / (np.max(y) - np.min(y)) - 1
+    theta_eq = np.concatenate([np.array(theta_eq_full), np.flip(theta_eq_full)])
+
+    # Scale to degrees
     theta_eq_deg = theta_eq * Ca_eq_diff + Ca_eq_mid
     theta_eq_rad = theta_eq_deg / 180 * np.pi
+    #TODO new end
 
     velocity_local = np.array(
         [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
@@ -1047,7 +1125,11 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
     inBetweenClaculation = np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R / l)
     if any(inBetweenClaculation < 0):
         logging.error(f"Some calculated CA's will be NaN")
-    theta_app_calculated = np.power(np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R / l), 1 / 3)
+        global countNAN
+        countNAN += 1
+        theta_app_calculated = []
+    else:
+        theta_app_calculated = np.power(np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R / l), 1 / 3)
 
     return theta_app_calculated, velocity_local, theta_eq_rad
 

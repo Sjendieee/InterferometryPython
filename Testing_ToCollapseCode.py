@@ -2358,6 +2358,13 @@ def matchingCAIntensityPeak(x_units, y_intensity, minIndex_maxima, minIndex_mini
     :return:
     """
     peaks, minima, _ ,_ = FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, Ipeaks = I_peaks, Iminima = I_minima,  nomsgbox=True)
+    peaks = np.array(peaks, dtype = float)
+    if len(peaks) < 4:
+        logging.critical(f"\nLess peaks than required found: len(peaks) = {len(peaks)}\n"
+                         f"As a result, no index matching on the 4th peaks can be performed!\n"
+                         f"Filling in NAN to continue to run code. Possible solution = increase length inside droplet part\n")
+        peaks = np.pad(peaks, (0, max(0, 4 - len(peaks))), constant_values=np.nan)
+
     return peaks[3]
 
 def FindMinimaAndMaxima(x_units, y_intensity, minIndex_maxima, minIndex_minima, vectornr=-1, **kwargs):
@@ -2880,6 +2887,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 profileExtraOut.reverse()
                 profileExtraOut = profileExtraOut[:-1]  #remove the last datapoint, as it's the same as the start of the CA profile
                 # Converts intensity profile to height profile by unwrapping fourier transform wrapping & unwrapping of interferometry peaks
+
                 unwrapped, x, wrapped, peaks, nrOfLinesDifferenceInMaxMin_unwrappingHeight = intensityToHeightProfile(profileExtraOut + profile, lineLengthPixelsExtraOut + lineLengthPixels, conversionXY,
                                                                         conversionZ, FLIPDATA, nrOfLinesDifferenceInMaxMin_unwrappingHeight)
 
@@ -2894,6 +2902,26 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                 # startIndex, coef1, r2 = linearFitLinearRegimeOnly(x[len(profileOutwards):], unwrapped[len(profileOutwards):], sensitivityR2, k)
                 #startIndex, coef1, r2, GoodFit = linearFitLinearRegimeOnly_wPointsOutsideDrop_v3(x, unwrapped, sensitivityR2, k, smallExtraOutwardsVector)
                 startIndex, coef1, r2, GoodFit, endIndex = linearFitLinearRegimeOnly_wPointsOutsideDrop_v5(x, unwrapped, sensitivityR2, smallExtraOutwardsVector, k)
+
+                #TODO can remove; just to check if the intensity profile etc corresponds to a good wrapped & unwrapped profile
+                PLOTSOMEDATATOCHECK = False
+                if PLOTSOMEDATATOCHECK and k == 5225:
+                    figtemp, axtemp = plt.subplots(2,2)
+                    #Intensity profile
+                    axtemp[0,0].plot(profileExtraOut + profile, '.')
+                    axtemp[0,0].plot(peaks, np.array(profileExtraOut + profile)[peaks], '.')
+                    axtemp[0, 0].set(xlabel='nr of datapoints', ylabel='Intensity (a.u.)')
+                    # wrapped profile
+                    axtemp[1, 0].plot(wrapped)
+                    axtemp[1,0].plot(peaks, wrapped[peaks], '.')
+                    axtemp[1, 0].set(xlabel='nr of datapoints', ylabel='Amplitude wrapped profile')
+
+                    #uwnrapped profile
+                    axtemp[0, 1].plot(x, unwrapped*1000, '.')
+                    axtemp[0, 1].plot(x[startIndex:endIndex], unwrapped[startIndex:endIndex]*1000, 'r.')
+                    axtemp[0, 1].plot(x, np.poly1d(coef1)(x) * 1000, '--k', linewidth=1);
+                    axtemp[0, 1].set(xlabel='Distance (um)', ylabel='height (nm)')
+                    plt.show()
 
                 if not GoodFit: #if not fitted well for highest sensitivity, try again with a slightly lower one:
                     nrOfLinesbadR2 += 1
@@ -3482,7 +3510,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [41]       #36, 57
+    usedImages = [12]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -3494,7 +3522,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     lengthVector = 200  # typically:200 .length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
 
-    extraPartIndroplet_pixels = 75  # length of line [pixels] from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
+    extraPartIndroplet_pixels = 25  # length of line [pixels] from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
     smallExtraOutwardsVector = 50    #small vector e.g. '25', pointing outwards from CL (for wrapped calculation). Goal: overlap some height fitting from CA analysis inside w/ swelling profile outside. #TODO working code, but profile  outside CL has lower frequency than fringes inside, and this seems to mess with the phase wrapping & unwrapping. So end of height profile is flat-ish..
 
     minIndex_maxima_standard =  400; minIndex_minima_standard = 0; #index below which no minima are to be found (for filtering of extrema when investigating swelling profiles or fringe locations outside drop). Default = 0.
@@ -4422,7 +4450,7 @@ def main():
 
     #path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-1deg-covered"
     #path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-3deg-covered"
-    path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-5deg-covered"
+    #path = "F:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-5deg-covered"
 
 
     #path = "F:\\2025-01-30 PLMA-hexadecane-Zeiss-Basler15uc-Xp1_32_BiBB4_tiltedplate-5deg"
@@ -4433,7 +4461,7 @@ def main():
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
 
     #path = "E:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_TILTEDplate-1deg-MOVINGDROP_halfCovered"                #moving against gravity (half-cover + 1&5deg tilt)
-    #path = 'G:\\2025-02-19 PLMA dodecaneXp1_32BIBB_S4-ZeissBasler15uc 5x open flat 5 deg tilt'
+    path = 'G:\\2025-02-19 PLMA dodecaneXp1_32BIBB_S4-ZeissBasler15uc 5x open flat 5 deg tilt'
     #P12MA dodecane: Flat + moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M2 flat drop open + closed"
 
