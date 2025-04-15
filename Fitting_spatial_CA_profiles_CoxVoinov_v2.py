@@ -771,7 +771,7 @@ def movingDropQualitative_fitting():
     exp_CAs_advrec = [1.336, 1.331]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
     target_localextrema_CAs = [1.609, 1.150]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
-    wettability_gradient = 0.3    # 0=fully covered, 0.5=50:50, 1=fully open
+    wettability_gradient = 0.30    # 0=fully covered, 0.5=50:50, 1=fully open
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
 
@@ -779,6 +779,33 @@ def movingDropQualitative_fitting():
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
     CA_eq_adv = 1.20;  # initial guesses
     CA_eq_rec = 1.8  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
+
+    #For gettring the local velocity profile from expeirmental data.
+    #If no experimental data, for a perfect circle use nx following some sinusoid
+    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT\\Analysis CA Spatial"
+    xdata_tot, ydata_tot, CA_data_tot = importDatatemp(path, [82])
+    _,_,_,_, nxarr, _, phi = get_normalsV4(xdata_tot[0][1:], ydata_tot[0][1:], 1)
+    phi_sorted, CA_sorted, nxarr_sorted = [np.array(a) for a in zip(*sorted(zip(phi, CA_data_tot[0], nxarr)))]
+
+    plt.plot(phi_sorted, nxarr_sorted, '.');
+    i_v_zeros, _ = scipy.signal.find_peaks(-abs(nxarr_sorted), width = 400)
+    print(f"peaks at {phi_sorted[i_v_zeros]} rad. \n"
+          f"Thats at frac: {1 - abs((phi_sorted[i_v_zeros]/np.pi))}" )
+    phi_inflection = phi_sorted[i_v_zeros]
+    plt.plot(phi_inflection, nxarr_sorted[i_v_zeros], '.', ms=15, label = 'inflection points (top&bottom)')
+    #determine at which phi the cover is in the image, and what nx is there
+    phi_cover = np.pi * np.array([-(1-wettability_gradient), 1-wettability_gradient])
+    nx_atCover = []
+    for phi in phi_cover:
+        nx_atCover.append(nxarr_sorted[np.argmin(abs(phi_sorted-phi))])
+    plt.plot(phi_cover, nx_atCover,'.', label = 'cover locations', ms=15)
+    plt.legend(loc='best')
+    plt.show()
+
+    del phi, nxarr
+    nr_of_datapoints = len(phi_sorted)
+    nxarr_sorted = -np.array(nxarr_sorted)  # flip sign such that advancing = 1, receding = -1
+
 
     path = 'C:\\Users\\ReuvekampSW\\Downloads'
     if not os.path.exists(path):
@@ -792,13 +819,18 @@ def movingDropQualitative_fitting():
     gamma = 25.55 / 1000  # N/m
     R = 100E-6  # slip length, 10 micron?                     -macroscopic, capillary length
     l = 2E-9  # molecular length, ongeveer              -micro/nanoscopic
-    nr_of_datapoints = 2000 #must be a multiple of 4!!
-    phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
+    #nr_of_datapoints = 2000 #must be a multiple of 4!!
+    #phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
 
     fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
-    if not nr_of_datapoints % 4 == 0:
-        nr_of_datapoints = nr_of_datapoints + (4-(nr_of_datapoints % 4))
-        logging.warning(f"nr_of_datapoints is not a multiple of 4: changing it to = {nr_of_datapoints}")
+    #if not nr_of_datapoints % 4 == 0:
+    #    nr_of_datapoints = nr_of_datapoints + (4-(nr_of_datapoints % 4))
+    #    logging.warning(f"nr_of_datapoints is not a multiple of 4: changing it to = {nr_of_datapoints}")
+    if not nr_of_datapoints % 2 == 0:
+        nxarr_sorted = nxarr_sorted[1:]
+        phi_sorted = phi_sorted[1:]
+        nr_of_datapoints = len(phi_sorted)
+        logging.warning(f"nr_of_datapoints is not a multiple of 2: changing it to = {nr_of_datapoints}")
 
     iterations = []
     def callback(xk, convergence=None):
@@ -818,9 +850,9 @@ def movingDropQualitative_fitting():
             #         (2.2, 2.3),  # receding  upper&lower bound
             #         (0.5, 10),  # steepness of wettability gradient  - covered part
             #         (0.5, 8)),  # steepness of wettability gradient  - open part
-            args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient),
+            args = (exp_CAs_advrec, phi_sorted, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient, nxarr_sorted, phi_inflection, phi_cover),
             callback=callback,
-            maxiter=5000)
+            maxiter=3000)
 
         print(f"sol = {sol.x}")
         print(sol)
@@ -828,7 +860,7 @@ def movingDropQualitative_fitting():
         calculated_CA_eq_adv_rec = np.array(sol.x)[0:2]
 
         calc_vel = CA_app_to_inputVelocity(np.array(exp_CAs_advrec) / 180 * np.pi, np.array(calculated_CA_eq_adv_rec) / 180 * np.pi, gamma, mu, R, l)
-        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(sol.x, exp_CAs_advrec, phi_sorted, mu, gamma, R, l, nr_of_datapoints, nxarr_sorted, wettability_gradient)
 
 
     else:
@@ -838,8 +870,8 @@ def movingDropQualitative_fitting():
         calculated_CA_eq_adv_rec = [1.20230661, 2.01276367]
         calc_vel = CA_app_to_inputVelocity(np.array(exp_CAs_advrec) / 180 * np.pi, np.array(calculated_CA_eq_adv_rec) / 180 * np.pi, gamma, mu, R, l)
         theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [5.76472212, 6.7508957],
-                                                                                exp_CAs_advrec, phi, mu, gamma, R, l,
-                                                                                nr_of_datapoints, wettability_gradient,
+                                                                                exp_CAs_advrec, phi_sorted, mu, gamma, R, l,
+                                                                                nr_of_datapoints, nxarr_sorted, wettability_gradient,
                                                                                 np.array([40.4, -360])*(1E-6 / 60))
         sol = []
 
@@ -853,29 +885,29 @@ def movingDropQualitative_fitting():
 
     #TODO can be removed: for showing peaks found in CA_app only
     A = 9 * mu * np.log(R / l) / gamma
-    calc_local_extrema_values(theta_eq_rad, velocity_local, A, phi, PLOTTING=True)
+    calc_local_extrema_values(theta_eq_rad, velocity_local, A, phi_sorted, PLOTTING=True)
 
     ## Input CA_eq profile
-    ax1[0,0].plot(phi, theta_eq_rad * 180 / np.pi, color='blue', linewidth=7)
+    ax1[0,0].plot(phi_sorted, theta_eq_rad * 180 / np.pi, color='blue', linewidth=7)
     ax1[0,0].set(xlabel='radial angle [rad]', ylabel='CA$_{eq}$ [deg]', title='Input CA$_{eq}$ profile')
 
     ##  Input velocity_local profile
-    ax1[0,1].plot(phi, velocity_local / (1E-6 / 60), color='blue', linewidth=7)
+    ax1[0,1].plot(phi_sorted, velocity_local / (1E-6 / 60), color='blue', linewidth=7)
     ax1[0,1].set(xlabel='radial angle [rad]', ylabel='velocity [$\mu$m/min]', title='Input local velocity profile')
 
     ## calculated  CA_App profile 2D
     peaks,_ = scipy.signal.find_peaks(theta_app_calculated_deg, width = 5)
     minima, _ = scipy.signal.find_peaks(-theta_app_calculated_deg, width = 5)
-    ax1[1,0].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
-    ax1[1,0].plot(phi[peaks[0]], theta_app_calculated_deg[peaks[0]], '.', color='blue', markersize=10, label=r'CA$_{target, max}$=CA$_{calc}$=' + f'{target_localextrema_CAs[0]:.2f}')
-    ax1[1, 0].plot(phi[minima[0]], theta_app_calculated_deg[minima[0]], '.', color='blue', markersize=10, label=r'CA$_{target, min}$=CA$_{calc}$=' + f'{target_localextrema_CAs[1]:.2f}')
+    ax1[1,0].plot(phi_sorted, theta_app_calculated_deg, color='darkorange', linewidth=7)
+    ax1[1,0].plot(phi_sorted[peaks[0]], theta_app_calculated_deg[peaks[0]], '.', color='blue', markersize=10, label=r'CA$_{target, max}$=CA$_{calc}$=' + f'{target_localextrema_CAs[0]:.2f}')
+    ax1[1, 0].plot(phi_sorted[minima[0]], theta_app_calculated_deg[minima[0]], '.', color='blue', markersize=10, label=r'CA$_{target, min}$=CA$_{calc}$=' + f'{target_localextrema_CAs[1]:.2f}')
     ax1[1,0].set(xlabel='radial angle [rad]', ylabel='CA$_{app}$ [deg]', title='Calculated apparent contact angle profile')
     ax1[1,0].legend(loc='best')
     fig1.tight_layout()
 
     R_drop = 1  # [mm]
-    x_coord = R_drop * np.cos(phi)
-    y_coord = R_drop * np.sin(phi)
+    x_coord = R_drop * np.cos(phi_sorted)
+    y_coord = R_drop * np.sin(phi_sorted)
     #fig1, ax1 = plt.subplots(figsize= (12, 9.6))
     im1 = ax1[1,1].scatter(x_coord, y_coord, s = 45, c=theta_app_calculated_deg, cmap='jet', vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
     ax1[1,1].set(xlabel="X-coord", ylabel="Y-Coord", title=f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description");
@@ -955,7 +987,7 @@ def determine_local_extrema_values(theta_app_calculated, phi):
     return theta_app_calculated[extrema] * 180 / np.pi, phi[extrema]
 
 
-def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient):
+def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient, nxarr, phi_inflection, phi_cover):
     """
     Optimizer function for determining the 'best' CA_eq_adv,rec & wettability steepness factors for MOVING DROPLETS RIGHT with
     a given input of:
@@ -976,7 +1008,7 @@ def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu,
     :return: difference between calculated local min/max & experimental target min/max. Lower=better.
     """
     error_to_giveback = 1e6
-    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient)
+    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, phi_inflection, phi_cover, nxarr, wettability_gradient)
     PLOTTING = False
     #local_extrema_calculated, phi_local_extrema = calc_local_extrema_values(theta_eq_rad, velocity_local, 9 * mu * np.log(R / l) / gamma, phi, PLOTTING)  # i0=local max, i1= local min        (i2 right max, i3 local min, i4 local max)
     if len (theta_app_calculated) > 0:
@@ -1008,7 +1040,7 @@ def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu,
         difference_target_calculated = [error_to_giveback, error_to_giveback]
     return abs(difference_target_calculated[0]) + abs(difference_target_calculated[1])
 
-def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, ratio_wettablitygradient = 0.5, calculateVelocies = []):
+def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, nxarr, phi_inflection, phi_cover, ratio_wettablitygradient = 0.5, calculateVelocies = []):
     """
     Calculating function of the CA_app along the contact line from the following input values.
     -First, from the inputted CA_eq_adv,rec + experimental CA_app_adv,rec, the v_adv,rec are calculated.
@@ -1118,8 +1150,15 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
     theta_eq_rad = theta_eq_deg / 180 * np.pi
     #TODO new end
 
-    velocity_local = np.array(
-        [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
+
+    #TODO trial implementing actual velocity profile
+    #Old code start
+    # velocity_local = np.array(
+    #     [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
+
+    #TODO Old code end / new start
+    velocity_local = localVelocity(phi, v_adv, v_rec, nxarr, phi_inflection, phi_cover)
+    #TODO new code end
 
     Ca_local = mu * velocity_local / gamma
     inBetweenClaculation = np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R / l)
@@ -1132,6 +1171,162 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
         theta_app_calculated = np.power(np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R / l), 1 / 3)
 
     return theta_app_calculated, velocity_local, theta_eq_rad
+
+
+
+def importDatatemp(path, nrs_to_import):
+    files = lambda nr: os.path.join(path, f"ContactAngleData {nr}.csv")
+
+    xdata_tot, ydata_tot = [], []
+    CA_data_tot = []
+    # Import the data from csv files
+    for i, linenNr in enumerate(nrs_to_import):
+        file = open(files(linenNr))
+        csvreader = csv.reader(file)
+        xdata = []
+        ydata = []
+        CA_data = []
+        for row in csvreader:
+            try:
+                xdata.append(float(row[0]))  # x coord
+                ydata.append(float(row[1]))  # y coord
+                CA_data.append(float(row[2]))  # CA (deg)
+            except:
+                print("!Some value could not be casted to a float. Whether that is an issue or not is up to the user.!")
+        file.close()
+        xdata_tot.append(xdata)
+        ydata_tot.append(ydata)
+        CA_data_tot.append(CA_data)
+
+    return xdata_tot, ydata_tot, CA_data_tot
+
+def localVelocity(phi, vadv, vrec, nx, phi_inflection, phi_cover):
+    """
+    Determine the local velocity component in the direction of movement, to obtain the total local velocity profile.
+    """
+    local_vel = []
+    for i in range(0, len(phi)):
+        if abs(phi[i]) > np.pi/2:   #receding side
+            local_vel.append(vrec*nx[i])
+        else:   #advancing side
+            local_vel.append(vadv*nx[i])
+
+    # fig, ax = plt.subplots()
+    # plt.plot(phi, local_vel, '.', label='local velocity (data)')
+    phi_range = np.linspace(-np.pi, np.pi, 1000)
+    local_vel_modelled = []
+    for phi in phi_range:
+        if abs(phi) > np.pi/2:   #receding side
+            local_vel_modelled.append(np.sin(phi+np.pi/2) * vrec)
+        else:   #advancing side
+            local_vel_modelled.append(np.sin(phi+np.pi/2) * vadv)
+    # plt.plot(phi_range, local_vel_modelled, '-', label = 'sinus model')
+    # ax.set(xlabel = 'radial angle (rad)', ylabel = 'local velocity (m/s)')
+    # plt.legend(loc = 'best')
+    # plt.show()
+
+    return np.array(local_vel)
+
+def get_normalsV4(x, y, L, L2 = 0):
+    """
+    For a dataset of x & y coordinates, in which the x&y are already ordened, determine the x&y coordinates at a given distance L, L2 and L3 normal to the given coords
+    by fitting a polynomial through neigbouring coordinates.
+    Return lists of corresponding coordinates
+    :param x: xcoords of contour
+    :param y: ycoords of contour
+    :param L: desired length of normal vector in pixels (determines how many fringes will be accounted for later on)
+    :param L2: normal vector in opposite direction of L (for positive L2 values). If 0, not calculated
+    :param L3: normal vector in opposite direction of L (for positive L3 values). If 0, not calculated
+    :return all: lists of the original data points x0&y0, and the coords of the inwards normals dx&dy, and the outwards normals dxneg&dyneg
+    """
+    # For each coordinate, fit with nearby points to a polynomial to better estimate the dx dy -> tangent
+    # Take derivative of the polynomial to obtain tangent and use that one.
+    x0arr = []; dyarr = []; y0arr = []; dxarr = []; dxnegarr = []; dynegarr = []; dxL3arr = []; dyL3arr = []
+    nxarr = []; nyarr = []
+    window_size = round(len(x) / 100)            #!!! window size to use. 25 seems to be good for most normal vectors
+    k = round((window_size+1)/2)
+
+    middleCoordinate = [(max(x) + min(x))/2, (max(y) + min(y))/2]   #estimate for "middle coordinate" of contour. Will be used to direct normal vector to inside contour
+
+    connectingCoordinatesDyDx = 30  #if coordinates are within 30 pixels of each other, probably they were connecting
+    if abs(y[0]-y[-1]) < connectingCoordinatesDyDx and abs(x[0]-x[-1]) < connectingCoordinatesDyDx:   #if ends of contours are connecting, allow all the points also from the other end to be used for fitting
+        x = x[-k:] + x + x[:k]
+        y = np.hstack((y[-k:], y, y[:k]))
+
+    for idx in range(k, len(x) - k):
+        xarr = x[(idx-k):(idx+k)] # define x'es to use for polynomial fitting
+        yarr = y[(idx-k):(idx+k)] # define y's ...
+        switchedxy = False
+        #TODO attemting to rotate x&y coords for polynomial fitting when at left or right side, where the fits are very poor: check if good normals are obtained
+        if (max(xarr)-min(xarr)) < (max(yarr)-min(yarr)):   #if dx < dy = left or right side droplet -> rotate cooridnate system by 90 degrees clockwise (x,y)->(y,-x))
+            xarrtemp = xarr
+            xarr = yarr
+            yarr = np.multiply(xarrtemp, -1)
+            switchedxy = True
+        x0 = xarr[k]
+        ft = np.polyfit(xarr, yarr, 2) # fit with second order polynomial
+        fit = np.poly1d(ft)  # fit with second order polynomial
+        y0 = fit(x0)
+        ffit = lambda xcoord: 2 * fit[2] * xcoord + fit[1]  # derivative of a second order polynomial
+
+        if np.sum(np.abs(np.array(xarr) - x0)) == 0:        #if all x-coords are the same in given array
+            nx1 = - L; nx2 = L #consider both normal vector possibilities, check below which one is pointing inwards
+            ny1 = 0; ny2 = 0
+            xrange = np.ones(100) * x0
+            yrange = np.linspace(yarr[0], yarr[-1], 100)
+        elif np.sum(np.abs(np.array(yarr) - yarr[0])) == 0:     #if all y-coords are the same in given array
+            nx1 = 0; nx2 = 0    #consider both normal vector possibilities, check below which one is pointing inwards
+            ny1 = L; ny2 = -L
+            xrange = np.linspace(xarr[0], xarr[-1], 100)
+            yrange = np.ones(100) * y0
+        else:   #continue as normal
+            dx = 1
+            dy = ffit(x0)  #ffit(x0)
+
+            normalisation = L / np.sqrt(1+dy**2)        #normalise by desired length vs length of vector
+
+            #Determine direction of normal vector by calculating of both direction the Root-square-mean to the "middle coordinate" of the contour, and take the smallest one
+            nx1 = -dy * normalisation; ny1 = dx * normalisation #normal vector 1
+            nx2 = +dy * normalisation; ny2 = -dx * normalisation #normal vector 2
+
+        if switchedxy:  #turn coordinate system back 90 degrees counterclockwise (x,y) -> (-y, x)
+            x0temp = x0
+            x0 = np.multiply(y0, -1)
+            y0 = x0temp
+            tempnx1 = nx1
+            nx1 = np.multiply(ny1, -1)
+            ny1 = tempnx1
+            tempnx2 = nx2
+            nx2 = np.multiply(ny2, -1)
+            ny2 = tempnx2
+
+        if ((middleCoordinate[0]-(x0+nx1))**2 + (middleCoordinate[1]-(y0+ny1))**2)**0.5 > ((middleCoordinate[0]-(x0+nx2))**2 + (middleCoordinate[1]-(y0+ny2))**2)**0.5:
+            nx = nx2
+            ny = ny2
+        else:
+            nx = nx1
+            ny = ny1
+
+            xrange = np.linspace(xarr[0], xarr[-1], 100)
+            yrange = fit(xrange)
+        x0arr.append(round(x0))
+        y0arr.append(round(y0))
+        dxarr.append(round(x0+nx))
+        dyarr.append(round(y0+ny))
+        nxarr.append(nx)
+        nyarr.append(ny)
+
+        if L2 != 0:
+            dxnegarr.append(round(x0 - (L2*(nx/L))))   #for normals pointing outwards of the droplet
+            dynegarr.append(round(y0 - (L2*(ny/L))))
+
+    middleCoord = [2841, 2276]
+    phi, rArray = coordsToPhi(x0arr, y0arr, middleCoord[0], abs(middleCoord[1]))
+    # fig, ax = plt.subplots()
+    # plt.plot(phi, nxarr, '.')
+    # ax.set(xlabel = 'radial angle (rad)', ylabel = 'x-component of CL normal')
+    # plt.show()
+    return x0arr, dxarr, y0arr, dyarr, nxarr, nyarr, phi  # return the original data points x0&y0, and the coords of the inwards normals dx&dy
 
 
 def CA_app_to_inputVelocity(CA_app: float, CA_eq: float, sigma: float, mu:float, R:float, l:float):
