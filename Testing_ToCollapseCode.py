@@ -3510,7 +3510,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [12]       #36, 57
+    usedImages = [41]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -3522,7 +3522,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     lengthVector = 200  # typically:200 .length of normal vector over which intensity profile data is taken    (pointing into droplet, so for CA analysis)
     outwardsLengthVector = 590      #0 if no swelling profile to be measured., 590
 
-    extraPartIndroplet_pixels = 25  # length of line [pixels] from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
+    extraPartIndroplet_pixels = 200  # length of line [pixels] from interference fringes inside droplet for manual calculating swelling profile outside droplet. Fine as is - don't change unless really desired
     smallExtraOutwardsVector = 50    #small vector e.g. '25', pointing outwards from CL (for wrapped calculation). Goal: overlap some height fitting from CA analysis inside w/ swelling profile outside. #TODO working code, but profile  outside CL has lower frequency than fringes inside, and this seems to mess with the phase wrapping & unwrapping. So end of height profile is flat-ish..
 
     minIndex_maxima_standard =  400; minIndex_minima_standard = 0; #index below which no minima are to be found (for filtering of extrema when investigating swelling profiles or fringe locations outside drop). Default = 0.
@@ -3543,8 +3543,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [295, 2690, 4100, 5000, 7179]
-    plotHeightCondition = lambda xlist: [2679, 4148, 5735, 8456]    #MOVING RIGHT LEFT n41
-    plotHeightCondition = lambda xlist: []
+    plotHeightCondition = lambda xlist: [4148, 5735]    #MOVING RIGHT LEFT n41
+    #plotHeightCondition = lambda xlist: []
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
@@ -4461,7 +4461,7 @@ def main():
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
 
     #path = "E:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_TILTEDplate-1deg-MOVINGDROP_halfCovered"                #moving against gravity (half-cover + 1&5deg tilt)
-    path = 'G:\\2025-02-19 PLMA dodecaneXp1_32BIBB_S4-ZeissBasler15uc 5x open flat 5 deg tilt'
+    #path = 'G:\\2025-02-19 PLMA dodecaneXp1_32BIBB_S4-ZeissBasler15uc 5x open flat 5 deg tilt'
     #P12MA dodecane: Flat + moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M2 flat drop open + closed"
 

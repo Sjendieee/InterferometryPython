@@ -327,306 +327,6 @@ def trial1(xcoord, ycoord, CA, middleCoord):
 
 
 
-#TODO: fit experimental data to Cox-Voinov
-def tiltedDrop(xcoord, ycoord, CA, middleCoord):
-    """
-    For tilted drops specifically.
-    Fit Cox-Voinov Ca_app to experimental data with an inputted theta_eq, Capillary number (Ca(phi)) profile along CL (local velocity depends on phi),
-    and R/l value.
-
-    :param xcoord:
-    :param ycoord:
-    :param CA:
-    :param middleCoord:
-    :return:
-    """
-    fig3, ax3 = plt.subplots(2, 2, figsize=(18, 12))
-    phi_exp, _ = coordsToPhi(xcoord, ycoord, middleCoord[0], 4608 - middleCoord[1])
-    azi_exp, rad_exp = convertPhiToazimuthal(phi_exp)
-
-#TODO from here onwards
-    anglerange = np.linspace(0, 1, len(CA))  # 0-1
-    angle = np.linspace(-np.pi, np.pi, len(CA))  # -pi - pi
-
-    # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
-    # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
-    CA_eq = 2.75        #eq CA, in case of flat droplet.
-
-    # CA_eq_adv = 1.875;
-    # CA_eq_rec = 1.725  # CA [deg] values observed from spatial CA profile: local max & minima on location where friction should not play big of a role - basically the max & min CA values
-    # Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2  # 'middle' CA value around which we build the sinus-like profile
-    # Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # difference between middle CA value & the 'eq' ones - for in the sinus-like function
-
-    # Function to vary between CA_max&_min with a sinus-like shape.
-    # Input: anglerange = a range between [0, 1]
-    #       k = int value. Defines steepness of sinus-like curve
-    f_theta_eq = lambda anglerange, k: ((
-                                            np.power(0.5 + np.sin(anglerange * np.pi - np.pi / 2) / 2,
-                                                     np.power(2 * (1 - anglerange), k))
-                                        ) * 2 - 1) * np.pi / 180  # base function - [-1,1], so around 0+-1
-
-    theta_eq_cover = np.flip(f_theta_eq(anglerange[:len(anglerange) // 2], 0))  # under cover = less steep
-    theta_eq_open = np.flip(f_theta_eq(anglerange[len(anglerange) // 2:], 3))  # open air = steep
-    theta_eq = np.concatenate([theta_eq_open, theta_eq_cover]) * 180 / np.pi
-    # perform operation to shift CA values to desired CA_eq range
-    theta_eq = theta_eq * Ca_eq_diff + Ca_eq_mid
-
-    # plot eq & apparent contact angle vs azimuthal angle
-    ax3[0, 0].plot(angle / np.pi, theta_eq, label=r'$\theta_{eq}$ - no friction')
-    ax3[0, 0].plot(azimuthalX, CA, '.', label=r'$\theta$ - experimental azi')
-
-    ax3[0, 0].set(xlabel=r'Azimuthal angle ($\pi$)', ylabel='Contact angle (deg)',
-                  title='Example influence hydrolic resistance on apparent contact angle')
-    ax3[0, 0].legend(loc='best')
-
-    varyFactor = np.power(np.array(CA) / 180 * np.pi, 3) - np.power(np.array(theta_eq) / 180 * np.pi, 3)
-
-    #values for R & l: https://www.sciencedirect.com/science/article/pii/S1359029422000139?via%3Dihub
-    R = 100E-6  # capillary length. slip length. >10 micron? 2.7mm for water      -macroscopic -
-    l = 3E-9  # e.g. 1nm              -microscopic/molecular length scale
-    Ca = varyFactor / 9 / np.log(R / l)
-
-    mu = 1.34 / 1000  # Pa*s
-    gamma = 25.55 / 1000  # N/m
-    local_velocity = Ca * gamma / mu
-
-    phi_sorted, local_velocity_sorted = [list(a) for a in zip(*sorted(zip(phi, local_velocity)))]
-    for i in range(1, len(phi_sorted)):
-        if phi_sorted[i] <= phi_sorted[i - 1]:
-            phi_sorted[i] = phi_sorted[i - 1] + 1e-5
-    # Fit velocity profile with a normal sine wave:
-    f_local_velocity, func_single, N, _, _ = manualFitting(np.array(phi_sorted),
-                                                           np.array(local_velocity_sorted) * 60 * 1E6, f"C:\\TEMP",
-                                                           [r"Local Velocity", "[$\mu$m/min]"],
-                                                           [5], 'manual')
-
-    phi_range = np.linspace(-np.pi, np.pi, len(CA))
-    # def func(x, a, b, c):
-    #     return a * np.sin(x+b) + c
-    #
-    # popt, pcov = scipy.optimize.curve_fit(func, phi, local_velocity)
-
-    ax3[0, 1].plot(phi, local_velocity * 60 * 1E6, '.')
-    # ax3[0,1].plot(phi, func(phi, *popt) * 60 * 1E6, '.')
-    ax3[0, 1].plot(phi_range, f_local_velocity(phi_range), '.')
-    ax3[0, 1].set(xlabel=r'radial angle ($\phi$)', ylabel=r'local velocity ($\mu$m/min)', title='Local velocity plot')
-
-    Ca_calculated = (np.array(f_local_velocity(phi_range)) * mu / gamma) / (60 * 1E6)
-    theta_app_calculated = np.power(np.power(theta_eq / 180 * np.pi, 3) + 9 * Ca_calculated * np.log(R / l), 1 / 3)
-    ax3[0, 0].plot(phi_range / np.pi, theta_app_calculated * 180 / np.pi, '.', label=r'$\theta_{app}$ - modelled')
-    ax3[0, 0].legend(loc='best')
-
-    xArrFinal = np.cos(phi)
-    yArrFinal = np.sin(phi)
-    im3 = ax3[1, 1].scatter(xArrFinal, yArrFinal, c=local_velocity * 60 * 1E6, cmap='jet',
-                            vmin=min(local_velocity * 60 * 1E6), vmax=max(local_velocity * 60 * 1E6))
-    ax3[1, 1].set_xlabel("X-coord");
-    ax3[1, 1].set_ylabel("Y-Coord");
-    ax3[1, 1].set_title(f"Model: spatial local velocity colormap", fontsize=20)
-    fig3.colorbar(im3)
-
-    # plot spatial CA image
-    im3 = ax3[1, 0].scatter(xArrFinal, yArrFinal, c=CA, cmap='jet', vmin=min(CA), vmax=max(CA))
-    ax3[1, 0].set_xlabel("X-coord");
-    ax3[1, 0].set_ylabel("Y-Coord");
-    ax3[1, 0].set_title(f"Model: spatial Contact angle colormap", fontsize=20)
-    fig3.colorbar(im3)
-
-    plt.show()
-    return
-
-#WORKING!
-def tiltedDropQualitative():
-    """
-    Model theta_app for a tilted droplet with 'known' values: input constant thetha_eq, R & L. Vary Ca(phi)
-    𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙
-    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎
-    :return:
-    """
-    nr_of_datapoints = 2000
-    theta_eq_deg = np.ones(nr_of_datapoints) * 1.23            #deg
-    v0 = 700 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction
-
-    mu = 1.34 / 1000  # Pa*s
-    gamma = 25.55 / 1000  # N/m
-    R = 100E-6  # slip length, 10 micron?                     -macroscopic
-    l = 2E-9  # capillary length, ongeveer              -micro/nanoscopic
-
-    theta_eq_rad = theta_eq_deg / 180 * np.pi
-
-    phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)          #angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
-
-    #assuming v(0) = -v(pi)
-    #velocity_local = np.cos(phi) * v0        #v0 at advancing, -v0 at receding
-    #correcting for v(0) < -v(pi)
-    v_adv = 86 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]    (right side)
-    v_rec = 40 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction      [150]    (left side)
-
-    def targetExtremumCA_to_inputVelocity(CA_app: float, CA_eq: float, sigma: float, mu:float, R:float, l:float):
-        """
-        Tilted droplets:
-        Calculate what the (maximum) velocity must be for the inputted CA_app at the advancing or receding location
-        for tilted droplets.
-        :param CA_app: target maximum or minimum CA at adv./rec. respectively [rad]
-        :param CA_eq: input CA_eq [rad]
-        :return: velocity [m/s] or [um/min]
-        """
-        velocity = ((np.power(CA_app, 3) - np.power(CA_eq, 3)) * sigma) / (9*mu * np.log(R/l))
-        return velocity * 60 / 1E-6
-
-    print(f"Calculated velocities are: {targetExtremumCA_to_inputVelocity(np.array([1.48, 1.07]) / 180 * np.pi, 1.23 / 180 * np.pi, gamma, mu, R, l)}")
-
-    print(f"For water, CA_eq=60 velocities are: {targetExtremumCA_to_inputVelocity(np.array([63]) / 180 * np.pi, 60 / 180 * np.pi, 72/1000, 1.0016/1000, R, l)}")
-
-
-    velocity_local = np.array([np.cos(phi_l) * v_adv if abs(phi_l) < np.pi/2 else np.cos(phi_l) * v_rec for phi_l in phi])
-    fig2, ax2 = plt.subplots(1,2, figsize= (15, 9.6/1.5))
-    ax2[0].plot(phi, velocity_local * 60 / 1E-6, linewidth=7)
-    ax2[0].set(xlabel='radial angle [rad]', ylabel=f'local velocity [$\mu$m/min]', title='Input local velocity profile \n(adjusted for difference between adv. and rec. speed)')
-
-    Ca_local = mu * velocity_local / gamma
-    print(f"Ca = {max(Ca_local)}")
-    if 0 > np.power(min(theta_eq_rad), 3) + (9 * min(Ca_local) * np.log(R/l)):
-        logging.error(f"Some calculated CA's will be NaN: min(Ca) = {min(Ca_local)} +  min(theta_eq_rad) = {min(theta_eq_rad)} will be negative:"
-        f"{np.power(min(theta_eq_rad), 3) + (9 * min(Ca_local) * np.log(R / l))}, ()^1/3 = {np.power(np.power(min(theta_eq_rad), 3) + 9 * min(Ca_local) * np.log(R/l), 1/3)} ")
-    theta_app_calculated = np.power(np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R/l), 1/3)
-    theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
-
-    ax2[1].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
-    ax2[1].set(xlabel='radial angle [rad]', ylabel='CA$_{app}$ [deg]', title='Calculated apparent contact angle profile')
-    fig2.tight_layout()
-
-    R_drop = 1  # [mm]
-    x_coord = R_drop * np.cos(phi)
-    y_coord = R_drop * np.sin(phi)
-    fig1, ax1 = plt.subplots(figsize= (12, 9.6))
-    im1 = ax1.scatter(x_coord, y_coord, s = 45, c=theta_app_calculated_deg, cmap='jet', vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
-    ax1.set_xlabel("X-coord"); ax1.set_ylabel("Y-Coord");
-    ax1.set_title(f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description", fontsize=20)
-    fig1.colorbar(im1)
-    fig1.tight_layout()
-
-    fig2.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp2.png'), dpi=600)
-
-    plt.show()
-    return
-
-def tiltedDropQualitative_fitting():
-    """
-    Model theta_app for a tilted droplet with 'known' values: input constant thetha_eq, thetha_adv & theta_rec, R & L.
-    Vary Ca(phi) by calculating the v_adv & v_rec from the CA_adv,rec
-
-    𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙
-    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎
-    :return:
-    """
-    nr_of_datapoints = 2000
-    ##### INPUT######
-
-    theta_eq_deg =  1.78  # Eq Contact angle along entire contact line (for tilted drops should be constant) [deg]
-    theta_adv_deg, theta_rec_deg = 1.96, 1.63   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
-
-    mu = 1.34 / 1000  # Pa*s
-    gamma = 25.55 / 1000  # N/m
-    R = 100E-6  # slip length / capillary length, 10 micron to 1.9mm               -macroscopic
-    l = 2E-9  # about 1-2 nm              -micro/nanoscopic
-    ##### END INPUT######
-
-    theta_eq_rad, theta_adv_rad, theta_rec_rad = np.array([theta_eq_deg, theta_adv_deg, theta_rec_deg]) / 180 * np.pi
-    theta_eq_deg_arr = np.ones(nr_of_datapoints) * theta_eq_deg
-    theta_eq_rad_arr = theta_eq_deg_arr / 180 * np.pi
-    phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
-
-    # assuming v(0) = -v(pi)
-    # velocity_local = np.cos(phi) * v0        #v0 at advancing, -v0 at receding
-    # correcting for v(0) < -v(pi)
-    #v_adv = 86 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction       [70]    (right side)
-    #v_rec = 40 * 1E-6 / 60  # [m/s] assume same velocity at advancing and receding, just in opposite direction      [150]    (left side)
-    v_adv, v_rec = CA_app_to_inputVelocity(np.array([theta_adv_rad, theta_rec_rad]), np.array([theta_eq_rad]), gamma, mu, R, l)
-    v_rec = -v_rec      #swap sign: input in formula below should be positive (it'll make it negative) #TODO not the nicest - change if needed
-
-    print(f"Calculated velocities adv&rec position are = {np.array([v_adv, v_rec])/(1E-6 / 60)} mu/min")
-
-    velocity_local = np.array(
-        [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
-
-
-
-    ########### plotting of data ##########
-    # fig2, ax2 = plt.subplots(1, 2, figsize=(15, 9.6 / 1.5))
-    #
-    # # Input velocity profile
-    # ax2[0].plot(phi, velocity_local * 60 / 1E-6, linewidth=7)
-    # ax2[0].set(xlabel='radial angle [rad]', ylabel=f'local velocity [$\mu$m/min]',
-    #            title='Input local velocity profile \n(adjusted for difference between adv. and rec. speed)')
-    #
-    Ca_local = mu * velocity_local / gamma
-    print(f"Ca = {max(Ca_local)}")
-    if 0 > np.power(theta_eq_rad, 3) + (9 * min(Ca_local) * np.log(R / l)):
-        logging.error(
-            f"Some calculated CA's will be NaN: min(Ca) = {min(Ca_local)} +  min(theta_eq_rad) = {theta_eq_rad} will be negative:"
-            f"{np.power(theta_eq_rad, 3) + (9 * min(Ca_local) * np.log(R / l))}, ()^1/3 = {np.power(np.power(theta_eq_rad, 3) + 9 * min(Ca_local) * np.log(R / l), 1 / 3)} ")
-    theta_app_calculated = np.power(np.power(theta_eq_rad_arr, 3) + 9 * Ca_local * np.log(R / l), 1 / 3)
-    theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
-    #
-    # # Caluclated CA apparent normal plot
-    # ax2[1].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
-    # ax2[1].set(xlabel='radial angle [rad]', ylabel='CA$_{app}$ [deg]',
-    #            title='Calculated apparent contact angle profile')
-    # fig2.tight_layout()
-    #
-    # R_drop = 1  # [mm]
-    # x_coord = R_drop * np.cos(phi)
-    # y_coord = R_drop * np.sin(phi)
-    #
-    # # Seperate scatterplot
-    # fig1, ax1 = plt.subplots(figsize=(12, 9.6))
-    # im1 = ax1.scatter(x_coord, y_coord, s=45, c=theta_app_calculated_deg, cmap='jet',
-    #                   vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
-    # ax1.set_xlabel("X-coord");
-    # ax1.set_ylabel("Y-Coord");
-    # ax1.set_title(f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description", fontsize=20)
-    # fig1.colorbar(im1)
-    # fig1.tight_layout()
-    #
-    # fig2.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
-    # fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp2.png'), dpi=600)
-    #
-    # plt.show()
-    #
-    ##########
-    fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
-
-    ## Input CA_eq profile
-    ax1[0,0].plot(phi, theta_eq_rad_arr * 180 / np.pi, color='blue', linewidth=7)
-    ax1[0,0].set(xlabel='radial angle [rad]', ylabel='CA$_{eq}$ [deg]', title='Input CA$_{eq}$ profile')
-
-    ##  Input velocity_local profile
-    ax1[0,1].plot(phi, velocity_local / (1E-6 / 60), color='blue', linewidth=7)
-    ax1[0,1].set(xlabel='radial angle [rad]', ylabel='velocity [$\mu$m/min]', title='Input local velocity profile')
-
-    ## calculated  CA_App profile 2D
-    ax1[1,0].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
-    ax1[1,0].set(xlabel='radial angle [rad]', ylabel='CA$_{app}$ [deg]', title='Calculated apparent contact angle profile')
-    #ax1[1,0].legend(loc='best')
-    fig1.tight_layout()
-
-    R_drop = 1  # [mm]
-    x_coord = R_drop * np.cos(phi)
-    y_coord = R_drop * np.sin(phi)
-    #fig1, ax1 = plt.subplots(figsize= (12, 9.6))
-    im1 = ax1[1,1].scatter(x_coord, y_coord, s = 45, c=theta_app_calculated_deg, cmap='jet', vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
-    ax1[1,1].set(xlabel="X-coord", ylabel="Y-Coord", title=f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description");
-    fig1.colorbar(im1)
-    fig1.tight_layout()
-
-    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'tiltedDrop.png'), dpi=600)
-    plt.show()
-
-    return
-
-
 
 def movingDropQualitative():
     """
@@ -772,6 +472,7 @@ def movingDropQualitative_fitting():
     target_localextrema_CAs = [1.609, 1.150]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
     wettability_gradient = 0.30    # 0=fully covered, 0.5=50:50, 1=fully open
+    velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
@@ -1411,15 +1112,125 @@ def testingQualitativeDescription():
 
     plt.show()
 
+def movingDropQualitative_v2():
+    """
+        Model the CA_app(phi) along a(n assumed) perfectly spherical MOVING DROPLET contact line, using only some experimental constants (R,l,𝜇,𝜎) &
+        For some defined experimental CA_eq profile & velocity profile, for different ratios of the wettability gradient between them.
+
+        This should show that the radial angle at which the local min&max are found shifts with the 'location of the coverplate'.
+
+
+
+        Based an the Cox-Voinov formula, 𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎,
+
+        :return:
+    """
+
+    ratio_wettability_gradients = [0.1, 0.25, 0.5, 0.75, 0.9]
+    wettability_gradient_factors_s = [[1,5], [3,5], [7,5], [9,3], [9,1]]
+    fig2, ax2 = plt.subplots(figsize=(9, 6))
+    for i, ratio_wettability_gradient in enumerate(ratio_wettability_gradients):
+        CA_eq_adv_deg = 1.1
+        CA_eq_rec_deg = 2.2
+        vel = 150 * 1E-6 / 60           #m/s
+        #ratio_wettability_gradient = 0.3             # 0=fully covered, 0.5=50:50, 1=fully open
+        #wettability_gradient_factors = [9,5]           #[open, closed]     factors for steepness sinusoid of CA_eq profile
+        wettability_gradient_factors = wettability_gradient_factors_s[i]
+        mu = 1.34 / 1000  # Pa*s
+        gamma = 25.55 / 1000  # N/m
+        R = 100E-6  # slip length, 10 micron?                     -macroscopic, capillary length
+        l = 2E-9  # molecular length, ongeveer              -micro/nanoscopic
+
+        nrOfDataPoints = 1000
+        angle_rad = np.linspace(-np.pi, np.pi, nrOfDataPoints)
+        fig, ax = plt.subplots(2,2)
+
+        #create radial CA_eq profile
+        CA_eq_deg_prof = createCAProfile(CA_eq_adv_deg, CA_eq_rec_deg, ratio_wettability_gradient, nrOfDataPoints, wettability_gradient_factors)
+        ax[0, 0].plot(angle_rad, CA_eq_deg_prof)
+
+        #Create radial local velocity in direction of movement profile, for a perfect spherical droplet. = a pure sinus
+        vel_prof = vel * np.cos(angle_rad)
+        ax[0, 1].plot(angle_rad, vel_prof / 1E-6 * 60)
+
+        Ca_local = mu * vel_prof / gamma
+        CA_app_rad_prof = np.power(np.power(CA_eq_deg_prof / 180 * np.pi, 3) + 9 * Ca_local * np.log(R / l), 1 / 3)
+        CA_app_deg_prof = CA_app_rad_prof / np.pi * 180
+        ax[1, 0].plot(angle_rad, CA_app_deg_prof)
+        #plot coverposition
+        cover_position_i = round(ratio_wettability_gradient * (nrOfDataPoints // 2))
+        cover_position_phi = angle_rad[cover_position_i]
+        ax[1, 0].plot([-angle_rad, angle_rad], [CA_app_deg_prof[cover_position_i], CA_app_deg_prof[cover_position_i]], '.')
+
+
+        #plot scatterplot of modelled data
+        R_drop = 1  # [mm]
+        x_coord = R_drop * np.cos(angle_rad)
+        y_coord = R_drop * np.sin(angle_rad)
+        im1 = ax[1, 1].scatter(x_coord, y_coord, s=20, c=CA_app_deg_prof, cmap='jet', vmin=min(CA_app_deg_prof), vmax=max(CA_app_deg_prof))
+        ax[1, 1].set_xlabel("X-coord");
+        ax[1, 1].set_ylabel("Y-Coord");
+        ax[1, 1].set_title(f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description")
+        fig.colorbar(im1)
+
+        ax[0, 0].set(xlabel='radial angle (rad)', ylabel='CA_eq (deg)')
+        ax[0, 1].set(xlabel='radial angle (rad)', ylabel='velocity (um/min)')
+        ax[1, 0].set(xlabel='radial angle (rad)', ylabel='CA_app (deg)')
+        plt.tight_layout()
+        #plt.show()
+
+        ax2.plot(angle_rad, CA_app_rad_prof / np.pi * 180, label = f"ratio={ratio_wettability_gradient}")
+
+    ax2.set(xlabel='radial angle (rad)', ylabel='CA_app (deg)')
+    ax2.legend(loc='best')
+    plt.tight_layout()
+    plt.show()
+    return
+
+def createCAProfile(CA_eq_adv, CA_eq_rec, ratio_wettablitygradient, nr_of_datapoints, wettability_gradient_factors):
+    steepnessWettability_open, steepnessWettability_cover = wettability_gradient_factors
+
+    # Derived parameters
+    Ca_eq_mid = (CA_eq_adv + CA_eq_rec) / 2
+    Ca_eq_diff = CA_eq_adv - Ca_eq_mid  # amplitude
+
+    # Create base x range
+    anglerange = np.linspace(0, 1, nr_of_datapoints // 2)
+
+    y = np.zeros_like(anglerange)
+
+    # Left part: [0, switch]
+    left_mask = anglerange <= ratio_wettablitygradient
+    x_left = anglerange[left_mask] / ratio_wettablitygradient
+    warped_left = x_left ** steepnessWettability_open
+    y[left_mask] = -np.cos(0.5 * np.pi * warped_left)
+
+    # Right part: [switch, 1]
+    right_mask = anglerange > ratio_wettablitygradient
+    x_right = (anglerange[right_mask] - ratio_wettablitygradient) / (1 - ratio_wettablitygradient)
+    warped_right = 1 - (1 - x_right) ** steepnessWettability_cover
+    y[right_mask] = -np.cos(0.5 * np.pi * warped_right + 0.5 * np.pi)  # shift phase to connect smoothly
+
+    # Normalize to go from -1 to 1
+    theta_eq_full = 2 * (y - np.min(y)) / (np.max(y) - np.min(y)) - 1
+    theta_eq = np.concatenate([np.array(theta_eq_full), np.flip(theta_eq_full)])
+
+    # Scale to degrees
+    theta_eq_deg = theta_eq * Ca_eq_diff + Ca_eq_mid
+    theta_eq_rad = theta_eq_deg / 180 * np.pi
+
+    # plt.plot(np.linspace(-np.pi, np.pi, nr_of_datapoints), theta_eq_deg, '.')
+    # plt.show()
+
+    return theta_eq_deg
+
+
 def main():
     try:
-        #testingQualitativeDescription()
 
-        #tiltedDropQualitative()        #using this one to model tilted droplets
-        #TODO below was uncommented - check if working or indeed still WIP
-        #tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
         #movingDropQualitative()
-        movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
+        #movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
+        movingDropQualitative_v2()
 
         #xcoord, ycoord, CA = importData()
         #fitSpatialCA(xcoord, ycoord, CA, middleCoord)
