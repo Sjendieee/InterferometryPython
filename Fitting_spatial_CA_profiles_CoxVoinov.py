@@ -521,11 +521,20 @@ def tiltedDropQualitative_fitting():
     with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎
     :return:
     """
+    path = 'C:\\Users\\ReuvekampSW\\Downloads'
+    if not os.path.exists(path):
+        path = 'C:\\Downloads'
+    if not os.path.exists(path):
+        logging.critical("Path does not exist: put a correct one in")
+        exit()
+    logging.info(f"Dumping data to the following directory:\n {path}")
+
+
     nr_of_datapoints = 2000
     ##### INPUT######
 
-    theta_eq_deg =  1.78  # Eq Contact angle along entire contact line (for tilted drops should be constant) [deg]
-    theta_adv_deg, theta_rec_deg = 1.96, 1.63   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
+    theta_eq_deg =  1.80  # Eq Contact angle along entire contact line (for tilted drops should be constant) [deg]
+    theta_adv_deg, theta_rec_deg = 1.97, 1.54   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
 
     mu = 1.34 / 1000  # Pa*s
     gamma = 25.55 / 1000  # N/m
@@ -550,7 +559,6 @@ def tiltedDropQualitative_fitting():
 
     velocity_local = np.array(
         [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
-
 
 
     ########### plotting of data ##########
@@ -621,8 +629,13 @@ def tiltedDropQualitative_fitting():
     fig1.colorbar(im1)
     fig1.tight_layout()
 
-    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'tiltedDrop.png'), dpi=600)
+    fig1.savefig(os.path.join(path, 'tiltedDrop.png'), dpi=600)
     plt.show()
+
+    with open(os.path.join(path, f"CoxVoinovFit_tiltedDrop_{datetime.now().strftime('%Y%m%d%H%M%S')}.pickle"), 'wb') as internal_filename:
+        # Dump data in order: Calculated CA [rad], velocity profile [m/s], input CA_eq profile [rad], solution fit where
+        # sol[0 & 1] CA_eq adv & rec,    sol[2&3] wettability gradient factor covered&open part
+        pickle.dump([theta_app_calculated, velocity_local, theta_eq_rad], internal_filename)
 
     return
 
@@ -1222,10 +1235,16 @@ def main():
         #testingQualitativeDescription()
 
         #tiltedDropQualitative()        #using this one to model tilted droplets
+
         #TODO below was uncommented - check if working or indeed still WIP
-        #tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
+
+        tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
+
         #movingDropQualitative()
-        movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
+
+        ######### TODO
+        #movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
+        ######## TODO
 
         #xcoord, ycoord, CA = importData()
         #fitSpatialCA(xcoord, ycoord, CA, middleCoord)

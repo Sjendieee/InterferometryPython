@@ -1126,13 +1126,16 @@ def movingDropQualitative_v2():
         :return:
     """
 
-    ratio_wettability_gradients = [0.1, 0.25, 0.5, 0.75, 0.9]
-    wettability_gradient_factors_s = [[1,5], [3,5], [7,5], [9,3], [9,1]]
+    ratio_wettability_gradients = 1 - np.array([0.1, 0.25, 0.5, 0.75, 0.9])                      #%covered
+    wettability_gradient_factors_s = np.flip([[1,9], [3,7], [7,5], [7,3], [9,1]], 0)                #steepness of [open, cover]     (higher=steeper sinusoid)
+    #wettability_gradient_factors_s = [[3,3], [3,3], [3,3], [3,3], [3,3]]                #steepness of [open, cover]     (higher=steeper sinusoid)
+
+    colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple']
     fig2, ax2 = plt.subplots(figsize=(9, 6))
     for i, ratio_wettability_gradient in enumerate(ratio_wettability_gradients):
         CA_eq_adv_deg = 1.1
         CA_eq_rec_deg = 2.2
-        vel = 150 * 1E-6 / 60           #m/s
+        vel = 10 * 1E-6 / 60           #m/s
         #ratio_wettability_gradient = 0.3             # 0=fully covered, 0.5=50:50, 1=fully open
         #wettability_gradient_factors = [9,5]           #[open, closed]     factors for steepness sinusoid of CA_eq profile
         wettability_gradient_factors = wettability_gradient_factors_s[i]
@@ -1160,7 +1163,7 @@ def movingDropQualitative_v2():
         #plot coverposition
         cover_position_i = round(ratio_wettability_gradient * (nrOfDataPoints // 2))
         cover_position_phi = angle_rad[cover_position_i]
-        ax[1, 0].plot([-angle_rad, angle_rad], [CA_app_deg_prof[cover_position_i], CA_app_deg_prof[cover_position_i]], '.')
+        ax[1, 0].plot([-cover_position_phi, cover_position_phi], [CA_app_deg_prof[cover_position_i], CA_app_deg_prof[cover_position_i]], '.')
 
 
         #plot scatterplot of modelled data
@@ -1168,9 +1171,10 @@ def movingDropQualitative_v2():
         x_coord = R_drop * np.cos(angle_rad)
         y_coord = R_drop * np.sin(angle_rad)
         im1 = ax[1, 1].scatter(x_coord, y_coord, s=20, c=CA_app_deg_prof, cmap='jet', vmin=min(CA_app_deg_prof), vmax=max(CA_app_deg_prof))
+        ax[1, 1].plot(np.ones(100) * R_drop * np.cos(cover_position_phi), np.linspace(-1,1, 100), 'k--')
         ax[1, 1].set_xlabel("X-coord");
         ax[1, 1].set_ylabel("Y-Coord");
-        ax[1, 1].set_title(f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description")
+        ax[1, 1].set_title(f"Contact Angles Tilted Droplet\n Quantitative description")
         fig.colorbar(im1)
 
         ax[0, 0].set(xlabel='radial angle (rad)', ylabel='CA_eq (deg)')
@@ -1179,7 +1183,8 @@ def movingDropQualitative_v2():
         plt.tight_layout()
         #plt.show()
 
-        ax2.plot(angle_rad, CA_app_rad_prof / np.pi * 180, label = f"ratio={ratio_wettability_gradient}")
+        ax2.plot(angle_rad, CA_app_rad_prof / np.pi * 180, label = f"ratio={ratio_wettability_gradient:.2f}", c=colors[i])
+        ax2.plot([-cover_position_phi, cover_position_phi], [CA_app_deg_prof[cover_position_i], CA_app_deg_prof[cover_position_i]], '.', c=colors[i])
 
     ax2.set(xlabel='radial angle (rad)', ylabel='CA_app (deg)')
     ax2.legend(loc='best')
