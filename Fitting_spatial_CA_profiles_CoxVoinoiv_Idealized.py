@@ -1135,7 +1135,7 @@ def movingDropQualitative_v2():
     for i, ratio_wettability_gradient in enumerate(ratio_wettability_gradients):
         CA_eq_adv_deg = 1.1
         CA_eq_rec_deg = 2.2
-        vel = 10 * 1E-6 / 60           #m/s
+        vel = 150 * 1E-6 / 60           #m/s
         #ratio_wettability_gradient = 0.3             # 0=fully covered, 0.5=50:50, 1=fully open
         #wettability_gradient_factors = [9,5]           #[open, closed]     factors for steepness sinusoid of CA_eq profile
         wettability_gradient_factors = wettability_gradient_factors_s[i]
