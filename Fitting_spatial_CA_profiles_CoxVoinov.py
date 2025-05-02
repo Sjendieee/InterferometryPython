@@ -533,7 +533,7 @@ def tiltedDropQualitative_fitting():
     nr_of_datapoints = 2000
     ##### INPUT######
 
-    theta_eq_deg =  1.80  # Eq Contact angle along entire contact line (for tilted drops should be constant) [deg]
+    theta_eq_deg =  1.78 # Eq Contact angle along entire contact line (for tilted drops should be constant) [deg]
     theta_adv_deg, theta_rec_deg = 1.97, 1.54   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
 
     mu = 1.34 / 1000  # Pa*s
@@ -786,7 +786,7 @@ def movingDropQualitative_fitting():
     #TODO this one w/ different values is not working too well yet..
     wettability_gradient = 0.3    # 0=fully covered, 0.5=50:50, 1=fully open
     velocityProfile_factors = [1,1]
-    OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
+    OPTIMIZE = False         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
