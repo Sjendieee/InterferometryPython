@@ -784,9 +784,9 @@ def movingDropQualitative_fitting():
     exp_CAs_advrec = [1.336, 1.331]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
     target_localextrema_CAs = [1.609, 1.150]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
-    wettability_gradient = 0.3    # 0=fully covered, 0.5=50:50, 1=fully open
+    wettability_gradient = 1-0.7    # 0=fully covered, 0.5=50:50, 1=fully open
     velocityProfile_factors = [1,1]
-    OPTIMIZE = False         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
+    OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
@@ -825,8 +825,8 @@ def movingDropQualitative_fitting():
             optimizeInputCA,
             bounds=((0.5, exp_CAs_advrec[0]),       #advancing  upper&lower bound
                     (exp_CAs_advrec[1], 3),        #receding  upper&lower bound
-                    (0.8, 10),        #steepness of wettability gradient  - covered part
-                    (0.8, 10)),       #steepness of wettability gradient  - open part
+                    (4, 15),        #steepness of wettability gradient  - covered part
+                    (0.8, 15)),       #steepness of wettability gradient  - open part
             # bounds=((1.2, 1.25),  # advancing  upper&lower bound
             #         (2.2, 2.3),  # receding  upper&lower bound
             #         (0.5, 10),  # steepness of wettability gradient  - covered part
@@ -848,12 +848,14 @@ def movingDropQualitative_fitting():
         print(f"NOT OPTIMIZING: USING MANUAL INPUT TO SHOW & CALCULATE CA_app")
         logging.critical(f"MAKE SURE TO INPUT DESIRED PARAMETERS IN THE SCRIPT 'else' FUNCTION")
         #Input required/desired CA_eq_adv,rec angles & wettability steepness factors below
-        calculated_CA_eq_adv_rec = [1.20230661, 2.01276367]
+        calculated_CA_eq_adv_rec = [1.3359442 , 1.9273534]
+        calculated_steepnesses = [1.61173181, 9.99112567]
+        calculated_velocities = np.array([1.86633491e-02, -2.99910931e+02]) * (1E-6 / 60)
         calc_vel = CA_app_to_inputVelocity(np.array(exp_CAs_advrec) / 180 * np.pi, np.array(calculated_CA_eq_adv_rec) / 180 * np.pi, gamma, mu, R, l)
-        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + [5.76472212, 6.7508957],
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + calculated_steepnesses,
                                                                                 exp_CAs_advrec, phi, mu, gamma, R, l,
                                                                                 nr_of_datapoints, wettability_gradient,
-                                                                                np.array([40.4, -360])*(1E-6 / 60))
+                                                                                calculated_velocities)
         sol = []
 
     with open(os.path.join(path, f"CoxVoinovFit_w={wettability_gradient}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pickle"), 'wb') as internal_filename:
@@ -889,8 +891,15 @@ def movingDropQualitative_fitting():
     R_drop = 1  # [mm]
     x_coord = R_drop * np.cos(phi)
     y_coord = R_drop * np.sin(phi)
+
+    # plot coverposition
+    cover_position_i = round(wettability_gradient * (len(phi) // 2))
+    cover_position_phi = phi[cover_position_i]
+
     #fig1, ax1 = plt.subplots(figsize= (12, 9.6))
     im1 = ax1[1,1].scatter(x_coord, y_coord, s = 45, c=theta_app_calculated_deg, cmap='jet', vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
+    ax1[1, 1].plot(np.ones(100) * R_drop * np.cos(cover_position_phi), np.linspace(-1, 1, 100), 'k--')
+
     ax1[1,1].set(xlabel="X-coord", ylabel="Y-Coord", title=f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description");
     fig1.colorbar(im1)
     fig1.tight_layout()
@@ -1131,8 +1140,67 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
     theta_eq_rad = theta_eq_deg / 180 * np.pi
     #TODO new end
 
-    velocity_local = np.array(
-        [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
+    COMPLICATEDVELOCITIES_TRIAL = True  #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate.
+    if COMPLICATEDVELOCITIES_TRIAL:
+        if ratio_wettablitygradient < 0.5:
+            logging.critical("Large amount of droplet covered by plate: adjusting in velocity profile!")
+            switchAngle_vel = 0.5 #+ (0.5 - ratio_wettablitygradient)/2
+            # velocity_local = np.array(
+            #     [np.cos(phi_l) * v_adv if abs(phi_l) < (np.pi * switchAngle_vel) else np.cos(phi_l) * v_rec for phi_l in phi])
+
+            #TODO trial
+            # y = np.zeros_like(anglerange)
+            #
+            # # Left part: [0, switch]
+            # left_mask = anglerange <= switchAngle_vel
+            # x_left = anglerange[left_mask] / switchAngle_vel
+            # warped_left = x_left ** 1
+            # y[left_mask] = -np.cos(0.5 * np.pi * warped_left)
+            #
+            # # Right part: [switch, 1]
+            # right_mask = anglerange > switchAngle_vel
+            # x_right = (anglerange[right_mask] - switchAngle_vel) / (1 - switchAngle_vel)
+            # warped_right = 1 - (1 - x_right) ** 2
+            # y[right_mask] = -np.cos(0.5 * np.pi * warped_right + 0.5 * np.pi)  # shift phase to connect smoothly
+            #
+            # # Normalize to go from -1 to 1
+            # vel_full = 2 * (y - np.min(y)) / (np.max(y) - np.min(y)) - 1
+            # vel = np.concatenate([np.array(vel_full), np.flip(vel_full)])
+            #
+            # # Scale to local velocities
+            # velocity_local = np.array(
+            #     [vel_l * v_adv if vel_l < 0 else vel_l * v_rec for vel_l in vel])
+
+            #New trial, just build 2 cosinuses on top of each other
+            y = np.zeros_like(anglerange)
+
+            # Left part: [0, switch]
+            left_mask = anglerange <= switchAngle_vel
+            x_left = anglerange[left_mask] / switchAngle_vel
+            warped_left = x_left ** 1
+            y[left_mask] = -np.cos(np.pi * warped_left) - 1
+
+            # Right part: [switch, 1]
+            right_mask = anglerange > switchAngle_vel
+            x_right = (anglerange[right_mask] - switchAngle_vel) / (1 - switchAngle_vel)
+            warped_right = 1 - (1 - x_right) ** 1
+            y[right_mask] = -np.cos(np.pi * warped_right) + 1  # shift phase to connect smoothly
+
+            # Normalize to go from -1 to 1
+            vel_full = 2 * (y - np.min(y)) / (np.max(y) - np.min(y)) - 1
+            vel = np.concatenate([np.array(vel_full), np.flip(vel_full)])
+
+            # Scale to local velocities
+            velocity_local = np.array(
+                [vel_l * v_adv if vel_l < 0 else vel_l * v_rec for vel_l in vel])
+
+            #
+
+    else:
+        velocity_local = np.array(
+            [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
+
+
 
     Ca_local = mu * velocity_local / gamma
     inBetweenClaculation = np.power(theta_eq_rad, 3) + 9 * Ca_local * np.log(R / l)
@@ -1238,12 +1306,12 @@ def main():
 
         #TODO below was uncommented - check if working or indeed still WIP
 
-        tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
+        #tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
 
         #movingDropQualitative()
 
         ######### TODO
-        #movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
+        movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
         ######## TODO
 
         #xcoord, ycoord, CA = importData()
