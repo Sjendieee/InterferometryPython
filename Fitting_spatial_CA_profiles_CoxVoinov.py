@@ -784,7 +784,7 @@ def movingDropQualitative_fitting():
     exp_CAs_advrec = [1.336, 1.331]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
     target_localextrema_CAs = [1.609, 1.150]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #TODO this one w/ different values is not working too well yet..
-    wettability_gradient = 1-0.7    # 0=fully covered, 0.5=50:50, 1=fully open
+    wettability_gradient = 1-0.665    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
 
@@ -1192,7 +1192,7 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
 
             # Scale to local velocities
             velocity_local = np.array(
-                [vel_l * v_adv if vel_l < 0 else vel_l * v_rec for vel_l in vel])
+                [vel_l * v_rec if vel_l < 0 else vel_l * v_adv for vel_l in vel])
 
             #
 
