@@ -626,7 +626,120 @@ def tiltedDropQualitative_fitting():
 
     return
 
+#TODO not funcional yet
+def tiltedDropFitForCAeq():
+    """
+    Model theta_app for a tilted droplet with 'known' values: input velocity_adv&rec,  thetha_adv & theta_rec, R & L.
+    Vary Ca(phi) by sinus from input velocities, and calculate CA_eq values
 
+    𝜃_𝑎^3−𝜃_𝑒𝑞^3=9𝐶𝑎 𝑙𝑛 𝑅/𝑙
+    with 𝐶𝑎=𝜇 𝑣_(𝑝ℎ𝑖)/𝜎
+    :return:
+    """
+    nr_of_datapoints = 2000
+    ##### INPUT######
+
+    #theta_eq_deg =  1.78  # Eq Contact angle along entire contact line (for tilted drops should be constant) [deg]
+    theta_adv_deg, theta_rec_deg = 1.97, 1.54   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
+    v_adv = 78E-6 / 60  # measured velocity [m/s]
+    v_rec = 150E-6 / 60 # measured velocity [m/s]
+    mu = 1.34 / 1000  # Pa*s
+    gamma = 25.55 / 1000  # N/m
+    R = 100E-6  # slip length / capillary length, 10 micron to 1.9mm               -macroscopic
+    l = 2E-9  # about 1-2 nm              -micro/nanoscopic
+    ##### END INPUT######
+
+    def calcCA_eq(theta_eq_rad_arr,velocity_local, mu, gamma, R, l):
+        Ca_local = mu * velocity_local / gamma
+        CA_eq = np.power(np.power(theta_eq_rad_arr, 3) - 9 * Ca_local * np.log(R / l), 1 / 3)
+        return CA_eq
+
+    theta_eq_rad_arr = np.array([theta_adv_deg, theta_rec_deg]) / 180 * np.pi
+    velocity_local = np.array([v_adv, v_rec])
+    CA_eq  = calcCA_eq(theta_eq_rad_arr,velocity_local, mu, gamma, R, l)
+    print(f"CA_eq = {CA_eq * 180 / np.pi} deg")
+    phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
+    #TODO run debug till here to check calculated CA_eq
+    #v_adv, v_rec = CA_app_to_inputVelocity(np.array([theta_adv_rad, theta_rec_rad]), np.array([theta_eq_rad]), gamma, mu, R, l)
+    #v_rec = -v_rec      #swap sign: input in formula below should be positive (it'll make it negative) #TODO not the nicest - change if needed
+
+    print(f"Calculated velocities adv&rec position are = {np.array([v_adv, v_rec])/(1E-6 / 60)} mu/min")
+
+    velocity_local = np.array(
+        [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
+
+    ########### plotting of data ##########
+    # fig2, ax2 = plt.subplots(1, 2, figsize=(15, 9.6 / 1.5))
+    #
+    # # Input velocity profile
+    # ax2[0].plot(phi, velocity_local * 60 / 1E-6, linewidth=7)
+    # ax2[0].set(xlabel='radial angle [rad]', ylabel=f'local velocity [$\mu$m/min]',
+    #            title='Input local velocity profile \n(adjusted for difference between adv. and rec. speed)')
+    #
+    Ca_local = mu * velocity_local / gamma
+    print(f"Ca = {max(Ca_local)}")
+    if 0 > np.power(theta_eq_rad, 3) + (9 * min(Ca_local) * np.log(R / l)):
+        logging.error(
+            f"Some calculated CA's will be NaN: min(Ca) = {min(Ca_local)} +  min(theta_eq_rad) = {theta_eq_rad} will be negative:"
+            f"{np.power(theta_eq_rad, 3) + (9 * min(Ca_local) * np.log(R / l))}, ()^1/3 = {np.power(np.power(theta_eq_rad, 3) + 9 * min(Ca_local) * np.log(R / l), 1 / 3)} ")
+    theta_app_calculated = np.power(np.power(theta_eq_rad_arr, 3) + 9 * Ca_local * np.log(R / l), 1 / 3)
+    theta_app_calculated_deg = theta_app_calculated * 180 / np.pi
+    #
+    # # Caluclated CA apparent normal plot
+    # ax2[1].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
+    # ax2[1].set(xlabel='radial angle [rad]', ylabel='CA$_{app}$ [deg]',
+    #            title='Calculated apparent contact angle profile')
+    # fig2.tight_layout()
+    #
+    # R_drop = 1  # [mm]
+    # x_coord = R_drop * np.cos(phi)
+    # y_coord = R_drop * np.sin(phi)
+    #
+    # # Seperate scatterplot
+    # fig1, ax1 = plt.subplots(figsize=(12, 9.6))
+    # im1 = ax1.scatter(x_coord, y_coord, s=45, c=theta_app_calculated_deg, cmap='jet',
+    #                   vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
+    # ax1.set_xlabel("X-coord");
+    # ax1.set_ylabel("Y-Coord");
+    # ax1.set_title(f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description", fontsize=20)
+    # fig1.colorbar(im1)
+    # fig1.tight_layout()
+    #
+    # fig2.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp1.png'), dpi=600)
+    # fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'temp2.png'), dpi=600)
+    #
+    # plt.show()
+    #
+    ##########
+    fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
+
+    ## Input CA_eq profile
+    ax1[0,0].plot(phi, theta_eq_rad_arr * 180 / np.pi, color='blue', linewidth=7)
+    ax1[0,0].set(xlabel='radial angle [rad]', ylabel='CA$_{eq}$ [deg]', title='Input CA$_{eq}$ profile')
+
+    ##  Input velocity_local profile
+    ax1[0,1].plot(phi, velocity_local / (1E-6 / 60), color='blue', linewidth=7)
+    ax1[0,1].set(xlabel='radial angle [rad]', ylabel='velocity [$\mu$m/min]', title='Input local velocity profile')
+
+    ## calculated  CA_App profile 2D
+    ax1[1,0].plot(phi, theta_app_calculated_deg, color='darkorange', linewidth=7)
+    ax1[1,0].set(xlabel='radial angle [rad]', ylabel='CA$_{app}$ [deg]', title='Calculated apparent contact angle profile')
+    #ax1[1,0].legend(loc='best')
+    fig1.tight_layout()
+
+    R_drop = 1  # [mm]
+    x_coord = R_drop * np.cos(phi)
+    y_coord = R_drop * np.sin(phi)
+    #fig1, ax1 = plt.subplots(figsize= (12, 9.6))
+    im1 = ax1[1,1].scatter(x_coord, y_coord, s = 45, c=theta_app_calculated_deg, cmap='jet', vmin=min(theta_app_calculated_deg), vmax=max(theta_app_calculated_deg))
+    ax1[1,1].set(xlabel="X-coord", ylabel="Y-Coord", title=f"Spatial Contact Angles Colormap Tilted Droplet\n Quantitative description");
+    fig1.colorbar(im1)
+    fig1.tight_layout()
+
+    fig1.savefig(os.path.join('C:\\Users\\ReuvekampSW\\Downloads', 'tiltedDrop.png'), dpi=600)
+    plt.show()
+
+    return
 
 def movingDropQualitative():
     """
@@ -1418,6 +1531,7 @@ def main():
         #tiltedDropQualitative()        #using this one to model tilted droplets
         #TODO below was uncommented - check if working or indeed still WIP
         #tiltedDropQualitative_fitting()  #TODO WIP: fit to CA_adv & _rec and presumed equilibrium
+        tiltedDropFitForCAeq()
         #movingDropQualitative()
         movingDropQualitative_fitting()     #Using this one to FIT moving droplets!
 

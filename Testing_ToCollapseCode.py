@@ -1068,7 +1068,7 @@ def convertunitsToEqual(unit):
 
 def determineLensPresets(imgFolderPath, wavelength_laser, refr_index):
     units = ['nm', 'um', 'mm', 'm', 'pixels']
-    conversionsXY = [1e6, 1e3, 1, 1e-3, 1]  # standard unit is um
+    conversionsXY = [1e6, 1e3, 1, 1e-3, 1]  # standard unit is mm, um is best for plotting
     conversionsZ = [1, 1e-3, 1e-6, 1e-9, 1]  # standard unit is nm
 
     choices = ["ZEISS_OLYMPUSX2", "ZEISS_ZEISSX5", "ZEISS_ZEISSX10", "SR_NIKON_NIKONX10_PIEZO", "EnqL_ZEISSX20"]
@@ -1089,7 +1089,7 @@ def determineLensPresets(imgFolderPath, wavelength_laser, refr_index):
 
     if unitXY == "pixels":
         preset = 1
-    conversionFactorXY = 1 / preset * conversionsXY[units.index(unitXY)]  # apply unit conversion
+    conversionFactorXY = 1 / preset * conversionsXY[units.index(unitXY)]  # apply unit conversion : value = pixel/unit
     conversionFactorZ = (wavelength_laser) / (2 * refr_index) / (2 * np.pi)  # 1 period of 2pi = lambda / (4n). /2pi since our wrapped space is in absolute units, not pi
     conversionFactorZ = conversionFactorZ * conversionsZ[units.index(unitZ)]  # apply unit conversion
 
