@@ -2873,7 +2873,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
                         resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxnegarr[k], dynegarr[k]]),
                                               colorOutwards, 2)  # draws 1 good contour around the outer halo fringe
 
-                # intensity profile between x0,y0 & inwards vector coordinate (dx,dy)
+                # intensity profile between x0,y0 & inwards vector coordinate (dx,dy) (=in most cases, the droplet profile)
                 profile, lineLengthPixels, _, coords_Profile = profileFromVectorCoords(x0arr[k], y0arr[k], dxarr[k], dyarr[k], lengthVector,
                                                                     greyresizedimg)
 
@@ -3510,7 +3510,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [41]       #36, 57
+    usedImages = [40]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -3543,8 +3543,8 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [295, 2690, 4100, 5000, 7179]
-    plotHeightCondition = lambda xlist: [4148, 5735]    #MOVING RIGHT LEFT n41
-    #plotHeightCondition = lambda xlist: []
+    #plotHeightCondition = lambda xlist: [4148, 5735]    #MOVING RIGHT LEFT n41
+    plotHeightCondition = lambda xlist: []
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
     N_for_fitting = [5, 20]  #TODO fix dit zodat het niet manually moet // order of fitting data with fourier. Higher = describes data more accurately. Useful for noisy data.
@@ -4457,16 +4457,19 @@ def main():
     #path = "D:\\2025-01-21 PLMA hexadecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop tilted cover + open - LargeDrop"
 
     #P12MA xp1.32 - moving drop:
-    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
+    #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
 
     #path = "E:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_TILTEDplate-1deg-MOVINGDROP_halfCovered"                #moving against gravity (half-cover + 1&5deg tilt)
     #path = 'G:\\2025-02-19 PLMA dodecaneXp1_32BIBB_S4-ZeissBasler15uc 5x open flat 5 deg tilt'
     #P12MA dodecane: Flat + moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M2 flat drop open + closed"
+    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
 
-
-
+    path = 'D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v2-100perc'
+    path = "D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v1-75perc"
+    #path = "D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v2-75perc"
+    
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
     #path = "E:\\2023_07_31_PODMA_Basler2x_dodecane_2_2_3_WEDGE_1coverslip spacer____MOVEMENT"

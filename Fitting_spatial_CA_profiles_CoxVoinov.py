@@ -781,12 +781,13 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.357, 1.332]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.650, 1.209]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
-    wettability_gradient = 1-0.70    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
+    exp_CAs_advrec = [1.47, 1.59]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.60, 1.41]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    wettability_gradient = 1-0.8    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
     #^ TODO lower w_g ^values (more covered) are harder to fit: played with velocity input profile. Set 'COMPLICATEDVELOCITIES_TRIAL' below to True
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
+    NEWVERSION = True       #If true, PUT IN CORRECT VELOCITIES FROM EXPERIMENT
     COMPLICATEDVELOCITIES_TRIAL = False #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate: top& bot tom of droplet have a longer region with 0-velocity in deirection of movement
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
@@ -813,10 +814,9 @@ def movingDropQualitative_fitting():
         Ca_local = mu * vels / gamma
         CA_eqs = np.power(np.power(CA_apps / 180 * np.pi, 3) - 9 * Ca_local * np.log(R / l), 1 / 3)
         return CA_eqs * 180 / np.pi
-    NEWVERSION = True
     if NEWVERSION:
-        v_adv = 73E-6 / 60  # [m/s]
-        v_rec = -144E-6 / 60  # [m/s]
+        v_adv = 80E-6 / 60  # [m/s]
+        v_rec = -83E-6 / 60  # [m/s]
         CA_eq_adv, CA_eq_rec = CAapp_and_v_To_CAeq(np.array(exp_CAs_advrec), np.array([v_adv, v_rec]), mu, gamma, R, l)
 
 
@@ -844,7 +844,7 @@ def movingDropQualitative_fitting():
             # correspond CA_eq's above, and fill in below
             bounds=((CA_eq_adv, CA_eq_adv),       #advancing  upper&lower bound
                     (CA_eq_rec, CA_eq_rec),        #receding  upper&lower bound
-                    (1, 20),        #steepness of wettability gradient  - covered part
+                    (3, 20),        #steepness of wettability gradient  - covered part
                     (0.8, 25)),       #steepness of wettability gradient  - open part
             args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient, COMPLICATEDVELOCITIES_TRIAL),
             callback=callback,
