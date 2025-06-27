@@ -2255,6 +2255,12 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     inputX = list(inputX) + [np.pi + (np.pi-abs(inputX[0]))]   #add 1 value of x to the end of array at the 'positive x position' of the first x-value, for correct trapz integration
     inputY = list(inputY) + [inputY[0]]
 
+    #Check for NO duplicates & strictly increasing x
+    for i in range(1, len(inputX)):
+        if inputX[i] <= inputX[i - 1]:
+            logging.critical(f"At least one value in given X-array is duplicate or not strictly increasing!\n"
+                             f"Sort array to only increase, and remove or make sure duplicates get a (slightly) different value")
+
     #TODO: this will not work well if given range is filtered at -pi / pi (fit will oscillate wildly near -pi/pi).
     # Solution to try: since its periodic, shift entire set such that the 'gap' is not at -pi/pi anymore, but somewhere else.
 
@@ -2279,6 +2285,11 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     f_phi = lambda x, k, f_c, f_s: sum([f_c[i] * np.cos(i*x) + f_s[i] * np.sin(i*x) for i in range(0, k+1)])
     ##########
 
+    #derivate of f_phi, to later calculate the tangent and vector normal
+    f_phi_prime = lambda x, k, f_c, f_s: sum([-i * f_c[i] * np.sin(i*x) + i * f_s[i] * np.cos(i*x) for i in range(1, k+1)])
+
+
+
     sigma_k_s = [0]     #sigma_k_s=0  at n=0
     sigma_k_c = [(1 / (2*np.pi)) * scipy.integrate.trapz(inputY, inputX)]
 
@@ -2288,35 +2299,39 @@ def manualFitting(inputX, inputY, path, Ylabel, N, SHOWPLOTS_SHORT):
     N = np.array([0] + N)
     X_range = np.linspace(-np.pi, np.pi, 1000)
 
-    fig1, ax1 = plt.subplots()
-    if len(N)>2:
-        colorscheme = 'plasma'
-        cmap = plt.get_cmap(colorscheme)
-        colorGradient = np.linspace(0, 1, len(N))
-    else:
-        colorscheme = 'hsv'
-        cmap = plt.get_cmap(colorscheme)
-        colorGradient = [0.66, 0]
+    if SHOWPLOTS_SHORT != 'none':
+        fig1, ax1 = plt.subplots()
+        if len(N)>2:
+            colorscheme = 'plasma'
+            cmap = plt.get_cmap(colorscheme)
+            colorGradient = np.linspace(0, 1, len(N))
+        else:
+            colorscheme = 'hsv'
+            cmap = plt.get_cmap(colorscheme)
+            colorGradient = [0.66, 0]
 
     func_range = lambda x_range: [f_phi(x, N[-1], sigma_k_c, sigma_k_s) for x in x_range]
     func_single = lambda x: f_phi(x, N[-1], sigma_k_c, sigma_k_s)
 
-    for i, n in enumerate(N[1:]):
-        Y_range = [f_phi(Xval, n, sigma_k_c, sigma_k_s) for Xval in X_range]
-        ax1.plot(X_range, Y_range, '-', label=f'N={n}', linewidth=3,  color=cmap(colorGradient[i+1]))
-    ax1.plot(inputX, inputY, '.', label='raw data',  color=cmap(colorGradient[0]), markersize=2)
-    #TODO clean this up (messing with plot titles etc) for figure making
-    #ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}', title=f"{Ylabel[0]} vs radial angle with fourier fitting")
-    ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}',
-            title=f"{Ylabel[0]} vs radial angle with fourier fitting\n"
-                  f"Influence of function order parameter")
-    ax1.legend(loc='best')
-    fig1.savefig(os.path.join(path, f"{Ylabel[0]} Fourier fitted.png"), dpi=300)
+    func_dfv_range = lambda x_range: [f_phi_prime(x, N[-1], sigma_k_c, sigma_k_s) for x in x_range]
 
-    showPlot(SHOWPLOTS_SHORT, [fig1])
+    if SHOWPLOTS_SHORT != 'none':
+        for i, n in enumerate(N[1:]):
+            Y_range = [f_phi(Xval, n, sigma_k_c, sigma_k_s) for Xval in X_range]
+            ax1.plot(X_range, Y_range, '-', label=f'N={n}', linewidth=3,  color=cmap(colorGradient[i+1]))
+        ax1.plot(inputX, inputY, '.', label='raw data',  color=cmap(colorGradient[0]), markersize=2)
+        #TODO clean this up (messing with plot titles etc) for figure making
+        #ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}', title=f"{Ylabel[0]} vs radial angle with fourier fitting")
+        ax1.set(xlabel='Angle Phi (rad)', ylabel=f'{Ylabel[0]} {Ylabel[1]}',
+                title=f"{Ylabel[0]} vs radial angle with fourier fitting\n"
+                      f"Influence of function order parameter")
+        ax1.legend(loc='best')
+        fig1.savefig(os.path.join(path, f"{Ylabel[0]} Fourier fitted.png"), dpi=300)
+
+        showPlot(SHOWPLOTS_SHORT, [fig1])
     #showPlot('manual', [fig1])
 
-    return func_range, func_single, N, sigma_k_s, sigma_k_c,
+    return func_range, func_single, N, sigma_k_s, sigma_k_c, func_dfv_range
 
 
 def determineMiddleCoord(xArrFinal, yArrFinal):
@@ -3510,7 +3525,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [40]       #36, 57
+    usedImages = [2]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -3536,7 +3551,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
     MANUALPICKING = 1
-    lg_surfaceTension = 27     #surface tension hexadecane liquid-gas (N/m)
+    lg_surfaceTension = 27*1E-3     #surface tension hexadecane liquid-gas (N/m)         #dodecane = 25.35*1E-3
 
     # A list of vector numbers, for which an outwardsVector (if desired) will be shown & heights can be plotted
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
@@ -4457,17 +4472,17 @@ def main():
     #path = "D:\\2025-01-21 PLMA hexadecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop tilted cover + open - LargeDrop"
 
     #P12MA xp1.32 - moving drop:
-    #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
+    path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT"   #back & forwards moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_2BiBB ZeissBasler15uc 5x M1 moving drop"
 
     #path = "E:\\2025-01-30 PLMA-dodecane-Zeiss-Basler15uc-Xp1_32_BiBB4_TILTEDplate-1deg-MOVINGDROP_halfCovered"                #moving against gravity (half-cover + 1&5deg tilt)
     #path = 'G:\\2025-02-19 PLMA dodecaneXp1_32BIBB_S4-ZeissBasler15uc 5x open flat 5 deg tilt'
     #P12MA dodecane: Flat + moving
     #path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M2 flat drop open + closed"
-    path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
+    #path = "G:\\2024_05_07_PLMA_Basler15uc_Zeiss5x_dodecane_Xp1_31_S2_WEDGE_2coverslip_spacer_V3"
 
-    path = 'D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v2-100perc'
-    path = "D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v1-75perc"
+    #path = 'D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v2-100perc'
+    #path = "D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v1-75perc"
     #path = "D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v2-75perc"
     
     #PODMA on heating stage:

@@ -781,14 +781,14 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.47, 1.59]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.60, 1.41]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
-    wettability_gradient = 1-0.8    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
+    exp_CAs_advrec = [1.357, 1.332]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.650, 1.209]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    wettability_gradient = 1-0.65    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
     #^ TODO lower w_g ^values (more covered) are harder to fit: played with velocity input profile. Set 'COMPLICATEDVELOCITIES_TRIAL' below to True
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
     NEWVERSION = True       #If true, PUT IN CORRECT VELOCITIES FROM EXPERIMENT
-    COMPLICATEDVELOCITIES_TRIAL = False #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate: top& bot tom of droplet have a longer region with 0-velocity in deirection of movement
+    COMPLICATEDVELOCITIES_TRIAL = True #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate: top& bot tom of droplet have a longer region with 0-velocity in deirection of movement
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
@@ -815,9 +815,100 @@ def movingDropQualitative_fitting():
         CA_eqs = np.power(np.power(CA_apps / 180 * np.pi, 3) - 9 * Ca_local * np.log(R / l), 1 / 3)
         return CA_eqs * 180 / np.pi
     if NEWVERSION:
-        v_adv = 80E-6 / 60  # [m/s]
-        v_rec = -83E-6 / 60  # [m/s]
+        v_adv = 73E-6 / 60  # [m/s]
+        v_rec = -144E-6 / 60  # [m/s]
         CA_eq_adv, CA_eq_rec = CAapp_and_v_To_CAeq(np.array(exp_CAs_advrec), np.array([v_adv, v_rec]), mu, gamma, R, l)
+
+    if COMPLICATEDVELOCITIES_TRIAL:
+        EXTRACOMPLICATED = False        #True = using the fourier fit of r(phi) and its derivative to calculate CL normal vectors, take x-component and implement velocities
+        middleCoord = [2450, 2285]  # x, y
+        n = 68
+        path = "D:\\2025-01-21 PLMA dodecane Xp1_32_3BiBB ZeissBasler15uc 5x M1 moving drop tilted cover - MOVING RIGHT LEFT\\Analysis CA Spatial\\ContourCoords"
+        filtered_coordinatesListFilePath = os.path.join(path,
+                                                        f"filtered_coordinatesListFilePath_{n}.txt")  # file for manually filtered contour coordinates
+        with open(filtered_coordinatesListFilePath, 'rb') as new_filename:
+            data = pickle.load(new_filename)
+        usableContour = data[0]
+        useableylist = np.array([elem[1] for elem in usableContour])
+        useablexlist = np.array([elem[0] for elem in usableContour])
+
+        if EXTRACOMPLICATED == False:
+            rx_list = useablexlist - middleCoord[0]  # x - x_mid = r from middle, x only
+            phi_list, r_list = coordsToPhi(useablexlist, useableylist, middleCoord[0], middleCoord[1])
+
+            r_min = min(rx_list)
+            r_max = max(rx_list)
+            velocity_local = []
+            # First scale radius in x to the maximum radius in that direction: so max (positive) for the advancing side, min (negative) for receding side
+            # Then, scale to the adv & rec velocities there
+            for i, phi_loc in enumerate(phi_list):
+                if abs(phi_loc) > np.pi / 2:  # For the receding side, scale to the minimum (negative) radius
+                    r_scaled = rx_list[i] / r_min
+                    velocity_local.append(r_scaled * v_rec)
+                else:  # scale to maximum (positive) radius
+                    r_scaled = rx_list[i] / r_max
+                    velocity_local.append(r_scaled * v_adv)
+
+            # fig, ax = plt.subplots()
+            # ax.plot(phi_list, np.array(velocity_local) * 60 * 1E6, 'b.', label = 'Contour data')
+            phi_sorted, velocity_local_sorted = [list(a) for a in zip(*sorted(zip(phi_list, np.array(velocity_local))))]
+            for i in range(1, len(phi_sorted)):
+                if phi_sorted[i] <= phi_sorted[i - 1]:
+                    phi_sorted[i] = phi_sorted[i - 1] + 1e-5
+
+            func_range, func_single, N, sigma_k_s, sigma_k_c = manualFitting(np.array(phi_sorted),
+                                                                             np.array(velocity_local_sorted), f"C:\\TEMP",
+                                                                             [r"Local Velocity", "[m/s]"],  # [$\mu$m/min]
+                                                                             [15], 'none')
+            COMPLICATEDVELOCITIES_TRIAL = func_range
+            # figt1, axt1 = plt.subplots()
+            # axt1.plot(phi, COMPLICATEDVELOCITIES_TRIAL(phi))
+            # plt.show()
+
+        else:   #determine normal vectors via r(phi),phi - nX, and cast on deviation from r(phi)
+            #@Vincent helped - Nx is correctly calculated now it seems
+            #Conversion into velcoty is still bit wonkey maybe?
+            phi_list, r_list = coordsToPhi(useablexlist, useableylist, middleCoord[0], middleCoord[1])
+            phi_sorted, r_sorted = [list(a) for a in zip(*sorted(zip(phi_list, np.array(r_list))))]
+            for i in range(1, len(phi_sorted)):
+                if phi_sorted[i] <= phi_sorted[i - 1]:
+                    phi_sorted[i] = phi_sorted[i - 1] + 1e-5
+            func_range, func_single, N, sigma_k_s, sigma_k_c, dfv = manualFitting(np.array(phi_sorted),
+                                                                             np.array(r_sorted), f"C:\\TEMP",
+                                                                             [r"Radius from middle", "[pixel]"],  # [$\mu$m/min]
+                                                                             [8], 'none')
+            figt1, axt1 = plt.subplots()
+            phi = np.linspace(-np.pi, np.pi, 2000)
+            axt1.plot(phi_list, r_list, '.', label = 'radius data')
+            axt1.plot(phi, func_range(phi), label='fourier fit')
+
+            x = lambda fv, phi: fv * np.cos(phi)
+            y = lambda fv, phi: fv * np.sin(phi)
+            dx_dph = lambda dfv, phi, fv: dfv * np.cos(phi) - fv*np.sin(phi)
+            dy_dph = lambda dfv, phi, fv: dfv * np.sin(phi) + fv*np.cos(phi)
+            # Compute tangent and normalize
+            T_mag = lambda dx_dph, dy_dph: np.sqrt(np.square(dx_dph) + np.square(dy_dph));
+            Tx = lambda dx_dph, T_mag: dx_dph / T_mag
+            Ty = lambda dy_dph, T_mag: dy_dph / T_mag
+            # Unit normal (rotate tangent by 90 degrees CCW)
+            Nx = Ty(dy_dph(dfv(phi), phi, func_range(phi)),
+                    T_mag(dx_dph(dfv(phi), phi, func_range(phi)), dy_dph(dfv(phi), phi, func_range(phi))));
+            Ny = -Tx(dx_dph(dfv(phi), phi, func_range(phi)),
+                    T_mag(dx_dph(dfv(phi), phi, func_range(phi)), dy_dph(dfv(phi), phi, func_range(phi))));
+
+            figt2, axt2 = plt.subplots()
+            axt2.quiver(x(func_range(phi), phi), y(func_range(phi), phi), Nx, Ny)
+
+            figt3, axt3 = plt.subplots()
+            axt3.plot(phi, Nx, '.')
+
+            velocity = lambda Nx, vadv, vrec, phi : [x * vadv if x > 0 else x * vrec for x in Nx]
+            COMPLICATEDVELOCITIES_TRIAL = lambda phi: velocity(Nx, v_adv, -v_rec, phi)
+
+            figt4, axt4 = plt.subplots()
+            axt4.plot(phi, COMPLICATEDVELOCITIES_TRIAL(phi), '.')
+            plt.show()
+
 
 
     fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
@@ -834,7 +925,7 @@ def movingDropQualitative_fitting():
 
     if OPTIMIZE:
         sol = scipy.optimize.differential_evolution(
-            optimizeInputCA,
+            optimizeInputCAv2,
             #Below: og bounds - fit for CA_eq, meaning fit for velocities as well
             # bounds=((0.5, exp_CAs_advrec[0]),       #advancing  upper&lower bound
             #         (exp_CAs_advrec[1], 3),        #receding  upper&lower bound
@@ -844,8 +935,8 @@ def movingDropQualitative_fitting():
             # correspond CA_eq's above, and fill in below
             bounds=((CA_eq_adv, CA_eq_adv),       #advancing  upper&lower bound
                     (CA_eq_rec, CA_eq_rec),        #receding  upper&lower bound
-                    (3, 20),        #steepness of wettability gradient  - covered part
-                    (0.8, 25)),       #steepness of wettability gradient  - open part
+                    (1, 20),        #steepness of wettability gradient  - covered part
+                    (0.8, 35)),       #steepness of wettability gradient  - open part
             args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient, COMPLICATEDVELOCITIES_TRIAL),
             callback=callback,
             maxiter=5000)
@@ -884,6 +975,7 @@ def movingDropQualitative_fitting():
     #TODO can be removed: for showing peaks found in CA_app only
     A = 9 * mu * np.log(R / l) / gamma
     calc_local_extrema_values(theta_eq_rad, velocity_local, A, phi, PLOTTING=True)
+    calc_local_extrema_valuesv2(theta_eq_rad, velocity_local, theta_app_calculated_deg, phi, wettability_gradient, PLOTTING=True)
 
     ## Input CA_eq profile
     ax1[0,0].plot(phi, theta_eq_rad * 180 / np.pi, color='blue', linewidth=7)
@@ -969,6 +1061,38 @@ def calc_local_extrema_values(fx, gx, A, phi, PLOTTING=False):
         ax[1,1].set(title='derivate sum')
     return (CA_app[peaks] * 180 / np.pi), phi[peaks]  # return values of the peaks
 
+def calc_local_extrema_valuesv2(theta_eq_rad, vel_rad, theta_app_calculated, phi, wettability_gradient, PLOTTING=False):
+    """
+        Calculate & return values of local extrema by simple min & max of the data, before and after cover-end.
+
+        calculates Apparent Contact Angle over entire contact line range with:
+        𝜃_𝑎= (𝜃_𝑒𝑞^3 + 9𝐶𝑎 𝑙𝑛 𝑅/𝑙)^1/3
+
+        :param fx: given CA_eq profile  [rad]
+        :param gx: given velocity profile   [m/s]
+        :param A: combination of some constants: 9*𝜇/𝜎 * 𝑙𝑛(𝑅/𝑙)
+        :param phi: radial position
+        :return: CA_extrema values [deg], corresponding radial position [rad]
+        """
+    edge_phi = (1-wettability_gradient) * np.pi  # at this phi, the closed converts to open configuration
+    localmax1 = max(theta_app_calculated[abs(phi) > edge_phi])  # find the local max near the cover edge, for the open side
+    localmin1 = min(theta_app_calculated[abs(phi) < edge_phi])
+    localmax1_loc = np.where(localmax1 == theta_app_calculated)[0]
+    localmin1_loc = np.where(localmin1 == theta_app_calculated)[0]
+    if PLOTTING:
+        fig, ax = plt.subplots(2,2)
+        ax[0,0].plot(phi, theta_eq_rad * 180 / np.pi)
+        ax[0,0].set(title='CA_eq profile')
+        ax[1,0].plot(phi, vel_rad / (1E-6 /60))
+        ax[1,0].set(title='velocity profile')
+        ax[0,1].plot(phi, theta_app_calculated )
+        ax[0,1].plot(phi[localmax1_loc], localmax1, '.', markersize=5)
+        ax[0, 1].plot(phi[localmin1_loc], localmin1, '.', markersize=5)
+        ax[0,1].set(title='CA_app profile calculated')
+        ax[1,1].set(title='derivate sum')
+
+    return [localmax1, localmin1], [phi[localmax1_loc], phi[localmin1_loc]]  # return values of the peaks
+
 def determine_local_extrema_values(theta_app_calculated, phi):
     #peaks, _ = scipy.signal.find_peaks(theta_app_calculated, width=5)  # minimal peak width  = 5 datapoints to remove artifacts from stitching curves
     #minima, _ = scipy.signal.find_peaks(-theta_app_calculated, width=5)
@@ -1044,6 +1168,77 @@ def optimizeInputCA(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu,
     else:
         difference_target_calculated = [error_to_giveback, error_to_giveback]
     return abs(difference_target_calculated[0]) + abs(difference_target_calculated[1])
+
+
+def optimizeInputCAv2(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient, COMPLICATEDVELOCITIES_TRIAL):
+    """
+    Optimizer function for determining the 'best' CA_eq_adv,rec & wettability steepness factors for MOVING DROPLETS RIGHT with
+    a given input of:
+
+    :param CAs_input: 4 values!  CA_eq_adv&rec AND wettability profile steepness factors under cover&openair.
+            ^THESE values will be fitted for in the optimizer.
+    :param exp_CAs_advrec: EXPERIMENTALLY OBSERVED CA's at the outer advancing & receding position
+            ^THESE are used to calculate the velocity of the droplet at the outer advancing & receding position
+    :param phi: radial angle range [-pi, pi]
+    :param target_localextrema_CAs:  EXPERIMENTALLY OBSERVED CA's at the local maximum and minimum, respectively. SO INPUT=from left to right in droplet.
+            ^THESE are the target valuse for the optimizer.
+    :param mu:          viscosity       [Pa*s]
+    :param gamma:       surface tension  [N/m]
+    :param R:           macroscopic cutoff length   [m]
+    :param l:           micro/nanoscopic cutoff length [m]
+    :param nr_of_datapoints: nr. of datapoints of input.
+    :param wettability_gradient: value 'size' of the respective wettability gradients under plate and in open air: 0=fully covered, 0.5=50:50, 1=fully open
+    :return: difference between calculated local min/max & experimental target min/max. Lower=better.
+    """
+    #TODO version 2: for the checking with local min&max near cover edge, just use max&min w/ edge location
+    error_to_giveback = 1e6
+    theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(CAs_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, wettability_gradient, COMPLICATEDVELOCITIES_TRIAL=COMPLICATEDVELOCITIES_TRIAL)
+    PLOTTING = False
+    #local_extrema_calculated, phi_local_extrema = calc_local_extrema_values(theta_eq_rad, velocity_local, 9 * mu * np.log(R / l) / gamma, phi, PLOTTING)  # i0=local max, i1= local min        (i2 right max, i3 local min, i4 local max)
+    if len (theta_app_calculated) > 0:
+        #local_extrema_calculated, phi_local_extrema = determine_local_extrema_values(theta_app_calculated, phi)
+
+        edge_phi = (1-wettability_gradient) * np.pi     #at this phi, the closed converts to open configuration
+        localmax1 = max(theta_app_calculated[abs(phi) > edge_phi])   #find the local max near the cover edge, for the open side
+        localmin1 = min(theta_app_calculated[abs(phi) < edge_phi])
+        difference_target_calculated = [target_localextrema_CAs[0] - localmax1*180/np.pi,
+                                        target_localextrema_CAs[1] - localmin1*180/np.pi]
+
+        if wettability_gradient != 1:
+            localmax1_loc = np.where(theta_app_calculated == localmax1)[0]
+            localmin1_loc = np.where(theta_app_calculated == localmin1)[0]
+            if (np.pi - abs(phi[localmax1_loc])) < 0.05 or abs(phi[localmin1_loc]) < 0.05:    #if the location is super close to pi or 0 (front/back), max/min are found but at wrong location
+                logging.error(f"found max or minimum too close too front/back - skipping")
+                difference_target_calculated = [error_to_giveback, error_to_giveback]
+    else:
+        difference_target_calculated = [error_to_giveback, error_to_giveback]
+
+    #     local_extrema_calculated_temp = local_extrema_calculated
+    #     phi_local_extrema_temp = phi_local_extrema
+    #     local_extrema_calculated = []
+    #     phi_local_extrema = []
+    #
+    #     if len(local_extrema_calculated_temp) > 1:      #if less than 6 local max/minima found, give large error: solution will not contain desired local max/minim
+    #         for n, CA in enumerate(local_extrema_calculated_temp):              #remove local extrema from list at 9&3 `o clock
+    #             #if abs(phi_local_extrema_temp[n]) > np.pi/5 and abs(phi_local_extrema_temp[n]) < (4*np.pi/5):
+    #             local_extrema_calculated.append(CA)
+    #             phi_local_extrema.append(phi_local_extrema_temp[n])
+    #         try:
+    #             difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0],           # difference experimentally observed local min/max vs. modelled
+    #                                             target_localextrema_CAs[1] - local_extrema_calculated[1]]
+    #         except:
+    #             print(
+    #                 f"too few extrema are found from the trial2 function: min&max CA's used are {min(theta_eq_rad) * 180 / np.pi:.2f} & {max(theta_eq_rad) * 180 / np.pi:.2f} deg\n with velocities min&max: {min(velocity_local) * 1E6 / 60:.3e}, {max(velocity_local) * 1E6 / 60:.3e} um/min.")
+    #             if len(local_extrema_calculated) == 0:
+    #                 difference_target_calculated = [error_to_giveback, error_to_giveback]
+    #             elif len(local_extrema_calculated) == 1:
+    #                 difference_target_calculated = [target_localextrema_CAs[0] - local_extrema_calculated[0], error_to_giveback]
+    #     else:
+    #         difference_target_calculated = [error_to_giveback, error_to_giveback]
+    # else:
+    #     difference_target_calculated = [error_to_giveback, error_to_giveback]
+    return abs(difference_target_calculated[0]) + abs(difference_target_calculated[1])
+
 
 def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l, nr_of_datapoints, ratio_wettablitygradient = 0.5, calculateVelocies = [], COMPLICATEDVELOCITIES_TRIAL=False):
     """
@@ -1157,26 +1352,25 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
 
     #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate.
     if COMPLICATEDVELOCITIES_TRIAL:
-        if ratio_wettablitygradient < 0.5:
+        if ratio_wettablitygradient < 1:    #0.5
             logging.critical("Large amount of droplet covered by plate: adjusting in velocity profile!")
-            switchAngle_vel = 0.5 #+ (0.5 - ratio_wettablitygradient)/2
             # velocity_local = np.array(
             #     [np.cos(phi_l) * v_adv if abs(phi_l) < (np.pi * switchAngle_vel) else np.cos(phi_l) * v_rec for phi_l in phi])
 
-            #TODO trial
+            #New trial, just build 2 cosinuses on top of each other
             # y = np.zeros_like(anglerange)
             #
             # # Left part: [0, switch]
             # left_mask = anglerange <= switchAngle_vel
             # x_left = anglerange[left_mask] / switchAngle_vel
-            # warped_left = x_left ** 1
-            # y[left_mask] = -np.cos(0.5 * np.pi * warped_left)
+            # warped_left = x_left ** 2
+            # y[left_mask] = -np.cos(np.pi * warped_left) - 1
             #
             # # Right part: [switch, 1]
             # right_mask = anglerange > switchAngle_vel
             # x_right = (anglerange[right_mask] - switchAngle_vel) / (1 - switchAngle_vel)
             # warped_right = 1 - (1 - x_right) ** 2
-            # y[right_mask] = -np.cos(0.5 * np.pi * warped_right + 0.5 * np.pi)  # shift phase to connect smoothly
+            # y[right_mask] = -np.cos(np.pi * warped_right) + 1  # shift phase to connect smoothly
             #
             # # Normalize to go from -1 to 1
             # vel_full = 2 * (y - np.min(y)) / (np.max(y) - np.min(y)) - 1
@@ -1184,30 +1378,19 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
             #
             # # Scale to local velocities
             # velocity_local = np.array(
-            #     [vel_l * v_adv if vel_l < 0 else vel_l * v_rec for vel_l in vel])
+            #     [vel_l * v_rec if vel_l < 0 else vel_l * v_adv for vel_l in vel])
 
-            #New trial, just build 2 cosinuses on top of each other
-            y = np.zeros_like(anglerange)
-
-            # Left part: [0, switch]
-            left_mask = anglerange <= switchAngle_vel
-            x_left = anglerange[left_mask] / switchAngle_vel
-            warped_left = x_left ** 2
-            y[left_mask] = -np.cos(np.pi * warped_left) - 1
-
-            # Right part: [switch, 1]
-            right_mask = anglerange > switchAngle_vel
-            x_right = (anglerange[right_mask] - switchAngle_vel) / (1 - switchAngle_vel)
-            warped_right = 1 - (1 - x_right) ** 2
-            y[right_mask] = -np.cos(np.pi * warped_right) + 1  # shift phase to connect smoothly
-
-            # Normalize to go from -1 to 1
-            vel_full = 2 * (y - np.min(y)) / (np.max(y) - np.min(y)) - 1
-            vel = np.concatenate([np.array(vel_full), np.flip(vel_full)])
-
-            # Scale to local velocities
-            velocity_local = np.array(
-                [vel_l * v_rec if vel_l < 0 else vel_l * v_adv for vel_l in vel])
+            #TODO new trail: import contourcoords & middlecoord-> calc phi vs r_x, scale to velocity
+            #The function to calculate the velocities is calculated elsewhere already, and cast into COMPLICATEDVELOCITIES_TRIAL
+            velocity_local = np.array(COMPLICATEDVELOCITIES_TRIAL(phi))
+            # ax.plot(phi, np.array(velocity_local2) * 60 * 1E6, 'y--', label = 'fourier fit', linewidth = 2)
+            #
+            # velocity_local3 = np.array(
+            #    [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * v_rec for phi_l in phi])
+            # ax.plot(phi, np.array(velocity_local3) * 60 * 1E6, 'r--', label = 'OG simple sine', linewidth = 2)
+            # ax.legend(loc='best')
+            # ax.set(xlabel = 'azimuthal angle (rad)', ylabel=r'velocity ($\mu$m/min)')
+            # plt.show()
 
             #
 
