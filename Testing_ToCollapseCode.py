@@ -1747,7 +1747,8 @@ def profileFromVectorCoords(x0arrcoord, y0arrcoord, dxarrcoord, dyarrcoord, leng
     xlist = [coord[0] for coord in coords]
     ylist = [coord[1] for coord in coords]
     HARDPASS = False        #bool for completely skipping vectors that are outside image range
-    if coords[0][0] < 0 or coords[0][1] < 0 or coords[-1][0] >= sx or coords[-1][1] >= sy:          #x1<0, y1<0, xn>=sx, yn>=sy , then some part is outside the image frame
+    # x1<0, y1<0, xn>=sx, yn>=sy , then some part is outside the image frame
+    if xlist[-1] < 0 or ylist[0] < 0 or ylist[-1] < 0 or xlist[-1] >= sx or ylist[0] >= sy or ylist[-1] >= sy:
         n_endx = len(xlist)-1
         n_endy = len(ylist)-1
         for n, coordx in enumerate(xlist):  #iterate over x coords in list to find at which index it passes outside of image range
@@ -2786,7 +2787,7 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
         k_range = np.concatenate((middle, left_part, right_part))
 
         #k_range = np.concatenate((middle, np.array([5000])))       #TODO Temp, to have the code run faster
-        #k_range = np.array([295])       #TODO Temp, to have the code run faster
+        #k_range = np.array([7900])       #TODO Temp, to have the code run faster
 
         logging.info(f"STARTING with k={k_range[0]}")
         for k in k_range:  # for every contour-coordinate value; plot the normal, determine intensity profile & calculate CA from the height profile
@@ -2872,13 +2873,25 @@ def coordsToIntensity_CAv2(FLIPDATA, analysisFolder, angleDegArr, ax_heightsComb
 
 
                 if k in plotHeightCondition or k == k_half_unfiltered: #color & show the vectors of the desired swelling profiles & always the 'middle' vector (of OG contour dataset)
-                    colorInwards = (255, 0, 0)  # draw blue vectors for desired swelling profiles
-                    colorOutwards = (255, 0, 0)
+                    colormap = 'plasma'
+                    colors = np.linspace(0, 1, len(plotHeightCondition)+1)
+                    cmap1 = plt.get_cmap(colormap)
+                    if k == k_half_unfiltered:
+                        rgba = cmap1(0)
+                    else:
+                        rgba = cmap1(colors[plotHeightCondition.index(k)])
+                    rgb = tuple(int(255 * c) for c in rgba[:3])
+                    bgr = (rgb[2], rgb[1], rgb[0])  # OpenCV uses BGR
+                    colorInwards = bgr
+                    colorOutwards = bgr
+
+                    #colorInwards = (255, 0, 0)  # draw blue vectors for desired swelling profiles
+                    #colorOutwards = (255, 0, 0)
                     resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxarr[k], dyarr[k]]), colorInwards,
-                                          2)  # draws 1 good contour around the outer halo fringe
+                                          6)  # draws 1 good contour around the outer halo fringe
                     if outwardsLengthVector != 0:  # if a swelling profile is desired, also plot it in the image
                         resizedimg = cv2.line(resizedimg, ([x0arr[k], y0arr[k]]), ([dxnegarr[k], dynegarr[k]]),
-                                              colorOutwards, 2)  # draws 1 good contour around the outer halo fringe
+                                              colorOutwards, 6)  # draws 1 good contour around the outer halo fringe
                 elif k % 25 == 0:   #Then also plot only 1/25 vectors to not overcrowd the image
                     colorInwards = (0, 255, 0)  # color the others pointing inwards green
                     colorOutwards = (0, 0, 255)  # color the others pointing outwards red
@@ -3525,7 +3538,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     everyHowManyImages = 5  # when a range of image analysis is specified, analyse each n-th image
     #usedImages = np.arange(4, 161, everyHowManyImages)  # len(imgList)
     #usedImages = list(np.arange(12, 117, everyHowManyImages))
-    usedImages = [2]       #36, 57
+    usedImages = [27]       #36, 57
 
     #usedImages = [32]       #36, 57
     thresholdSensitivityStandard = [11,5]      #typical [13, 5 or 11, 5]     e.g. [5,3] for higher CA's or closed contours. [19,11] for low CA's
@@ -3551,14 +3564,15 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
     # MANUALPICKING:Manual (0/1):  0 = always pick manually. 1 = only manual picking if 'correct' contour has not been picked & saved manually before.
     # All Automatical(2/3): 2 = let programn pick contour after 1st manual pick (TODO: not advised, doesn't work properly yet). 3 = use known contour IF available, else automatically use the second most outer contour
     MANUALPICKING = 1
-    lg_surfaceTension = 27*1E-3     #surface tension hexadecane liquid-gas (N/m)         #dodecane = 25.35*1E-3
+    lg_surfaceTension = 25.35*1E-3     #surface tension hexadecane liquid-gas (N/m)         #dodecane = 25.35*1E-3
 
     # A list of vector numbers, for which an outwardsVector (if desired) will be shown & heights can be plotted
     #plotHeightCondition = lambda xlist: [round(len(xlist) / 4), round(len(xlist) * 3 / 2)]                  #[300, 581, 4067, 4300]
     #plotHeightCondition = lambda xlist: [round(8450/5), round(8450*0.75)]        #don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [900, 4000]        #misschienV2 dataset. don't use 'round(len(xlist)/2)', as this one always used automatically
     #plotHeightCondition = lambda xlist: [295, 2690, 4100, 5000, 7179]
-    #plotHeightCondition = lambda xlist: [4148, 5735]    #MOVING RIGHT LEFT n41
+    #plotHeightCondition = lambda xlist: [2000, 2679, 3000, 3350, 3700, 4148, 5735, 6350, 7000, 7900, 8456]    #MOVING RIGHT LEFT n41
+    #plotHeightCondition = lambda xlist: [2679, 4148, 5735, 8456]
     plotHeightCondition = lambda xlist: []
 
     # Order of Fourier fitting: e.g. 8 is fine for little noise/movement. 20 for more noise (can be multiple values: all are shown in plot - highest is used for analysis)
@@ -3667,6 +3681,7 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
             else:
                 coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"coordinatesListFilePath_{n}.txt")         #file for all contour coordinates
                 filtered_coordinatesListFilePath = os.path.join(contourCoordsFolderFilePath, f"filtered_coordinatesListFilePath_{n}.txt")   #file for manually filtered contour coordinates
+
                 #If allowing importing known coords:
                 #-if filtered coordinates etc. already exist, import those
                 if (MANUALPICKING in [1, 3]) and os.path.exists(filtered_coordinatesListFilePath):
@@ -4135,9 +4150,9 @@ def primaryObtainCARoutine(path, wavelength_laser=520, outwardsLengthVector=0):
                 # phi_tangentF_savgol_cs = scipy.interpolate.CubicSpline(phi_sorted + [phi_sorted[-1] + 1e-5], phi_tangentF_savgol_sorted + [phi_tangentF_savgol_sorted[0]], bc_type='periodic')
 
                 logging.info("Fitting CA data with Fourier fits")
-                phiCA_fourierFit, phiCA_fourierFit_single, phiCA_N, _, _ = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "[deg]"], N_for_fitting, SHOWPLOTS_SHORT)
-                tangentF_fourierFit, tangentF_fourierFit_single, tangentF_N, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Horizontal Component Force ", "[mN/m]"], N_for_fitting, SHOWPLOTS_SHORT)
-                rFromMiddle_fourierFit, rFromMiddle_fourierFit_single, rFromMiddle_N, _, _ = manualFitting(phi_sorted, rFromMiddle_savgol_sorted, analysisFolder, ["Radius", "[m]"], N_for_fitting, SHOWPLOTS_SHORT)
+                phiCA_fourierFit, phiCA_fourierFit_single, phiCA_N, _, _, _  = manualFitting(phi_sorted, phiCA_savgol_sorted, analysisFolder, ["Contact angle ", "[deg]"], N_for_fitting, SHOWPLOTS_SHORT)
+                tangentF_fourierFit, tangentF_fourierFit_single, tangentF_N, _, _, _ = manualFitting(phi_sorted, phi_tangentF_savgol_sorted, analysisFolder, ["Horizontal Component Force ", "[mN/m]"], N_for_fitting, SHOWPLOTS_SHORT)
+                rFromMiddle_fourierFit, rFromMiddle_fourierFit_single, rFromMiddle_N, _, _, _ = manualFitting(phi_sorted, rFromMiddle_savgol_sorted, analysisFolder, ["Radius", "[m]"], N_for_fitting, SHOWPLOTS_SHORT)
 
 
                 logging.info("Plotting CA data w/ Fourier or savgol smoothened")
@@ -4484,7 +4499,9 @@ def main():
     #path = 'D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v2-100perc'
     #path = "D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v1-75perc"
     #path = "D:\\2025-06-12 PLMA dodecane Xp1_32_4 semicovered_v2-75perc"
-    
+
+    path = "E:\\2025-07-08_PLMA_dodecane_Basler15uc_Zeiss5x_Xp1_32_S1_10degtilt_open_v1"
+
     #PODMA on heating stage:
     #path = "E:\\2023_12_21_PODMA_hexadecane_BaslerInNikon10x_Xp2_3_S3_HaloTemp_29_5C_AndBeyond\\40C"
     #path = "E:\\2023_07_31_PODMA_Basler2x_dodecane_2_2_3_WEDGE_1coverslip spacer____MOVEMENT"

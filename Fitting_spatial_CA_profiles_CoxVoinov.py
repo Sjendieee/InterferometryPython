@@ -444,12 +444,12 @@ def tiltedDropQualitative():
     :return:
     """
     nr_of_datapoints = 2000
-    theta_eq_deg = np.ones(nr_of_datapoints) * 1.23            #deg
+    theta_eq_deg = np.ones(nr_of_datapoints) * 1.78            #deg
     v0 = 700 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction
 
     mu = 1.34 / 1000  # Pa*s
-    gamma = 25.55 / 1000  # N/m
-    R = 100E-6  # slip length, 10 micron?                     -macroscopic
+    gamma = 25.35 / 1000  # N/m
+    R = 20E-6  # slip length, 10 micron?                     -macroscopic
     l = 2E-9  # capillary length, ongeveer              -micro/nanoscopic
 
     theta_eq_rad = theta_eq_deg / 180 * np.pi
@@ -459,8 +459,8 @@ def tiltedDropQualitative():
     #assuming v(0) = -v(pi)
     #velocity_local = np.cos(phi) * v0        #v0 at advancing, -v0 at receding
     #correcting for v(0) < -v(pi)
-    v_adv = 86 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]    (right side)
-    v_rec = 40 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction      [150]    (left side)
+    v_adv = 41 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction       [70]    (right side)
+    v_rec = 120 * 1E-6 / 60  #[m/s] assume same velocity at advancing and receding, just in opposite direction      [150]    (left side)
 
     def targetExtremumCA_to_inputVelocity(CA_app: float, CA_eq: float, sigma: float, mu:float, R:float, l:float):
         """
@@ -537,8 +537,8 @@ def tiltedDropQualitative_fitting():
     theta_adv_deg, theta_rec_deg = 1.97, 1.54   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
 
     mu = 1.34 / 1000  # Pa*s
-    gamma = 25.55 / 1000  # N/m
-    R = 100E-6  # slip length / capillary length, 10 micron to 1.9mm               -macroscopic
+    gamma = 25.35 / 1000  # N/m
+    R = 20E-6  # slip length / capillary length, 10 micron to 1.9mm               -macroscopic
     l = 2E-9  # about 1-2 nm              -micro/nanoscopic
     ##### END INPUT######
 
@@ -781,14 +781,15 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.357, 1.332]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.650, 1.209]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
-    wettability_gradient = 1-0.65    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
+    exp_CAs_advrec = [1.388, 1.35]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.652, 1.265]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    wettability_gradient = 1-0.5    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
     #^ TODO lower w_g ^values (more covered) are harder to fit: played with velocity input profile. Set 'COMPLICATEDVELOCITIES_TRIAL' below to True
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
     NEWVERSION = True       #If true, PUT IN CORRECT VELOCITIES FROM EXPERIMENT
-    COMPLICATEDVELOCITIES_TRIAL = True #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate: top& bot tom of droplet have a longer region with 0-velocity in deirection of movement
+    COMPLICATEDVELOCITIES_TRIAL = False #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate: top& bot tom of droplet have a longer region with 0-velocity in deirection of movement
+    COMPLICATEDVELOCITIES_TRIALV2 = True      #import pickle file with function to describe velocity(phi)
 
     # Define 'input' theta_eq values for the Cox-Voinov equation. <- derived from experimental data, min&maxima where friction had least influnec
     # Also variation of theta_eq is not defined as a normal sinus, but with a kink (intended because of non-linear swelling gradient under/outside cover)
@@ -804,8 +805,8 @@ def movingDropQualitative_fitting():
     logging.info(f"Dumping data to the following directory:\n {path}")
 
     mu = 1.34 / 1000  # Pa*s
-    gamma = 25.55 / 1000  # N/m
-    R = 1860E-6  # slip length, 10 micron?                     -macroscopic, capillary length
+    gamma = 25.35 / 1000  # N/m             #dodecane = 25.35, hexadecane = 25.55
+    R = 20E-6  # slip length, 10 micron?                     -macroscopic, capillary length
     l = 2E-9  # molecular length, ongeveer              -micro/nanoscopic
     nr_of_datapoints = 2000 #must be a multiple of 4!!
     phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
@@ -860,6 +861,7 @@ def movingDropQualitative_fitting():
                                                                              np.array(velocity_local_sorted), f"C:\\TEMP",
                                                                              [r"Local Velocity", "[m/s]"],  # [$\mu$m/min]
                                                                              [15], 'none')
+
             COMPLICATEDVELOCITIES_TRIAL = func_range
             # figt1, axt1 = plt.subplots()
             # axt1.plot(phi, COMPLICATEDVELOCITIES_TRIAL(phi))
@@ -909,7 +911,11 @@ def movingDropQualitative_fitting():
             axt4.plot(phi, COMPLICATEDVELOCITIES_TRIAL(phi), '.')
             plt.show()
 
-
+    if COMPLICATEDVELOCITIES_TRIALV2:
+        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_20250711162719.pickle', 'rb') as new_filename:
+            data = pickle.load(new_filename)
+        COMPLICATEDVELOCITIES_TRIAL = data[0]
+        logging.info("IMPORTING VELOCITY PROFILE from external pickle file")
 
     fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
     if not nr_of_datapoints % 4 == 0:
@@ -1086,8 +1092,8 @@ def calc_local_extrema_valuesv2(theta_eq_rad, vel_rad, theta_app_calculated, phi
         ax[1,0].plot(phi, vel_rad / (1E-6 /60))
         ax[1,0].set(title='velocity profile')
         ax[0,1].plot(phi, theta_app_calculated )
-        ax[0,1].plot(phi[localmax1_loc], localmax1, '.', markersize=5)
-        ax[0, 1].plot(phi[localmin1_loc], localmin1, '.', markersize=5)
+        ax[0,1].plot(phi[localmax1_loc], theta_app_calculated[localmax1_loc], '.', markersize=5)
+        ax[0,1].plot(phi[localmin1_loc], theta_app_calculated[localmin1_loc], '.', markersize=5)
         ax[0,1].set(title='CA_app profile calculated')
         ax[1,1].set(title='derivate sum')
 
@@ -1205,8 +1211,8 @@ def optimizeInputCAv2(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, m
                                         target_localextrema_CAs[1] - localmin1*180/np.pi]
 
         if wettability_gradient != 1:
-            localmax1_loc = np.where(theta_app_calculated == localmax1)[0]
-            localmin1_loc = np.where(theta_app_calculated == localmin1)[0]
+            localmax1_loc = np.where(theta_app_calculated == localmax1)[0][0]
+            localmin1_loc = np.where(theta_app_calculated == localmin1)[0][0]
             if (np.pi - abs(phi[localmax1_loc])) < 0.05 or abs(phi[localmin1_loc]) < 0.05:    #if the location is super close to pi or 0 (front/back), max/min are found but at wrong location
                 logging.error(f"found max or minimum too close too front/back - skipping")
                 difference_target_calculated = [error_to_giveback, error_to_giveback]
@@ -1497,6 +1503,7 @@ def testingQualitativeDescription():
     plt.show()
 
 def main():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')     #configuration for printing logging messages. Can be removed safely
     try:
         #testingQualitativeDescription()
 
