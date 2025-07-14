@@ -17,6 +17,7 @@ import json
 import scipy.optimize
 import traceback
 import pickle
+import dill
 
 from Testing_ToCollapseCode import manualFitting
 
@@ -783,7 +784,7 @@ def movingDropQualitative_fitting():
 
     exp_CAs_advrec = [1.388, 1.35]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
     target_localextrema_CAs = [1.652, 1.265]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
-    wettability_gradient = 1-0.5    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
+    wettability_gradient = 1-0.54    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
     #^ TODO lower w_g ^values (more covered) are harder to fit: played with velocity input profile. Set 'COMPLICATEDVELOCITIES_TRIAL' below to True
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
@@ -912,9 +913,9 @@ def movingDropQualitative_fitting():
             plt.show()
 
     if COMPLICATEDVELOCITIES_TRIALV2:
-        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_20250711162719.pickle', 'rb') as new_filename:
-            data = pickle.load(new_filename)
-        COMPLICATEDVELOCITIES_TRIAL = data[0]
+        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_20250714144436.pkl', 'rb') as new_filename:
+            data = dill.load(new_filename)
+        COMPLICATEDVELOCITIES_TRIAL = data
         logging.info("IMPORTING VELOCITY PROFILE from external pickle file")
 
     fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
