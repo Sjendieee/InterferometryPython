@@ -10,6 +10,8 @@ Dump to pickle file for import as fit.
 
 import logging
 import traceback
+
+import dill
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -40,19 +42,35 @@ def tiltedDropQualitative_fitting():
     nr_of_datapoints = 2000
     ##### INPUT######
     CA_EQ_CONSTANT = False      #true: use averga CA_eq front&back. False: calculate CA_eq font&back, vary linearly between them
+    IMPORT_VEL_PROFILE = True
     #theta_eq_deg =  1.78 # Eq Contact angle along entire contact line (for tilted drops should be constant) [deg]
-    theta_adv_deg, theta_rec_deg = 2.28, 1.39   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
+    theta_adv_deg, theta_rec_deg = 1.97, 1.54   #measured CA_adv & CA_rec at the outer positions of the droplet [deg]
     v_adv = 85E-6 / 60
     v_rec = -140E-6 / 60
 
     mu = 1.34 / 1000  # Pa*s
     gamma = 25.35 / 1000  # N/m
     R = 20E-6  # slip length / capillary length, 10 micron to 1.9mm               -macroscopic
-    l = 300E-9  # about 1-2 nm              -micro/nanoscopic
+    l = 2E-9  # about 1-2 nm              -micro/nanoscopic
     ##### END INPUT######
     phi = np.linspace(-np.pi, np.pi, nr_of_datapoints)  # angle of CL position. 0 at 3'o clock, pi at 9'o clock. +pi/2 at 12'o clock, -pi/2 at 6'o clock.
     CA_apps = np.array([theta_adv_deg, theta_rec_deg]) / 180 * np.pi
-    vels = np.array([v_adv, v_rec])
+
+
+
+    if IMPORT_VEL_PROFILE:
+        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_20250715144135.pkl', 'rb') as new_filename:
+            data = dill.load(new_filename)
+        logging.info("IMPORTING VELOCITY PROFILE from external pickle file")
+        velocity_local = np.array(data(phi))
+        v_adv, v_rec = data(np.array([0, np.pi]))
+        vels = np.array([v_adv, v_rec])
+    else:
+        vels = np.array([v_adv, v_rec])
+        velocity_local = np.array(
+        [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * -v_rec for phi_l in phi])
+
+    print(f"Calculated velocities adv&rec position are = {np.array([v_adv, v_rec]) / (1E-6 / 60)} mu/min")
 
     CA_eqs = np.power(np.power(CA_apps, 3) - vels * 9 * mu * np.log(R / l) / gamma, 1/3)   #OG cox-voinov
     # CA_eqs = np.power(np.power(CA_apps, 3) - 9 * (vels * mu / gamma + vels * 1E15 / gamma)  * (np.log(R / l)) , 1/3)   #cox-voinov + Ca_effective
@@ -88,11 +106,6 @@ def tiltedDropQualitative_fitting():
         theta_eq_rad_arr = theta_eq * Ca_eq_diff + Ca_eq_mid
         theta_eq_deg_arr = theta_eq_rad_arr * 180 / np.pi
 
-
-    print(f"Calculated velocities adv&rec position are = {np.array([v_adv, v_rec])/(1E-6 / 60)} mu/min")
-
-    velocity_local = np.array(
-        [np.cos(phi_l) * v_adv if abs(phi_l) < np.pi / 2 else np.cos(phi_l) * -v_rec for phi_l in phi])
 
 
     ########### plotting of data ##########

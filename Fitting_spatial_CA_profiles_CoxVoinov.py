@@ -782,9 +782,10 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.388, 1.35]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.652, 1.265]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
-    wettability_gradient = 1-0.54    # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
+    exp_CAs_advrec = [1.336, 1.331]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.609, 1.15]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    #^provide 3d argument if fully covered, but still 'implementing' a manual wettability gradient
+    wettability_gradient = 1-0.72   # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %open = %closed
     #^ TODO lower w_g ^values (more covered) are harder to fit: played with velocity input profile. Set 'COMPLICATEDVELOCITIES_TRIAL' below to True
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
@@ -913,9 +914,12 @@ def movingDropQualitative_fitting():
             plt.show()
 
     if COMPLICATEDVELOCITIES_TRIALV2:
-        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_20250714144436.pkl', 'rb') as new_filename:
+        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_20250715162849.pkl', 'rb') as new_filename:
             data = dill.load(new_filename)
         COMPLICATEDVELOCITIES_TRIAL = data
+        v_adv, v_rec  = COMPLICATEDVELOCITIES_TRIAL(np.array([0, np.pi]))
+        CA_eq_adv, CA_eq_rec = CAapp_and_v_To_CAeq(np.array(exp_CAs_advrec), np.array([v_adv, v_rec]), mu, gamma, R, l)
+
         logging.info("IMPORTING VELOCITY PROFILE from external pickle file")
 
     fig1, ax1 = plt.subplots(2, 2, figsize= (12, 9.6))
@@ -1211,12 +1215,19 @@ def optimizeInputCAv2(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, m
         difference_target_calculated = [target_localextrema_CAs[0] - localmax1*180/np.pi,
                                         target_localextrema_CAs[1] - localmin1*180/np.pi]
 
-        if wettability_gradient != 1:
+        if len(target_localextrema_CAs) < 3:    #only 2 arguements = semicovered: max&min cannot be at outer edges.
             localmax1_loc = np.where(theta_app_calculated == localmax1)[0][0]
             localmin1_loc = np.where(theta_app_calculated == localmin1)[0][0]
             if (np.pi - abs(phi[localmax1_loc])) < 0.05 or abs(phi[localmin1_loc]) < 0.05:    #if the location is super close to pi or 0 (front/back), max/min are found but at wrong location
                 logging.error(f"found max or minimum too close too front/back - skipping")
                 difference_target_calculated = [error_to_giveback, error_to_giveback]
+        else:   #Fully covered: max should be at left edge, and minimum CANNOT be at right edge!
+            localmax1_loc = np.where(theta_app_calculated == localmax1)[0][0]
+            localmin1_loc = np.where(theta_app_calculated == localmin1)[0][0]
+            if (abs(phi[localmax1_loc])) < (np.pi-0.3) or abs(phi[localmin1_loc]) < 0.3:    #if the location is super close to pi or 0 (front/back), max/min are found but at wrong location
+                logging.error(f"FULL COVER: found max or minimum too close too front/back - skipping")
+                difference_target_calculated = [error_to_giveback, error_to_giveback]
+
     else:
         difference_target_calculated = [error_to_giveback, error_to_giveback]
 
@@ -1360,7 +1371,6 @@ def calculating_CA_app(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gamma, R, l
     #Big TODO: messing with shape of velocity profiles when the droplet is mostly underneath coverplate.
     if COMPLICATEDVELOCITIES_TRIAL:
         if ratio_wettablitygradient < 1:    #0.5
-            logging.critical("Large amount of droplet covered by plate: adjusting in velocity profile!")
             # velocity_local = np.array(
             #     [np.cos(phi_l) * v_adv if abs(phi_l) < (np.pi * switchAngle_vel) else np.cos(phi_l) * v_rec for phi_l in phi])
 
