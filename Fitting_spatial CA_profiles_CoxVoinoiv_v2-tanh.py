@@ -782,10 +782,10 @@ def movingDropQualitative_fitting():
     :return:
     """
 
-    exp_CAs_advrec = [1.388, 1.35]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
-    target_localextrema_CAs = [1.652, 1.265]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
+    exp_CAs_advrec = [1.336, 1.331]       #Hard set: Experimentally observed CA's at the advancing & receding outer points of the droplet [deg]
+    target_localextrema_CAs = [1.609, 1.515]  #Hard set: Experimental CA's at local max/minimum (from left->right on droplet)     [deg]
     #^provide 3d argument if fully covered, but still 'implementing' a manual wettability gradient
-    wettability_gradient = 1-0.54   # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %closed = %open
+    wettability_gradient = 1-0.72   # 0=fully covered, 0.5=50:50, 1=fully open.  So 1 - %closed = %open
     #^ TODO lower w_g ^values (more covered) are harder to fit: played with velocity input profile. Set 'COMPLICATEDVELOCITIES_TRIAL' below to True
     velocityProfile_factors = [1,1]
     OPTIMIZE = True         #True: use optimizer to find best CA_eq_adv,rec & wettability steepnesses. False: manual input (for quick data checking)
@@ -914,7 +914,7 @@ def movingDropQualitative_fitting():
             plt.show()
 
     if COMPLICATEDVELOCITIES_TRIALV2:
-        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_n52.pkl', 'rb') as new_filename:
+        with open('C:\\Users\\ReuvekampSW\\Downloads\\velocityProfile_n82.pkl', 'rb') as new_filename:
             data = dill.load(new_filename)
         COMPLICATEDVELOCITIES_TRIAL = data
         v_adv, v_rec  = COMPLICATEDVELOCITIES_TRIAL(np.array([0, np.pi]))
@@ -946,8 +946,9 @@ def movingDropQualitative_fitting():
             # correspond CA_eq's above, and fill in below
             bounds=((CA_eq_adv, CA_eq_adv),       #advancing  upper&lower bound
                     (CA_eq_rec, CA_eq_rec),        #receding  upper&lower bound
-                    (1, 20),        #steepness of wettability gradient  - covered part
-                    (0.8, 35)),       #steepness of wettability gradient  - open part
+                    (1, 50),        #steepness of wettability gradient  - covered part
+                    (0.8, 100),       #steepness of wettability gradient  - open part
+                    (0,40)),       #relative shift in transition middle value height
             args = (exp_CAs_advrec, phi, target_localextrema_CAs, mu, gamma, R, l, nr_of_datapoints, wettability_gradient, COMPLICATEDVELOCITIES_TRIAL),
             callback=callback,
             maxiter=5000)
@@ -969,7 +970,7 @@ def movingDropQualitative_fitting():
         calculated_steepnesses = [1.61173181, 9.99112567]
         calculated_velocities = np.array([1.86633491e-02, -2.99910931e+02]) * (1E-6 / 60)
         calc_vel = CA_app_to_inputVelocity(np.array(exp_CAs_advrec) / 180 * np.pi, np.array(calculated_CA_eq_adv_rec) / 180 * np.pi, gamma, mu, R, l)
-        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app(calculated_CA_eq_adv_rec + calculated_steepnesses,
+        theta_app_calculated, velocity_local, theta_eq_rad = calculating_CA_app_v2_htan(calculated_CA_eq_adv_rec + calculated_steepnesses,
                                                                                 exp_CAs_advrec, phi, mu, gamma, R, l,
                                                                                 nr_of_datapoints, wettability_gradient,
                                                                                 calculated_velocities, COMPLICATEDVELOCITIES_TRIAL=COMPLICATEDVELOCITIES_TRIAL)
@@ -1186,7 +1187,7 @@ def optimizeInputCAv2(CAs_input, exp_CAs_advrec, phi, target_localextrema_CAs, m
     Optimizer function for determining the 'best' CA_eq_adv,rec & wettability steepness factors for MOVING DROPLETS RIGHT with
     a given input of:
 
-    :param CAs_input: 4 values!  CA_eq_adv&rec AND wettability profile steepness factors under cover&openair.
+    :param CAs_input: 5 values!  CA_eq_adv&rec AND wettability profile steepness factors under cover&openair.
             ^THESE values will be fitted for in the optimizer.
     :param exp_CAs_advrec: EXPERIMENTALLY OBSERVED CA's at the outer advancing & receding position
             ^THESE are used to calculate the velocity of the droplet at the outer advancing & receding position
@@ -1442,7 +1443,7 @@ def calculating_CA_app_v2_htan(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gam
 
     With these two profile in place, the resulting CA_app(phi) profile is calculated along the CL.
 
-    :param CAs_eq_advrec_input: 4 values!  CA_eq_adv&rec AND wettability profile steepness factors under cover&openair.
+    :param CAs_eq_advrec_input: 5 values!  CA_eq_adv&rec AND wettability profile steepness factors under cover&openair.
             ^THESE values will be fitted for in the optimizer.
     :param exp_CAs_advrec: EXPERIMENTALLY OBSERVED CA's at the outer advancing & receding position
             ^THESE are used to calculate the velocity of the droplet at the outer advancing & receding position
@@ -1459,7 +1460,7 @@ def calculating_CA_app_v2_htan(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gam
     """
 
     # fitting inputs: first 2 are adv&rec eq. contact angle. second 2 are for steepness of wettability gradient.
-    CA_eq_adv, CA_eq_rec, steepnessWettability_cover, steepnessWettability_open = CAs_eq_advrec_input
+    CA_eq_adv, CA_eq_rec, steepnessWettability_cover, steepnessWettability_open, val_shift = CAs_eq_advrec_input
     ratio_wettablitygradient = 1 - ratio_wettablitygradient
 
     exp_CA_adv, exp_CA_rec = exp_CAs_advrec
@@ -1497,14 +1498,15 @@ def calculating_CA_app_v2_htan(CAs_eq_advrec_input, exp_CAs_advrec, phi, mu, gam
 
     # Left part: [0, switch]
     left_mask = anglerange <= ratio_wettablitygradient
-    y[left_mask] = np.tanh(anglerange1 * steepnessWettability_cover)
+    y[left_mask] = val_shift * np.tanh(anglerange1 * steepnessWettability_cover)
 
     # Right part: [switch, 1]
     right_mask = anglerange > ratio_wettablitygradient
     y[right_mask] = np.tanh(anglerange2 * steepnessWettability_open)
 
     # Normalize to go from -1 to 1
-    theta_eq_full = y
+    theta_eq_full = 2 * (y - np.min(y)) / (np.max(y) - np.min(y)) - 1
+    #theta_eq_full = y
     theta_eq = np.concatenate([np.flip(theta_eq_full), np.array(theta_eq_full)])
 
     # Scale to degrees
